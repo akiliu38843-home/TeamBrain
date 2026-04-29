@@ -73,6 +73,7 @@ import {
   executeReviewCandidates,
   parseReviewCandidatesArgs,
 } from "./commands/review-candidates.js";
+import { executePrCycle, parsePrCycleArgs } from "./commands/pr-cycle.js";
 import {
   executePairAccept,
   executePairCapsule,
@@ -291,6 +292,13 @@ async function main(): Promise<void> {
       if (!result.ok) process.exit(1);
       return;
     }
+    case "install-codex": {
+      const opts = parseInitArgs(rest);
+      const result = await executeInit({ ...opts, target: "codex" });
+      process.stdout.write(renderInitResult(result));
+      if (!result.ok) process.exit(1);
+      return;
+    }
     case "disable": {
       const r = disable();
       if (r.removed) {
@@ -477,6 +485,24 @@ async function main(): Promise<void> {
       if (output) process.stdout.write(output);
       return;
     }
+    case "pr-cycle": {
+      let opts;
+      try {
+        opts = parsePrCycleArgs(rest);
+      } catch (err) {
+        process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
+        process.exit(1);
+        return;
+      }
+      const result = await executePrCycle(opts);
+      if (result.blocked) {
+        process.stderr.write(result.output);
+        process.exit(2);
+        return;
+      }
+      process.stdout.write(result.output);
+      return;
+    }
     case "doctor": {
       const opts = parseDoctorArgs(rest);
       const result = await executeDoctor({ ...opts, cwd: process.cwd() });
@@ -606,9 +632,12 @@ async function main(): Promise<void> {
           "                                   --commit: 通过 LLM 提取成知识条目并写入知识库 + 重编译 CLAUDE.md",
           "  teamagent review [N] [--scope=personal|team|global]",
           "                                   列出最近 N 条知识（默认 10），供人工复核",
-          "  teamagent init [--dry-run] [--skip-import] [--skip-hook] [--install-plugins]",
-          "                                   一键安装到当前项目：建目录 + 注入元原则 + 导入已有规则 + 注册 Hook + 编译 CLAUDE.md",
+          "  teamagent init [--dry-run] [--skip-import] [--skip-hook] [--install-plugins] [--target=claude|codex|both]",
+          "                                   一键安装到当前项目：建目录 + 注入元原则 + 导入已有规则 + 注册 Hook + 编译规则文件",
+          "                                   默认 target=claude；codex 会创建 AGENTS.md/.codex/skills 软链接且不注册 Claude hook",
           "                                   --install-plugins: 同时注册团队标配插件（opt-in，改写用户全局 settings）",
+          "  teamagent install-codex [--dry-run] [--skip-import]",
+          "                                   Codex 快捷安装：编译 CLAUDE.md，并创建 AGENTS.md -> CLAUDE.md",
           "  teamagent doctor [--fix] [--json]",
           "                                   诊断安装环境（Node版本/Claude Code/sqlite-vec/Hook/CLAUDE.md）",
           "                                   --fix: 自动修复能自动修的问题",
@@ -642,8 +671,8 @@ async function main(): Promise<void> {
           "                                   启动实时 HTML dashboard：生成 docs/dashboard.html，周期刷新真实规则/事件数据并本地服务",
           "  teamagent dashboard --once",
           "                                   只生成一次 docs/dashboard.html，不启动服务器",
-          "  teamagent compile [--dry-run] [--skills-only] [--markdown-only] [--force]",
-          "                                   编译双出口：CLAUDE.md (canonical+, 3000 token 预算) + Agent Skills (stable+)",
+          "  teamagent compile [--dry-run] [--skills-only] [--markdown-only] [--force] [--target=claude|codex|both]",
+          "                                   编译出口：CLAUDE.md (canonical+, 3000 token 预算) + Claude Agent Skills (stable+)；Codex 通过软链接读取",
           "                                   --dry-run: 预览将写/删哪些文件，不实际写入",
           "                                   --skills-only / --markdown-only: 只写其中一路出口",
           "  teamagent config stop-mode <sync|async>  切换 Stop hook 运行模式（默认 sync）",
@@ -652,6 +681,8 @@ async function main(): Promise<void> {
           "                                   自动采集错误信号 → 提取候选规则 → 写入候选队列",
           "  teamagent review-candidates [--limit=N]",
           "                                   交互式审核候选规则：[a]批准 [r]拒绝 [s]跳过 [q]退出",
+          "  teamagent pr-cycle [--pr=N] [--wait-ms=300000] [--dry-run]",
+          "                                   创建/定位 PR，等待后检查 review；有反馈时要求先更新文档/规则并用 claudefast/codexfastg 验证答案",
           "  teamagent migrate-v6 [--dry-run] [--limit=N] [--db=<path>]",
           "                                   迁移旧规则（trigger_description 为空）通过 LLM 生成双描述，并写入 vec0 和 FTS5",
           "  teamagent migrate-v7 [--dry-run] [--limit=N] [--db=<path>]",

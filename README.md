@@ -1,7 +1,7 @@
 # TeamAgent
 
 > **给 Claude Code 装一个会学习的大脑** · 自进化 AI 规则引擎
-> *Self-evolving rule engine for Claude Code — learn from every mistake, never repeat it.*
+> *Self-evolving rule engine for Claude Code and Codex — learn from every mistake, never repeat it.*
 
 [![npm](https://badge.fury.io/js/teamagent.svg)](https://www.npmjs.com/package/teamagent) ![Node ≥22](https://img.shields.io/badge/node-%3E%3D22-green) ![tests 1230 passing](https://img.shields.io/badge/tests-1230%20passing-brightgreen) ![open bugs](https://img.shields.io/badge/open%20bugs-0-brightgreen) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
@@ -28,6 +28,8 @@ TeamAgent 解决这件事：从你纠正它的每一次对话里，自动**提�
 npm install -g github:libz-renlab-ai/TeamBrain#release   # 1. 装（直接从 GitHub 拉）
 cd your-project                                          # 2. 进项目
 teamagent init                                           # 3. 初始化（注册 hook + 预热向量模型）
+# 如果同一个项目也要给 Codex 读取规则：
+teamagent init --target=both
 # → 重启 Claude Code，工作如常
 # → 系统每小时自动检查 GitHub 上有没有新版本，有就静默更新
 # → 它每次被你纠正，都会自动入库
@@ -274,6 +276,8 @@ teamagent demo hook Bash command='...'  # 离线模拟 PreToolUse 看会拦谁
 teamagent uninstall --delete-data    # 清规则库 + 移除 hook
 npm uninstall -g teamagent
 ```
+
+**Codex 没读到规则？** 用 `teamagent init --target=codex` 或 `teamagent compile --target=codex` 重新生成 `AGENTS.md -> CLAUDE.md`，并把 `.codex/skills` 指向 TeamAgent 实际编译出的 skill 目录。开启新的 Codex 会话后生效；Codex 不注册 Claude Code hooks，也不提供实时拦截。
 
 **自动更新太频繁？** `teamagent update --disable` 完全关掉。或编辑 `~/.teamagent/update-state.json` 把 `interval_hours` 改大（6 / 24）。
 

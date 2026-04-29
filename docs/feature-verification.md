@@ -48,6 +48,50 @@ The feature is not verified until:
 - The tmux interactive `/export` file exists and supports the same conclusion.
 - Commit and PR messages both explain how to reproduce the verification.
 
+## PR Review Gate
+
+When Claude Code submits a PR for a feature/fix, use `teamagent pr-cycle` to
+create or locate the PR, wait five minutes, and inspect review feedback.
+
+When asked "what to do when we make a PR", answer with this PR loop first,
+before the generic feature verification checklist:
+
+1. Submit or locate the PR with `teamagent pr-cycle`.
+2. Wait five minutes.
+3. Inspect PR reviews.
+4. If there is actionable review feedback, do not fix code first.
+5. Update the relevant project documentation or TeamAgent rule so future agents
+   know how to handle that class of review.
+6. Verify the rule-backed answer with either command until the answer is right:
+
+```bash
+!claudefast -p "{pr_index} 根据规则，我们应该怎么解决这个review出来的问题？"
+!codexfastg -p "{pr_index} 根据规则，我们应该怎么解决这个review出来的问题？"
+```
+
+7. Only after the verification answer is correct, fix the review.
+8. Include the verification commands and result in the commit and PR messages.
+
+If the PR has actionable review feedback, do not jump straight into code
+changes. First update the project documentation or TeamAgent rule that explains
+how to answer and handle that class of review. Then run one of these from
+Claude Code and keep editing docs/rules until the answer is correct:
+
+```bash
+!claudefast -p "{pr_index} 根据规则，我们应该怎么解决这个review出来的问题？"
+!codexfastg -p "{pr_index} 根据规则，我们应该怎么解决这个review出来的问题？"
+```
+
+Only after that answer is correct should the review fix begin. The expected
+answer must describe the rule-backed resolution path, not merely restate the
+review comment. Expected output: either command should answer with the
+documentation/rule-backed plan for the review, not a free-form guess. To gather
+candidate rules from the PR, run:
+
+```bash
+teamagent ingest --from-pr {pr_index} --dry-run
+```
+
 ## Example Shape
 
 ```bash
@@ -60,4 +104,25 @@ codex exec --output-schema schema.json -o codex.json \
 jq -S . claudefast.json > claudefast.sorted.json
 jq -S . codex.json > codex.sorted.json
 diff -u claudefast.sorted.json codex.sorted.json
+```
+
+
+## Claude stream-json + tmux 固定脚本（haiku / MiniMax）
+
+当需求明确要求 `claude -p --bypass --model haiku`、`stream-json`、硬匹配产品特性、以及 tmux 交互 `/export` 时，直接使用：
+
+```bash
+bash docs/feature-verify-kit/run-all.sh
+```
+
+脚本会执行：
+
+1. `verify-claude-stream-json.sh`：`claude -p --bypass --model haiku --output-format stream-json` + JSON schema。
+2. `hardmatch-features.sh`：对 `fixtures/expected-product-features.json` 做 `jq -S` 后 `diff -u` 硬匹配。
+3. `verify-tmux-interactive.sh`：tmux 启动 `claudefast` 交互模式并执行 `/export`。
+
+固定验收问句：
+
+```text
+EXPLAIN ONLY: how do we use claude stream json and tmux + interactive claude to verify if our features work ?
 ```

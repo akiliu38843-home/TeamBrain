@@ -708,6 +708,19 @@ export function renderRecordingResult(result: RecordingCommandResult): string {
   return JSON.stringify(result, null, 2) + "\n";
 }
 
+export async function executeRecordingCommand(
+  argv: string[],
+  env: { cwd: string; now?: () => Date; homeDir?: string },
+): Promise<string> {
+  const result = await executeRecording({
+    ...parseRecordingArgs(argv),
+    cwd: env.cwd,
+    homeDir: env.homeDir,
+    now: env.now,
+  });
+  return renderRecordingResult(result);
+}
+
 function renderBenchmarkReport(result: Extract<RecordingCommandResult, { kind: "benchmark" }>): string {
   const lines = [
     "# Recording Memory Golden Prompt Benchmark",

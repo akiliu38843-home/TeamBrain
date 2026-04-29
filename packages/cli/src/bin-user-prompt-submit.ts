@@ -158,21 +158,24 @@ async function main(): Promise<void> {
     if (sessionId && prompt) {
       const sessionsDir = path.join(os.homedir(), ".teamagent", "sessions");
       const seenIds = readSessionInjected(sessionsDir, sessionId);
-      const recordingResult = await retrieveRecordingMemoriesForPrompt({
-        cwd,
-        userMessage: prompt,
-        sessionSeenIds: seenIds,
-        limit: 3,
-      });
-      if (recordingResult.injectionText) {
+      const recordingResult = await Promise.race([
+        retrieveRecordingMemoriesForPrompt({
+          userMessage: prompt,
+          cwd,
+          homeDir: os.homedir(),
+          sessionSeenIds: seenIds,
+        }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), HOOK_TIMEOUT_MS)),
+      ]);
+      if (recordingResult?.injectionText) {
         blocks.push(recordingResult.injectionText);
       }
-      if (recordingResult.injectedIds.length > 0) {
+      if (recordingResult && recordingResult.injectedIds.length > 0) {
         appendSessionInjected(sessionsDir, sessionId, recordingResult.injectedIds);
       }
     }
   } catch {
-    // recording memory is best-effort — never block user input
+    // recording memory retrieval is best-effort — never block user input
   }
 
   if (blocks.length > 0) {
