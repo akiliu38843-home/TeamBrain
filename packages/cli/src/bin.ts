@@ -45,6 +45,12 @@ import {
   executeDogfoodReport,
   parseDogfoodReportArgs,
 } from "./commands/dogfood-report.js";
+import {
+  DashboardArgsError,
+  launchDashboard,
+  parseDashboardArgs,
+  renderDashboardLaunch,
+} from "./commands/dashboard.js";
 import { executeIngest, parseIngestArgs } from "./commands/ingest.js";
 import {
   executeCompile,
@@ -359,6 +365,23 @@ async function main(): Promise<void> {
       );
       return;
     }
+    case "dashboard": {
+      try {
+        const opts = parseDashboardArgs(rest);
+        const result = await launchDashboard(opts);
+        process.stdout.write(renderDashboardLaunch(result));
+      } catch (err) {
+        if (err instanceof DashboardArgsError) {
+          process.stderr.write(
+            `${err.message}\n` +
+              "Usage: teamagent dashboard [--watch|--once] [--host=127.0.0.1] [--port=8787] [--interval=2s] [--open]\n",
+          );
+          process.exit(2);
+        }
+        throw err;
+      }
+      return;
+    }
     case "compile": {
       const opts = parseCompileArgs(rest);
       const result = await executeCompile(opts);
@@ -597,6 +620,10 @@ async function main(): Promise<void> {
           "                                   真实 SQLite + analyze + compile + PreToolUse 测评学习、触发、误触发和新成员可见性",
           "  teamagent dogfood-report [--output=path]",
           "                                   扫 events.jsonl + knowledge.jsonl + git log，自动生成自举报告",
+          "  teamagent dashboard --watch [--open] [--port=8787] [--interval=2s]",
+          "                                   启动实时 HTML dashboard：生成 docs/dashboard.html，周期刷新真实规则/事件数据并本地服务",
+          "  teamagent dashboard --once",
+          "                                   只生成一次 docs/dashboard.html，不启动服务器",
           "  teamagent compile [--dry-run] [--skills-only] [--markdown-only] [--force]",
           "                                   编译双出口：CLAUDE.md (canonical+, 3000 token 预算) + Agent Skills (stable+)",
           "                                   --dry-run: 预览将写/删哪些文件，不实际写入",
