@@ -96,7 +96,7 @@ echo "HAS_ROUTING: $_HAS_ROUTING"
 echo "ROUTING_DECLINED: $_ROUTING_DECLINED"
 _VENDORED="no"
 if [ -d ".claude/skills/gstack" ] && [ ! -L ".claude/skills/gstack" ]; then
-  if [ -f ".claude/skills/gstack/VERSION" ] || [ -d ".claude/skills/gstack/.git" ]; then
+  if [ -f ".claude/skills/gstack/VERSION" ] || [ -d ".claude/skills/gstack/.git" ] || [ -x ".claude/skills/gstack/bin/gstack-team-init" ]; then
     _VENDORED="yes"
   fi
 fi
@@ -259,7 +259,7 @@ If A:
 2. Run `git rm -r .claude/skills/gstack/`
 3. Run `echo '.claude/skills/gstack/' >> .gitignore`
 4. Run `git add .claude/ .gitignore CLAUDE.md && git commit -m "chore: migrate gstack from vendored to team mode"`
-5. Tell the user: "Done. Each developer now runs: `cd .claude/skills/gstack && ./setup --team`"
+5. Tell the user: "Done. Each developer now runs: `cd ~/.claude/skills/gstack && ./setup --team`"
 
 If B: say "OK, you're on your own to keep the vendored copy up to date."
 

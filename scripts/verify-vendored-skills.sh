@@ -30,11 +30,31 @@ mkdir -p "$EVIDENCE_ROOT"
 SKILLS=("${@:-design-shotgun design-html}")
 [[ "${1:-}" == "" ]] && SKILLS=(design-shotgun design-html)
 
+run_with_timeout() {
+  local seconds="$1"
+  shift
+
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$seconds" "$@"
+    return $?
+  fi
+
+  if command -v gtimeout >/dev/null 2>&1; then
+    gtimeout "$seconds" "$@"
+    return $?
+  fi
+
+  echo "FAIL: GNU timeout is required; on macOS install coreutils for gtimeout." >&2
+  return 127
+}
+
 build_prompt() {
   local skill="$1"
   cat <<EOF
 Read the file .claude/skills/${skill}/SKILL.md from the current working directory.
 Parse only its YAML frontmatter (the block between the first two --- lines).
+For trigger_count, count only items under the YAML key named "triggers"; ignore
+quoted phrases in the description field.
 Emit ONLY this JSON, no commentary, no markdown fences:
 {
   "name": <frontmatter "name" string>,
@@ -55,7 +75,7 @@ phase1_claudefast() {
   local result="$out_dir/01-claudefast-result.json"
 
   echo "  [1/3] claudefast -p --bare --output-format json ..."
-  echo "$prompt" | timeout 180 claudefast -p --bare \
+  echo "$prompt" | run_with_timeout 180 claudefast -p --bare \
     --output-format json \
     --json-schema "$(cat "$SCHEMA_FILE")" \
     --add-dir "$ROOT" \
@@ -80,7 +100,7 @@ phase2_codex() {
   local result="$out_dir/02-codex-result.json"
 
   echo "  [2/3] codex exec --output-schema --output-last-message ..."
-  timeout 240 codex exec \
+  run_with_timeout 240 codex exec \
     --skip-git-repo-check \
     --sandbox read-only \
     -C "$ROOT" \

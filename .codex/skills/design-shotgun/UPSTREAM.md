@@ -20,12 +20,14 @@ This skill is vendored verbatim from [garrytan/gstack](https://github.com/garryt
 
 ## Divergences from upstream (vs. SHA `675717e`)
 
-One local patch applied to `SKILL.md` after the Codex bot review of PR #14:
+Local patches applied to `SKILL.md` after the Codex bot review of PR #14:
 
 | # | Line | Upstream | Patched | Reason |
 |---|---|---|---|---|
 | 1 | many gstack binary calls, including 330-331 | `~/.claude/skills/gstack/bin/...` | `.claude/skills/gstack/bin/...` | Tilde expansion is brittle in quoted strings and does not happen after variable expansion. Project-relative paths resolve against the repo copy and keep the vendored skill self-contained. |
 | 2 | 253-255 | delete `.claude/skills/gstack/` before running `gstack-team-init` | run `gstack-team-init` before deleting the vendored directory | Project-relative runtime paths disappear after `git rm -r .claude/skills/gstack/`; team migration must initialize before removing the binary. |
+| 3 | 94 | `VERSION` or `.git` sentinel only | also accept executable `.claude/skills/gstack/bin/gstack-team-init` | This repo vendors gstack with `bin/`, `LICENSE.upstream`, and `UPSTREAM.md`, but no `VERSION` or `.git`; the runtime warning must detect the actual committed vendored copy. |
+| 4 | 257 | `cd .claude/skills/gstack && ./setup --team` | `cd ~/.claude/skills/gstack && ./setup --team` | After migration, `.claude/skills/gstack/` is removed from the repo; team-mode setup must point developers at their global gstack installation. |
 
 This patch is tracked here so the next upstream sync can re-apply it (or detect that upstream has fixed it and we should drop the local divergence).
 

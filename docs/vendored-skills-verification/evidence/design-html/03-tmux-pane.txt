@@ -33,7 +33,7 @@
   reasoning_loop: false
   known_limitation: false
 
-✻ Brewed for 21s
+✻ Brewed for 20s
 
 ❯ /export /Users/m1/projects/TeamBrain/.claude/worktrees/design-skills/docs/vendored-skills-verification/evidence/design-html/03-tmux-export.md
   ⎿  Conversation exported to: /Users/m1/projects/TeamBrain/.claude/worktrees/design-skills/docs/vendored-skills-verification/evidence/design-html/03-tmux-export.md

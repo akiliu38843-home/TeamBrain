@@ -21,13 +21,15 @@ This skill is vendored verbatim from [garrytan/gstack](https://github.com/garryt
 
 ## Divergences from upstream (vs. SHA `675717e`)
 
-Two local patches applied to `SKILL.md` after the Codex bot review of PR #14:
+Local patches applied to `SKILL.md` after the Codex bot review of PR #14:
 
 | # | Line | Upstream | Patched | Reason |
 |---|---|---|---|---|
 | 1 | many gstack binary calls, including 335-336 | `~/.claude/skills/gstack/bin/...` | `.claude/skills/gstack/bin/...` | Tilde expansion is brittle in quoted strings and does not happen after variable expansion. Project-relative paths resolve against the repo copy and keep the vendored skill self-contained. |
 | 2 | 1023-1024 | `.claude/skills/gstack/design-html/vendor/pretext.js` (extra `gstack/` segment) and a user-home fallback | `.claude/skills/design-html/vendor/pretext.js` (matches our project vendored layout) | Upstream layout puts design-html under `gstack/design-html/`; we vendor it directly at `.claude/skills/design-html/`. The fallback is also project-relative so the repo copy stays self-contained. Without this fix the offline-asset probe always missed and the skill always took the CDN fallback. |
 | 3 | 258-260 | delete `.claude/skills/gstack/` before running `gstack-team-init` | run `gstack-team-init` before deleting the vendored directory | Project-relative runtime paths disappear after `git rm -r .claude/skills/gstack/`; team migration must initialize before removing the binary. |
+| 4 | 99 | `VERSION` or `.git` sentinel only | also accept executable `.claude/skills/gstack/bin/gstack-team-init` | This repo vendors gstack with `bin/`, `LICENSE.upstream`, and `UPSTREAM.md`, but no `VERSION` or `.git`; the runtime warning must detect the actual committed vendored copy. |
+| 5 | 262 | `cd .claude/skills/gstack && ./setup --team` | `cd ~/.claude/skills/gstack && ./setup --team` | After migration, `.claude/skills/gstack/` is removed from the repo; team-mode setup must point developers at their global gstack installation. |
 
 These patches are tracked here so the next upstream sync can re-apply them (or detect that upstream has fixed them and we should drop the local divergence).
 
