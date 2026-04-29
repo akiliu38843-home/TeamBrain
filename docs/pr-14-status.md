@@ -23,7 +23,7 @@ Current facts:
 - Worktree status after push: clean and synced with `origin/worktree-design-skills`.
 - GitHub mergeability observed after fixes: mergeable.
 - GitHub CI observed after fixes: `test (ubuntu-latest, 22)` pass; `test (windows-latest, 22)` pass.
-- GitHub review fixes included: portable `timeout`/`gtimeout` handling, vendored gstack detection via `bin/gstack-team-init`, and team-mode setup instructions pointing to `~/.claude/skills/gstack`.
+- GitHub review fixes included: portable `timeout`/`gtimeout` handling, vendored gstack detection via `bin/gstack-team-init`, team-mode setup instructions pointing to `~/.claude/skills/gstack`, expandable `$CLAUDE_PROJECT_DIR` hook commands, and `.claude`/`.codex` mirror hard-match verification.
 - GitHub review threads observed after fixes: all known Codex feedback has a local fix in the current branch.
 
 Verification already run:

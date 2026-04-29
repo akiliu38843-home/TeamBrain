@@ -32,7 +32,7 @@ GENERATED=()
 # ── Migrate vendored copy if present ──────────────────────────
 
 if [ -d "$REPO_ROOT/.claude/skills/gstack" ] && [ ! -L "$REPO_ROOT/.claude/skills/gstack" ]; then
-  if [ -f "$REPO_ROOT/.claude/skills/gstack/VERSION" ] || [ -d "$REPO_ROOT/.claude/skills/gstack/.git" ]; then
+  if [ -f "$REPO_ROOT/.claude/skills/gstack/VERSION" ] || [ -d "$REPO_ROOT/.claude/skills/gstack/.git" ] || [ -x "$REPO_ROOT/.claude/skills/gstack/bin/gstack-team-init" ]; then
     echo "  Found vendored gstack copy at $REPO_ROOT/.claude/skills/gstack"
     echo "  Team mode uses the global install — removing vendored copy..."
     ( cd "$REPO_ROOT" && git rm -r --cached .claude/skills/gstack/ 2>/dev/null ) || true
@@ -160,7 +160,7 @@ HOOK_EOF
           matcher: 'Skill',
           hooks: [{
             type: 'command',
-            command: '\"\$CLAUDE_PROJECT_DIR/.claude/hooks/check-gstack.sh\"'
+            command: '\"' + String.fromCharCode(36) + 'CLAUDE_PROJECT_DIR/.claude/hooks/check-gstack.sh\"'
           }]
         });
       }

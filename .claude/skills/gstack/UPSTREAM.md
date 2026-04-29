@@ -11,6 +11,13 @@ future gstack-derived skill vendored into this repo).
 | Vendored on | 2026-04-29 |
 | Upstream license | MIT — see `LICENSE.upstream` |
 
+## Divergences from upstream (vs. SHA `675717e`)
+
+| File | Upstream | Patched | Reason |
+|---|---|---|---|
+| `bin/gstack-team-init` | JS source writes the hook command with an escaped `$` in the string literal | builds the `$CLAUDE_PROJECT_DIR` command using `String.fromCharCode(36)` | Required-mode hook settings must contain an expandable `$CLAUDE_PROJECT_DIR`, not a literal escaped dollar that bypasses enforcement. |
+| `bin/gstack-team-init` | vendored gstack detection checks only `VERSION` or `.git` | also accepts executable `.claude/skills/gstack/bin/gstack-team-init` | This repo's vendored runtime has `bin/` and provenance files but no `VERSION` or `.git`, so team migration must detect the actual committed copy. |
+
 ## Vendored binaries (25)
 
 Selected by tracing the calls in `design-shotgun/SKILL.md` and `design-html/SKILL.md`,

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Verifies the vendored design-shotgun and design-html skills are loaded and
-# parsed identically by claudefast (Claude Code, MiniMax fast profile) and
-# codex (OpenAI Codex CLI), and captures interactive-mode evidence via tmux
-# + `/export`.
+# Verifies the vendored design-shotgun and design-html mirrors are loaded and
+# parsed identically: claudefast reads `.claude/skills/...`, codex reads
+# `.codex/skills/...`, then the canonical JSON is hard-matched. It also
+# captures interactive-mode evidence via tmux + `/export`.
 #
 # Three phases per skill, all must pass:
-#   1. claudefast -p --bare --output-format json --json-schema  (Claude Code)
-#   2. codex exec --output-schema --output-last-message         (Codex)
+#   1. claudefast -p --bare --output-format json --json-schema  (.claude mirror)
+#   2. codex exec --output-schema --output-last-message         (.codex mirror)
 #   3. claudefast (interactive) inside tmux, with `/export`     (Claude Code)
 #
 # Phase 1 and Phase 2 are hard-matched as canonical JSON via `jq -S`.
@@ -50,8 +50,9 @@ run_with_timeout() {
 
 build_prompt() {
   local skill="$1"
+  local mirror="$2"
   cat <<EOF
-Read the file .claude/skills/${skill}/SKILL.md from the current working directory.
+Read the file ${mirror}/skills/${skill}/SKILL.md from the current working directory.
 Parse only its YAML frontmatter (the block between the first two --- lines).
 For trigger_count, count only items under the YAML key named "triggers"; ignore
 quoted phrases in the description field.
@@ -70,11 +71,11 @@ EOF
 
 phase1_claudefast() {
   local skill="$1" out_dir="$2"
-  local prompt="$(build_prompt "$skill")"
+  local prompt="$(build_prompt "$skill" ".claude")"
   local envelope="$out_dir/01-claudefast-envelope.json"
   local result="$out_dir/01-claudefast-result.json"
 
-  echo "  [1/3] claudefast -p --bare --output-format json ..."
+  echo "  [1/3] claudefast reads .claude mirror as JSON ..."
   echo "$prompt" | run_with_timeout 180 claudefast -p --bare \
     --output-format json \
     --json-schema "$(cat "$SCHEMA_FILE")" \
@@ -95,11 +96,11 @@ phase1_claudefast() {
 
 phase2_codex() {
   local skill="$1" out_dir="$2"
-  local prompt="$(build_prompt "$skill")"
+  local prompt="$(build_prompt "$skill" ".codex")"
   local last="$out_dir/02-codex-last.json"
   local result="$out_dir/02-codex-result.json"
 
-  echo "  [2/3] codex exec --output-schema --output-last-message ..."
+  echo "  [2/3] codex reads .codex mirror as JSON ..."
   run_with_timeout 240 codex exec \
     --skip-git-repo-check \
     --sandbox read-only \
