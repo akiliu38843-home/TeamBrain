@@ -12,18 +12,29 @@ This skill is vendored verbatim from [garrytan/gstack](https://github.com/garryt
 
 ## Files
 
-| File | Source |
-|---|---|
-| `SKILL.md` | `design-html/SKILL.md` |
-| `SKILL.md.tmpl` | `design-html/SKILL.md.tmpl` (gstack-internal authoring template) |
-| `vendor/pretext.js` | `design-html/vendor/pretext.js` (Pretext renderer, ~30 KB) |
-| `LICENSE.upstream` | `LICENSE` (gstack repo root) |
+| File | Source | Notes |
+|---|---|---|
+| `SKILL.md` | `design-html/SKILL.md` | **Patched** — see "Divergences from upstream" |
+| `SKILL.md.tmpl` | `design-html/SKILL.md.tmpl` (gstack-internal authoring template) | verbatim |
+| `vendor/pretext.js` | `design-html/vendor/pretext.js` (Pretext renderer, ~30 KB) | verbatim |
+| `LICENSE.upstream` | `LICENSE` (gstack repo root) | verbatim |
+
+## Divergences from upstream (vs. SHA `675717e`)
+
+Two local patches applied to `SKILL.md` after the Codex bot review of PR #14:
+
+| # | Line | Upstream | Patched | Reason |
+|---|---|---|---|---|
+| 1 | many gstack binary calls, including 335-336 | `~/.claude/skills/gstack/bin/...` | `.claude/skills/gstack/bin/...` | Tilde expansion is brittle in quoted strings and does not happen after variable expansion. Project-relative paths resolve against the repo copy and keep the vendored skill self-contained. |
+| 2 | 1023-1024 | `.claude/skills/gstack/design-html/vendor/pretext.js` (extra `gstack/` segment) and a user-home fallback | `.claude/skills/design-html/vendor/pretext.js` (matches our project vendored layout) | Upstream layout puts design-html under `gstack/design-html/`; we vendor it directly at `.claude/skills/design-html/`. The fallback is also project-relative so the repo copy stays self-contained. Without this fix the offline-asset probe always missed and the skill always took the CDN fallback. |
+
+These patches are tracked here so the next upstream sync can re-apply them (or detect that upstream has fixed them and we should drop the local divergence).
 
 ## Runtime dependency
 
-`SKILL.md` calls binaries from `~/.codex/skills/gstack/bin/...` (with project-relative
-fallback to `.codex/skills/gstack/bin/...`). The required gstack binaries are vendored
-under `.codex/skills/gstack/bin/` — see `.codex/skills/gstack/UPSTREAM.md` for details.
+`SKILL.md` calls binaries from the project-relative `.claude/skills/gstack/bin/...`.
+The required gstack binaries are vendored under `.claude/skills/gstack/bin/` — see
+`.claude/skills/gstack/UPSTREAM.md` for details.
 
 `gstack-verify-desktop`, `gstack-verify-mobile`, and `gstack-verify-tablet` are NOT
 present in upstream `bin/` — they are runtime aliases created by gstack's installer.
