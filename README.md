@@ -131,6 +131,8 @@ teamagent doctor
 | 命令 | 作用 |
 |---|---|
 | `teamagent verify` | 跑验证场景并输出指标 |
+| `teamagent install-hook` | 重新注册项目级 Hook（当本地配置被覆盖时使用） |
+| `teamagent uninstall-hook` | 移除项目级 Hook 注册 |
 | `teamagent uninstall` | 卸载（可选删除数据） |
 | `teamagent config show` | 查看当前配置 |
 | `teamagent --help` | 查看完整命令与参数 |
@@ -163,7 +165,7 @@ teamagent doctor
 
 ## 故障排查与 FAQ / Troubleshooting
 ### Q1: 装完后“没反应”怎么办？
-先确认：执行过 `teamagent init`、完整重启过 Claude Code、`teamagent doctor` 是否通过。
+先确认：执行过 `teamagent init`、完整重启过 Claude Code、`teamagent doctor` 是否通过。若你最近更新过 `.claude/settings.local.json`，请再执行一次 `teamagent install-hook` 重新注册。
 
 ### Q2: 插件安装失败怎么办？
 确认 `claude` 在 PATH（`claude --version`），再检查网络/仓库访问能力。
