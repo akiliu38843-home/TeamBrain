@@ -255,9 +255,9 @@ Options:
 - B) No, I'll handle it myself
 
 If A:
-1. Run `git rm -r .claude/skills/gstack/`
-2. Run `echo '.claude/skills/gstack/' >> .gitignore`
-3. Run `.claude/skills/gstack/bin/gstack-team-init required` (or `optional`)
+1. Run `.claude/skills/gstack/bin/gstack-team-init required` (or `optional`)
+2. Run `git rm -r .claude/skills/gstack/`
+3. Run `echo '.claude/skills/gstack/' >> .gitignore`
 4. Run `git add .claude/ .gitignore CLAUDE.md && git commit -m "chore: migrate gstack from vendored to team mode"`
 5. Tell the user: "Done. Each developer now runs: `cd .claude/skills/gstack && ./setup --team`"
 
@@ -265,8 +265,8 @@ If B: say "OK, you're on your own to keep the vendored copy up to date."
 
 Always run (regardless of choice):
 ```bash
-eval "$(.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" 2>/dev/null || true
-touch ~/.gstack/.vendoring-warned-${SLUG:-unknown}
+_SLUG="${SLUG:-$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")}"
+touch ~/.gstack/.vendoring-warned-${_SLUG:-unknown}
 ```
 
 If marker exists, skip.

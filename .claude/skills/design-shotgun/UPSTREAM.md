@@ -25,6 +25,7 @@ One local patch applied to `SKILL.md` after the Codex bot review of PR #14:
 | # | Line | Upstream | Patched | Reason |
 |---|---|---|---|---|
 | 1 | many gstack binary calls, including 330-331 | `~/.claude/skills/gstack/bin/...` | `.claude/skills/gstack/bin/...` | Tilde expansion is brittle in quoted strings and does not happen after variable expansion. Project-relative paths resolve against the repo copy and keep the vendored skill self-contained. |
+| 2 | 253-255 | delete `.claude/skills/gstack/` before running `gstack-team-init` | run `gstack-team-init` before deleting the vendored directory | Project-relative runtime paths disappear after `git rm -r .claude/skills/gstack/`; team migration must initialize before removing the binary. |
 
 This patch is tracked here so the next upstream sync can re-apply it (or detect that upstream has fixed it and we should drop the local divergence).
 

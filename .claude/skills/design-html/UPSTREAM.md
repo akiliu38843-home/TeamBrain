@@ -27,6 +27,7 @@ Two local patches applied to `SKILL.md` after the Codex bot review of PR #14:
 |---|---|---|---|---|
 | 1 | many gstack binary calls, including 335-336 | `~/.claude/skills/gstack/bin/...` | `.claude/skills/gstack/bin/...` | Tilde expansion is brittle in quoted strings and does not happen after variable expansion. Project-relative paths resolve against the repo copy and keep the vendored skill self-contained. |
 | 2 | 1023-1024 | `.claude/skills/gstack/design-html/vendor/pretext.js` (extra `gstack/` segment) and a user-home fallback | `.claude/skills/design-html/vendor/pretext.js` (matches our project vendored layout) | Upstream layout puts design-html under `gstack/design-html/`; we vendor it directly at `.claude/skills/design-html/`. The fallback is also project-relative so the repo copy stays self-contained. Without this fix the offline-asset probe always missed and the skill always took the CDN fallback. |
+| 3 | 258-260 | delete `.claude/skills/gstack/` before running `gstack-team-init` | run `gstack-team-init` before deleting the vendored directory | Project-relative runtime paths disappear after `git rm -r .claude/skills/gstack/`; team migration must initialize before removing the binary. |
 
 These patches are tracked here so the next upstream sync can re-apply them (or detect that upstream has fixed them and we should drop the local divergence).
 
