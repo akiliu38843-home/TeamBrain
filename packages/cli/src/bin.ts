@@ -84,6 +84,11 @@ import {
   renderPairKnockResult,
   renderPairList,
 } from "./commands/pair.js";
+import {
+  executeRecording,
+  parseRecordingArgs,
+  renderRecordingResult,
+} from "./commands/recording.js";
 
 function findPackageVersion(): string {
   let dir = path.dirname(fileURLToPath(import.meta.url));
@@ -382,6 +387,17 @@ async function main(): Promise<void> {
       }
       return;
     }
+    case "recording": {
+      try {
+        const opts = parseRecordingArgs(rest);
+        const result = await executeRecording({ ...opts, cwd: process.cwd() });
+        process.stdout.write(renderRecordingResult(result));
+      } catch (err) {
+        process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
+        process.exit(2);
+      }
+      return;
+    }
     case "compile": {
       const opts = parseCompileArgs(rest);
       const result = await executeCompile(opts);
@@ -618,6 +634,8 @@ async function main(): Promise<void> {
           "                                   跑 5 个验证场景（踩坑→学习→避坑），输出 PRR/KP 指标",
           "  teamagent e2e-evaluate [--json] [--keep-temp]",
           "                                   真实 SQLite + analyze + compile + PreToolUse 测评学习、触发、误触发和新成员可见性",
+          "  teamagent recording --help",
+          "                                   Recording Memory 导入、检索、注入、指标和 golden benchmark",
           "  teamagent dogfood-report [--output=path]",
           "                                   扫 events.jsonl + knowledge.jsonl + git log，自动生成自举报告",
           "  teamagent dashboard --watch [--open] [--port=8787] [--interval=2s]",
