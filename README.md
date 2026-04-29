@@ -1,160 +1,188 @@
 # TeamAgent
 
-> 自进化 AI 规则引擎 | Self-evolving AI rule engine for Claude Code
-
-让团队踩过的坑只踩一次——TeamAgent 自动学习你的错误，在下次犯错前实时拦截。
-
-*Automatically learns from your mistakes and intercepts them in real time — so your team only falls into each pitfall once.*
+> 让团队的 AI **记住教训、复用经验、提前避坑**。  
+> *A self-evolving rule engine for Claude Code teams.*
 
 [![npm version](https://badge.fury.io/js/teamagent.svg)](https://www.npmjs.com/package/teamagent)
-![Node ≥22](https://img.shields.io/badge/node-%3E%3D22-green)
+![Node >=22](https://img.shields.io/badge/node-%3E%3D22-green)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
----
+## 你会愿意给这个项目点 ⭐ 的原因
 
-## 快速开始 / Quick Start
+你可能正被这些问题困扰：
+- 同一个错误，AI 在不同会话反复犯；
+- 团队经验分散在 PR、口头约定和历史文档中，AI 很难实时利用；
+- 规则越积越多，但维护成本越来越高。
+
+**TeamAgent 的目标**：把“这次纠错”变成“下次预防”。  
+你纠正 AI 一次，系统把经验沉淀为结构化知识，并在下一次风险操作前提醒/拦截。它不是一次性 prompt 技巧，而是一套持续学习的工程化机制。
+
+## 目录
+
+- [它是什么：一句话定位](#它是什么一句话定位)
+- [它现在能做什么（基于当前实现）](#它现在能做什么基于当前实现)
+- [1 分钟快速上手](#1-分钟快速上手)
+- [核心工作流：从纠错到防错](#核心工作流从纠错到防错)
+- [命令总览（按任务阶段）](#命令总览按任务阶段)
+- [系统使用规则（强烈建议先读）](#系统使用规则强烈建议先读)
+- [典型使用场景](#典型使用场景)
+- [已知边界与客观限制](#已知边界与客观限制)
+- [故障排查与 FAQ](#故障排查与-faq)
+- [系统要求 / 更多文档](#系统要求)
+
+## 它是什么：一句话定位
+
+TeamAgent 是围绕 Claude Code Hooks 构建的**自进化规则引擎**：
+- 持续学习你对 AI 的纠错；
+- 在工具调用前做风险匹配；
+- 根据真实效果动态校准规则质量；
+- 让经验以规则形式长期生效。
+
+## 它现在能做什么（基于当前实现）
+
+### 1) 自动学习纠错经验
+- 从会话与纠正信号中提取可复用规则；
+- 写入结构化知识条目，供后续检索、校准、编译。
+
+### 2) 实时预警 / 拦截
+- 在 `PreToolUse` 阶段匹配即将执行的工具调用（Bash / Write / Edit / WebFetch）；
+- 命中后按规则等级输出 `suggest / warn / block`。
+
+### 3) 规则质量自动校准
+- 基于“命中后是否有效”动态调整置信度；
+- 低价值或高误报规则会被降权，减少噪音。
+
+### 4) 双层知识存储
+- 项目内个人知识（project/personal）；
+- 机器全局知识（global）；
+- 兼顾隔离性与跨项目复用。
+
+### 5) 可观测归因输出
+- 通过结构化归因事件说明“系统做了什么、为什么做”；
+- 便于工程化验证与维护，而不是黑盒行为。
+
+> 现阶段重点是“个人闭环能力”。团队级共享（team scope）和 MCP 实时顾问属于后续路线，尚未完整落地。
+
+## 1 分钟快速上手
 
 ```bash
-# 1. 安装 / Install
+# 1) 安装
 npm install -g teamagent
 
-# 2. 进入你的项目 / Go to your project
+# 2) 进入你的项目
 cd your-project
 
-# 3. 初始化 / Initialize
+# 3) 初始化（建目录、注册 hook、准备规则产物）
 teamagent init
 
-# 4.（可选）一次性装团队标配插件 / (Optional) install team-standard plugins
+# 4) 可选：安装团队标配插件（写入 ~/.claude/settings.json）
 teamagent install-plugins
 
-# 5. 重启 Claude Code，开始使用 / Restart Claude Code — hooks + plugins are now active
+# 5) 完全重启 Claude Code（必须）
 ```
 
-### 团队标配插件 / Team-Standard Plugins
-
-`teamagent install-plugins` 注册并启用 4 个团队标配插件(通过 `claude plugin` CLI):
-
-- **superpowers** — TDD / debugging / brainstorming 等工作流 skills
-- **caveman** — 超紧凑对话模式, 省 ~75% token
-- **sales** — 销售场景工作流
-- **playground** — 交互 HTML 实验场
-
-写入 `~/.claude/settings.json`(用户全局, 不是项目级), 所以从 `init` 里单独拎出, 要显式 opt-in。一次装完跨所有项目生效。
-
-*Registers 4 team-standard plugins via the `claude plugin` CLI. Opt-in because it writes to `~/.claude/settings.json` (user-global, not project-local) — a separate scope from the rest of init.*
-
-## 验证安装 / Verify Installation
+随后执行：
 
 ```bash
 teamagent doctor
 ```
 
-All 8 checks should show ✅. If any fail, follow the fix hint shown.
+若诊断异常，先按提示修复再继续使用。
 
-### 使用 claudefast 做 JSON 测试 / JSON Testing with claudefast
+## 核心工作流：从纠错到防错
 
-本仓库的调试文档会用 `claudefast` 表示“用更便宜或更快的 Claude Code profile 跑非交互测试”。它不是 TeamAgent 命令，而是本机对 `claude` 的 wrapper 或 alias；常见实现包括 `claude --model haiku`，或指向 Anthropic-compatible provider（例如 MiniMax）的本地脚本。
+1. 你在对话中纠正 AI；
+2. TeamAgent 分析信号并抽取经验；
+3. 经验进入知识库并可被校准；
+4. 下一次 AI 调用工具前进行规则匹配；
+5. 命中后给出建议、警告或阻断；
+6. 再根据效果继续校准，形成闭环。
 
-推荐的 hook JSON 测试模板：
+**结果**：把“事后复盘”前移为“事前防错”。
 
-```bash
-claudefast -p \
-  --output-format stream-json \
-  --include-hook-events \
-  --include-partial-messages \
-  --verbose \
-  --permission-mode acceptEdits \
-  "创建一个 TypeScript 文件，里面用 axios 发请求"
-```
+## 命令总览（按任务阶段）
 
-完整说明见 [`docs/CLAUDEFAST.md`](docs/CLAUDEFAST.md)。
+### A. 安装与初始化
+| 命令 | 作用 |
+|---|---|
+| `teamagent init` | 初始化当前项目 |
+| `teamagent init --install-plugins` | 初始化 + 安装团队标配插件 |
+| `teamagent doctor` | 环境与安装诊断 |
+| `teamagent install-plugins` | 独立安装/重装插件 |
 
-批量 smoke test：
-
-```bash
-pnpm smoke:claudefast
-```
-
----
-
-## 它能做什么 / What it does
-
-- **自动学习错误** — Claude Code 每次被纠正，TeamAgent 提取规则并学习
-- **实时拦截** — 下次 Claude 要犯同样错误时，Hook 在执行前发出警告或阻止
-- **越用越准** — Calibrator v2 用 Wilson Score 评分，误报规则自动降权
-
-*Learns from corrections → extracts rules → intercepts before the mistake repeats. Confidence scoring filters out false positives over time.*
-
----
-
-## 主要命令 / Commands
-
-| 命令 | 说明 |
-|------|------|
-| `teamagent init` | 初始化到当前项目 |
-| `teamagent init --install-plugins` | 初始化 + 同时装团队标配插件 |
-| `teamagent install-plugins` | 独立装/重装团队标配插件 |
-| `teamagent doctor` | 诊断安装环境 |
-| `teamagent stats` | 查看知识库统计 |
-| `teamagent analyze --commit` | 分析最新会话并提取规则 |
-| `teamagent compile` | 重新编译 CLAUDE.md |
+### B. 规则学习与维护
+| 命令 | 作用 |
+|---|---|
+| `teamagent analyze --commit` | 分析会话并提交知识条目 |
+| `teamagent calibrate` | 重新校准规则置信度 |
+| `teamagent compile` | 重新编译规则输出 |
 | `teamagent pitfall` | 手动记录一条经验 |
-| `teamagent review` | 复核最近添加的规则 |
-| `teamagent uninstall` | 卸载（保留数据） |
+| `teamagent review` | 复核近期规则 |
+| `teamagent stats` | 查看知识库统计 |
 
-运行 `teamagent --help` 查看完整命令列表。
-*Run `teamagent --help` for the full command list.*
+### C. 运维与治理
+| 命令 | 作用 |
+|---|---|
+| `teamagent verify` | 跑验证场景并输出指标 |
+| `teamagent uninstall` | 卸载（可选删除数据） |
+| `teamagent config show` | 查看当前配置 |
+| `teamagent --help` | 查看完整命令与参数 |
 
----
+## 系统使用规则（强烈建议先读）
 
-## 常见问题 / FAQ
+1. **初始化后必须重启 Claude Code**：不是刷新，是完整退出重开。  
+2. **Windows 推荐 Git Bash**：PowerShell/CMD 不是推荐运行环境。  
+3. **`install-plugins` 会修改用户全局配置**：写入 `~/.claude/settings.json`，影响该用户所有项目。  
+4. **先跑 doctor，再排障**：依赖、路径、扩展加载问题可优先在 `teamagent doctor` 定位。  
+5. **Hook 原则是“可降级，不阻断主流程”**：目标是保证开发流不中断。
 
-**Node 版本不够 / Node version too old**
-```bash
-nvm install 22 && nvm use 22
-```
+## 典型使用场景
 
-**sqlite-vec 加载失败 / sqlite-vec fails to load**
-```bash
-teamagent doctor --fix
-```
+- 把代码评审里的重复建议前置到 AI 执行前；
+- 让团队规范长期稳定地被 AI 遵循；
+- 多仓库切换时复用稳定经验，减少重复沟通；
+- 把 AI 使用从“个人技巧”升级为“可观测、可演进系统”。
 
-**装完没反应 / Hook not working after install**
+## 已知边界与客观限制
 
-必须重启 Claude Code（不是刷新页面，是完全退出重开）。
-*You must fully restart Claude Code (quit and reopen, not just refresh).*
+- 当前主打个人层闭环；`team` 级共享仍在后续阶段；
+- MCP Server 形态的实时顾问能力尚未完整落地；
+- 部分能力依赖可选组件（如 `sqlite-vec`），缺失时会降级。
 
-**Windows 下 Hook 不工作 / Hook not working on Windows**
+这不影响核心价值：先有效压低“重复犯错”频率。
 
-需要 Git Bash。PowerShell / CMD 不支持。
-*Requires Git Bash. PowerShell and CMD are not supported.*
+## 故障排查与 FAQ
 
-**插件没装上 / Plugins not installed**
+### Q1: 装完后“没反应”怎么办？
+先确认：执行过 `teamagent init`、完整重启过 Claude Code、`teamagent doctor` 是否通过。
 
-`teamagent install-plugins` 会 shell out 到 `claude plugin marketplace add` + `claude plugin install`。如果失败:
-- 确认 `claude` 命令在 PATH 中(`claude --version`)
-- 有些 marketplace 是 GitHub 仓库, 需要你机器能访问 GitHub(SSH 或 HTTPS)
-- 失败行会打印原始 `claude` CLI 输出, 看那里排查
+### Q2: 插件安装失败怎么办？
+确认 `claude` 在 PATH（`claude --version`），再检查网络/仓库访问能力。
 
-*`install-plugins` shells out to `claude plugin` CLI. Ensure `claude` is in PATH and your machine can reach GitHub. Failure lines print raw CLI output for debugging.*
+### Q3: `claudefast` 是 TeamAgent 命令吗？
+不是。它通常是本机 `claude` wrapper/alias，用于低成本非交互测试。详见 `docs/CLAUDEFAST.md`。
 
-**如何卸载 / How to uninstall**
+### Q4: 如何安全卸载？
 ```bash
 teamagent uninstall --delete-data
 npm uninstall -g teamagent
-# Plugins installed via install-plugins stay put — use `claude plugin uninstall <name>` to remove them.
 ```
 
----
+## 系统要求
 
-## 系统要求 / Requirements
+- Node.js >= 22
+- Claude Code >= 1.0
+- macOS / Linux / Windows（推荐 Git Bash）
 
-- Node.js ≥ 22
-- [Claude Code](https://www.anthropic.com/claude-code) ≥ 1.0
-- macOS / Linux / Windows (Git Bash)
+## 更多文档
 
----
+- 系统总览：[`docs/SYSTEM.md`](docs/SYSTEM.md)
+- 架构说明：[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- claudefast 说明：[`docs/CLAUDEFAST.md`](docs/CLAUDEFAST.md)
 
 ## License
 
 MIT
+
+如果这个项目帮你减少了一次重复返工，欢迎点一个 ⭐。  
+你的 Star 会帮助更多团队把 AI 协作从“能用”推进到“可靠好用”。
