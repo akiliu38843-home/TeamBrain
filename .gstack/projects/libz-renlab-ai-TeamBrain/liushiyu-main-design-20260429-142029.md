@@ -109,7 +109,7 @@ Implication: TeamBrain should not compete as another meeting assistant. It shoul
 
 ### Approach A: Transcript Import First
 
-Add `teamagent recording:import` and store raw file path, transcript, optional summary, uploader, and use_when in a simple recording table. Manual query comes first; automatic loading comes later.
+Add `teamagent recording import` and store raw file path, transcript, optional summary, uploader, and use_when in a simple recording table. Manual query comes first; automatic loading comes later.
 
 Effort: S
 Risk: Low
