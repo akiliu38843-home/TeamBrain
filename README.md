@@ -7,7 +7,7 @@
 ![Node >=22](https://img.shields.io/badge/node-%3E%3D22-green)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-## 你会愿意给这个项目点 ⭐ 的原因
+## 你会愿意给这个项目点 ⭐ 的原因 / Why it is worth a star
 
 你可能正被这些问题困扰：
 - 同一个错误，AI 在不同会话反复犯；
@@ -15,10 +15,10 @@
 - 规则越积越多，但维护成本越来越高。
 
 **TeamAgent 的目标**：把“这次纠错”变成“下次预防”。  
-你纠正 AI 一次，系统把经验沉淀为结构化知识，并在下一次风险操作前提醒/拦截。它不是一次性 prompt 技巧，而是一套持续学习的工程化机制。
+你纠正 AI 一次，系统把经验沉淀为结构化知识，并在下一次风险操作前提醒/拦截。它不是一次性 prompt 技巧，而是一套持续学习的工程化机制。  
+**English:** Turn one correction into long-term prevention. TeamAgent captures feedback, compiles reusable rules, and intervenes before the same mistake repeats.
 
 ## 目录
-
 - [它是什么：一句话定位](#它是什么一句话定位)
 - [它现在能做什么（基于当前实现）](#它现在能做什么基于当前实现)
 - [1 分钟快速上手](#1-分钟快速上手)
@@ -30,16 +30,16 @@
 - [故障排查与 FAQ](#故障排查与-faq)
 - [系统要求 / 更多文档](#系统要求)
 
-## 它是什么：一句话定位
-
+## 它是什么：一句话定位 / What it is
 TeamAgent 是围绕 Claude Code Hooks 构建的**自进化规则引擎**：
 - 持续学习你对 AI 的纠错；
 - 在工具调用前做风险匹配；
 - 根据真实效果动态校准规则质量；
 - 让经验以规则形式长期生效。
 
-## 它现在能做什么（基于当前实现）
+**English:** TeamAgent is a self-evolving policy layer on top of Claude Code hooks: learn from corrections, check risky actions before tool execution, and continuously calibrate rule quality from outcomes.
 
+## 它现在能做什么（基于当前实现）/ Current capabilities
 ### 1) 自动学习纠错经验
 - 从会话与纠正信号中提取可复用规则；
 - 写入结构化知识条目，供后续检索、校准、编译。
@@ -63,8 +63,13 @@ TeamAgent 是围绕 Claude Code Hooks 构建的**自进化规则引擎**：
 
 > 现阶段重点是“个人闭环能力”。团队级共享（team scope）和 MCP 实时顾问属于后续路线，尚未完整落地。
 
-## 1 分钟快速上手
+### 快速价值总结 / Value at a glance
+- 减少重复错误：同类问题不会反复出现。  
+- 降低沟通成本：团队经验变成系统能力。  
+- 提升可解释性：每次干预都有可追踪归因。  
+- 支持渐进治理：规则会校准，不是越积越乱。
 
+## 1 分钟快速上手 / 1-minute quickstart
 ```bash
 # 1) 安装
 npm install -g teamagent
@@ -89,8 +94,9 @@ teamagent doctor
 
 若诊断异常，先按提示修复再继续使用。
 
-## 核心工作流：从纠错到防错
+> Tip: `install-plugins` 是显式 opt-in，因为它会写入用户全局 `~/.claude/settings.json`。
 
+## 核心工作流：从纠错到防错 / Closed-loop workflow
 1. 你在对话中纠正 AI；
 2. TeamAgent 分析信号并抽取经验；
 3. 经验进入知识库并可被校准；
@@ -100,8 +106,9 @@ teamagent doctor
 
 **结果**：把“事后复盘”前移为“事前防错”。
 
-## 命令总览（按任务阶段）
+**English:** Move quality control from post-mortem to pre-execution guardrails.
 
+## 命令总览（按任务阶段）
 ### A. 安装与初始化
 | 命令 | 作用 |
 |---|---|
@@ -128,13 +135,17 @@ teamagent doctor
 | `teamagent config show` | 查看当前配置 |
 | `teamagent --help` | 查看完整命令与参数 |
 
-## 系统使用规则（强烈建议先读）
-
+## 系统使用规则（强烈建议先读）/ Operational rules
 1. **初始化后必须重启 Claude Code**：不是刷新，是完整退出重开。  
 2. **Windows 推荐 Git Bash**：PowerShell/CMD 不是推荐运行环境。  
 3. **`install-plugins` 会修改用户全局配置**：写入 `~/.claude/settings.json`，影响该用户所有项目。  
 4. **先跑 doctor，再排障**：依赖、路径、扩展加载问题可优先在 `teamagent doctor` 定位。  
 5. **Hook 原则是“可降级，不阻断主流程”**：目标是保证开发流不中断。
+
+### 推荐落地方式 / Suggested rollout
+1. 先在单个仓库 `init + doctor`，观察 1~2 天命中质量；  
+2. 再启用团队常用插件并统一 FAQ；  
+3. 每周固定做一次 `review + calibrate`，保持规则库健康。
 
 ## 典型使用场景
 
@@ -143,16 +154,14 @@ teamagent doctor
 - 多仓库切换时复用稳定经验，减少重复沟通；
 - 把 AI 使用从“个人技巧”升级为“可观测、可演进系统”。
 
-## 已知边界与客观限制
-
+## 已知边界与客观限制 / Known limitations
 - 当前主打个人层闭环；`team` 级共享仍在后续阶段；
 - MCP Server 形态的实时顾问能力尚未完整落地；
 - 部分能力依赖可选组件（如 `sqlite-vec`），缺失时会降级。
 
 这不影响核心价值：先有效压低“重复犯错”频率。
 
-## 故障排查与 FAQ
-
+## 故障排查与 FAQ / Troubleshooting
 ### Q1: 装完后“没反应”怎么办？
 先确认：执行过 `teamagent init`、完整重启过 Claude Code、`teamagent doctor` 是否通过。
 
@@ -168,8 +177,10 @@ teamagent uninstall --delete-data
 npm uninstall -g teamagent
 ```
 
-## 系统要求
+### Q5: 如何确认 Hook 真正生效？
+执行 `teamagent doctor`，并用一个小型可控命令做验证（例如触发已知规则的 Bash 输入），观察是否出现预期提示/拦截。
 
+## 系统要求
 - Node.js >= 22
 - Claude Code >= 1.0
 - macOS / Linux / Windows（推荐 Git Bash）
