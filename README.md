@@ -29,7 +29,6 @@
 - [已知边界与客观限制](#已知边界与客观限制)
 - [故障排查与 FAQ](#故障排查与-faq)
 - [系统要求 / 更多文档](#系统要求)
-
 ## 它是什么：一句话定位 / What it is
 TeamAgent 是围绕 Claude Code Hooks 构建的**自进化规则引擎**：
 - 持续学习你对 AI 的纠错；
@@ -107,7 +106,6 @@ teamagent doctor
 **结果**：把“事后复盘”前移为“事前防错”。
 
 **English:** Move quality control from post-mortem to pre-execution guardrails.
-
 ## 命令总览（按任务阶段）
 ### A. 安装与初始化
 | 命令 | 作用 |
