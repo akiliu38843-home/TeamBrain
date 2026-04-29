@@ -117,17 +117,25 @@ phase3_tmux() {
   rm -f "$export_file"
   tmux kill-session -t "$session" 2>/dev/null || true
   tmux new-session -d -s "$session" -x 220 -y 60 -c "$ROOT" "claudefast --add-dir \"$ROOT\""
-  sleep 15
+  local ready_waited=0
+  while [[ $ready_waited -lt 60 ]]; do
+    sleep 2
+    ready_waited=$((ready_waited + 2))
+    if tmux capture-pane -t "$session" -p | grep -q "Claude Code"; then
+      break
+    fi
+  done
 
   # Brief verification prompt — kept short, ASCII-only, no angle brackets.
-  # Sent in two send-keys calls (string then Enter separately) which is more
-  # robust against terminal/Claude Code edge cases than passing both as one
-  # tmux argument list.
+  # Clear any partially typed text first; then send the prompt and a literal
+  # carriage return. The marker appears once in the submitted user prompt, so
+  # the wait below requires it to appear at least twice before continuing.
   local marker="VERIFY_$(printf '%s' "$skill" | tr '[:lower:]-' '[:upper:]_')_OK"
   local prompt="Read file .claude/skills/${skill}/SKILL.md then reply with exactly one line: $marker"
+  tmux send-keys -t "$session" C-u
   tmux send-keys -t "$session" "$prompt"
   sleep 1
-  tmux send-keys -t "$session" Enter
+  tmux send-keys -t "$session" C-m
 
   # Wait up to 240s for the verify line to appear in the pane (Stop-hook
   # iterations can stretch interactive responses well past 90s on this profile).
@@ -135,7 +143,17 @@ phase3_tmux() {
   while [[ $waited -lt 240 ]]; do
     sleep 5
     waited=$((waited + 5))
-    if tmux capture-pane -t "$session" -p | grep -qE "$marker"; then
+    local pane
+    pane="$(tmux capture-pane -t "$session" -p)"
+    if printf '%s\n' "$pane" | grep -q "Do you want to proceed?"; then
+      tmux send-keys -t "$session" "1"
+      sleep 1
+      tmux send-keys -t "$session" C-m
+      continue
+    fi
+    local marker_count
+    marker_count="$(printf '%s\n' "$pane" | grep -cF "$marker" || true)"
+    if [[ "$marker_count" -ge 2 ]]; then
       found=1
       break
     fi
@@ -154,15 +172,16 @@ phase3_tmux() {
   # Trigger /export to a file path. The slash command takes the path as the
   # next token; we send the full string so the autocomplete dropdown is
   # bypassed when Enter fires (the path arg makes the suggestion list collapse).
+  tmux send-keys -t "$session" C-u
   tmux send-keys -t "$session" "/export $export_file"
   sleep 1
-  tmux send-keys -t "$session" Enter
+  tmux send-keys -t "$session" C-m
 
-  # Wait up to 30s for "Conversation exported to" confirmation in pane.
+  # Wait up to 60s for "Conversation exported to" confirmation or the file.
   local exported=0
-  for _ in 1 2 3 4 5 6; do
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
     sleep 5
-    if tmux capture-pane -t "$session" -p | grep -q "Conversation exported to"; then
+    if [[ -s "$export_file" ]] || tmux capture-pane -t "$session" -p | grep -q "Conversation exported to"; then
       exported=1
       break
     fi

@@ -26,17 +26,17 @@
 
 ⏺ VERIFY_DESIGN_SHOTGUN_OK
 
-✻ Cogitated for 22s
+✻ Crunched for 1m 13s
 
 ❯ /export /Users/m1/projects/TeamBrain/.claude/worktrees/design-skills/docs/vendored-skills-verification/evidence/design-shotgun/03-tmux-export.md
-  ⎿  Conversation exported to: /Users/m1/projects/TeamBrain/.claude/worktrees/design-skills/docs/vendored-skills-verification/evidence/design-shotgun/03-tmux-export.md
+
+✳ Determining… (2s · ↓ 152 tokens)
+  ⎿  Tip: Use /memory to view and manage Claude memory
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ❯ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  PR #14                                                                                                                                                                                      10 MCP servers failed · /mcp
-
-
+  esc to interrupt                                                                                                                                                                            12 MCP servers failed · /mcp
 
 
 
