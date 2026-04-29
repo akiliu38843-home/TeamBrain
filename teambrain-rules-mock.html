@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TeamBrain｜规则变化可见的团队 AI 大脑</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --ink: #111827;
+      --muted: #667085;
+      --line: #e5e7eb;
+      --blue: #2563eb;
+      --blue-soft: #eff6ff;
+      --purple: #7c3aed;
+      --purple-soft: #f5f3ff;
+      --green: #059669;
+      --green-soft: #ecfdf5;
+      --amber: #d97706;
+      --amber-soft: #fffbeb;
+      --red: #dc2626;
+      --red-soft: #fef2f2;
+      --shadow: 0 22px 70px rgba(17, 24, 39, 0.10);
+      --shadow-soft: 0 12px 32px rgba(17, 24, 39, 0.08);
+      --radius: 24px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 0%, rgba(37, 99, 235, 0.16), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(124, 58, 237, 0.15), transparent 28%),
+        linear-gradient(180deg, #f8fbff 0%, var(--bg) 40%, #eef2ff 100%);
+      min-height: 100vh;
+      line-height: 1.65;
+    }
+
+    button, input, select { font: inherit; }
+
+    .page {
+      width: min(1320px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 22px 0 56px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 14px;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 14px;
+      border: 1px solid rgba(229, 231, 235, 0.92);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.86);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 10px 34px rgba(15, 23, 42, 0.08);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      white-space: nowrap;
+    }
+
+    .logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 15px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: linear-gradient(135deg, #2563eb, #7c3aed 72%, #ec4899);
+      box-shadow: 0 10px 22px rgba(37, 99, 235, 0.25);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #f8fafc;
+    }
+
+    .tab-btn {
+      border: 0;
+      cursor: pointer;
+      padding: 10px 16px;
+      border-radius: 999px;
+      color: var(--muted);
+      background: transparent;
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .tab-btn.active {
+      color: #fff;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      box-shadow: 0 8px 20px rgba(37, 99, 235, 0.22);
+    }
+
+    .nav-note {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .version { display: none; }
+    .version.active { display: block; }
+
+    .hero-a {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: 1.02fr 0.98fr;
+      gap: 24px;
+      align-items: center;
+      padding: 42px;
+      border-radius: 34px;
+      color: #fff;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(125, 211, 252, 0.34), transparent 34%),
+        radial-gradient(circle at 92% 70%, rgba(249, 168, 212, 0.30), transparent 30%),
+        linear-gradient(135deg, #0f172a, #1e1b4b 54%, #312e81);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      color: #dbeafe;
+      background: rgba(255,255,255,0.11);
+      border: 1px solid rgba(255,255,255,0.16);
+      font-weight: 800;
+      font-size: 13px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(42px, 6vw, 78px);
+      line-height: 0.98;
+      letter-spacing: -0.07em;
+    }
+
+    .hero-a p {
+      margin: 22px 0 0;
+      color: rgba(255,255,255,0.78);
+      font-size: 19px;
+      max-width: 760px;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 28px;
+      flex-wrap: wrap;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 12px 16px;
+      border-radius: 15px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      font-weight: 900;
+      text-decoration: none;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .button.dark {
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.12);
+      box-shadow: none;
+    }
+
+    .button.primary {
+      border: 0;
+      color: #fff;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+    }
+
+    .story-card {
+      border-radius: 28px;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.16);
+      padding: 18px;
+      box-shadow: 0 20px 70px rgba(0,0,0,0.28);
+    }
+
+    .window-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: rgba(255,255,255,0.62);
+      font-size: 13px;
+      margin-bottom: 14px;
+    }
+
+    .dots { display: flex; gap: 7px; }
+    .dot { width: 10px; height: 10px; border-radius: 99px; background: rgba(255,255,255,0.34); }
+
+    .story-list { display: grid; gap: 12px; }
+
+    .story-item {
+      display: grid;
+      grid-template-columns: 44px 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 14px;
+      border-radius: 18px;
+      color: #eef2ff;
+      background: rgba(15, 23, 42, 0.44);
+      border: 1px solid rgba(255,255,255,0.10);
+    }
+
+    .story-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      background: rgba(255,255,255,0.11);
+      font-size: 22px;
+    }
+
+    .story-item strong { display:block; line-height: 1.2; }
+    .story-item span { display:block; color: rgba(255,255,255,0.62); font-size: 13px; margin-top: 3px; }
+
+    .score-pill {
+      padding: 7px 10px;
+      border-radius: 999px;
+      color: #bbf7d0;
+      background: rgba(34, 197, 94, 0.16);
+      border: 1px solid rgba(34, 197, 94, 0.22);
+      font-weight: 900;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .section {
+      margin-top: 28px;
+      padding: 28px;
+      border-radius: 30px;
+      background: rgba(255,255,255,0.78);
+      border: 1px solid rgba(229,231,235,0.92);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(28px, 3.8vw, 46px);
+      line-height: 1.08;
+      letter-spacing: -0.055em;
+    }
+
+    .section-note {
+      margin: 0;
+      max-width: 520px;
+      color: var(--muted);
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .feature-card {
+      min-height: 230px;
+      padding: 22px;
+      border-radius: 24px;
+      background: #fff;
+      border: 1px solid var(--line);
+      box-shadow: 0 8px 24px rgba(17,24,39,0.05);
+    }
+
+    .feature-icon {
+      width: 50px;
+      height: 50px;
+      border-radius: 18px;
+      display: grid;
+      place-items: center;
+      font-size: 24px;
+      margin-bottom: 16px;
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+
+    .feature-card h3 {
+      margin: 0 0 8px;
+      font-size: 20px;
+      letter-spacing: -0.02em;
+    }
+
+    .feature-card p { margin: 0; color: var(--muted); }
+
+    .journey {
+      display: grid;
+      grid-template-columns: 0.86fr 1.14fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .persona {
+      padding: 24px;
+      border-radius: 26px;
+      color: #fff;
+      background: linear-gradient(135deg, #1d4ed8, #7c3aed);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .persona-face {
+      width: 68px;
+      height: 68px;
+      display: grid;
+      place-items: center;
+      border-radius: 24px;
+      font-size: 34px;
+      background: rgba(255,255,255,0.15);
+      margin-bottom: 18px;
+    }
+
+    .persona p { color: rgba(255,255,255,0.78); margin: 10px 0 0; }
+
+    .steps { display: grid; gap: 12px; }
+
+    .step {
+      display: grid;
+      grid-template-columns: 42px 1fr;
+      gap: 13px;
+      padding: 16px;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .num {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 15px;
+      color: #fff;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      font-weight: 900;
+    }
+
+    .step h3 { margin: 0 0 4px; font-size: 17px; }
+    .step p { margin: 0; color: var(--muted); }
+
+    .metric-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .metric-card {
+      padding: 18px;
+      border-radius: 22px;
+      background: #fff;
+      border: 1px solid var(--line);
+      box-shadow: 0 8px 24px rgba(17,24,39,0.05);
+    }
+
+    .metric-card strong {
+      display: block;
+      font-size: 32px;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      margin-bottom: 8px;
+    }
+
+    .metric-card span { color: var(--muted); font-size: 13px; }
+
+    .rule-preview-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .rule-preview {
+      padding: 18px;
+      border-radius: 22px;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+
+    .rule-preview-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: start;
+      margin-bottom: 12px;
+    }
+
+    .rule-title { font-weight: 900; line-height: 1.3; }
+    .muted { color: var(--muted); font-size: 14px; }
+
+    .mini-timeline {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .mini-event {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 10px;
+      border-radius: 14px;
+      background: #f8fafc;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .mini-event b { color: var(--ink); }
+
+    .app-shell {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: 250px 1fr;
+      min-height: 840px;
+      overflow: hidden;
+      border-radius: 30px;
+      background: #fff;
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+
+    .sidebar {
+      background: #0f172a;
+      color: #e5e7eb;
+      padding: 22px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .sidebar .brand { color: #fff; }
+
+    .side-nav {
+      display: grid;
+      gap: 8px;
+    }
+
+    .side-link {
+      padding: 11px 12px;
+      border-radius: 14px;
+      color: #94a3b8;
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .side-link.active {
+      color: #fff;
+      background: rgba(255,255,255,0.10);
+    }
+
+    .side-card {
+      margin-top: auto;
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.10);
+      color: #cbd5e1;
+      font-size: 13px;
+    }
+
+    .app-main {
+      min-width: 0;
+      background: #f8fafc;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+    }
+
+    .app-header {
+      padding: 22px 26px;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .app-header h1 {
+      color: var(--ink);
+      font-size: 30px;
+      line-height: 1.15;
+      letter-spacing: -0.045em;
+    }
+
+    .app-header p { margin: 4px 0 0; color: var(--muted); }
+
+    .filters {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .filter {
+      height: 42px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 0 12px;
+      color: var(--ink);
+      box-shadow: 0 6px 18px rgba(17,24,39,0.04);
+    }
+
+    .app-summary {
+      padding: 18px 26px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .summary-tile {
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .summary-tile strong {
+      display: block;
+      font-size: 26px;
+      line-height: 1;
+      margin-bottom: 7px;
+      letter-spacing: -0.04em;
+    }
+
+    .summary-tile span { color: var(--muted); font-size: 13px; }
+
+    .app-content {
+      padding: 0 26px 26px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.12fr) minmax(360px, 0.88fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .card {
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: #fff;
+      box-shadow: 0 8px 24px rgba(17,24,39,0.04);
+      overflow: hidden;
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .card-head h2 {
+      font-size: 18px;
+      letter-spacing: -0.03em;
+    }
+
+    .card-head p {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .new-rule-list {
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .new-rule {
+      padding: 14px;
+      border-radius: 17px;
+      border: 1px solid var(--line);
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .new-rule:hover { border-color: #bfdbfe; background: #fbfdff; }
+
+    .new-rule-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .badge.new { color: var(--blue); background: var(--blue-soft); }
+    .badge.stable { color: var(--green); background: var(--green-soft); }
+    .badge.watch { color: var(--amber); background: var(--amber-soft); }
+    .badge.bad { color: var(--red); background: var(--red-soft); }
+    .badge.purple { color: var(--purple); background: var(--purple-soft); }
+
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1000px;
+    }
+
+    th, td {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      background: #f8fafc;
+      white-space: nowrap;
+    }
+
+    tr.rule-row { cursor: pointer; }
+    tr.rule-row:hover { background: #f8fbff; }
+    tr.rule-row.selected { background: #eff6ff; }
+
+    .score {
+      display: block;
+      font-size: 25px;
+      line-height: 1;
+      font-weight: 950;
+      letter-spacing: -0.04em;
+      margin-bottom: 6px;
+    }
+
+    .delta-up { color: var(--green); font-weight: 900; }
+    .delta-down { color: var(--red); font-weight: 900; }
+
+    .reason-list {
+      display: grid;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .usage-pills { display: flex; gap: 5px; flex-wrap: wrap; }
+
+    .detail {
+      position: sticky;
+      top: 94px;
+    }
+
+    .detail-body {
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .detail-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .detail-title h3 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: -0.035em;
+      line-height: 1.22;
+    }
+
+    .detail-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .small-stat {
+      padding: 12px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: #f8fafc;
+    }
+
+    .small-stat strong {
+      display: block;
+      font-size: 23px;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .small-stat span { color: var(--muted); font-size: 12px; }
+
+    .block {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .block h4 {
+      margin: 0;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #f8fafc;
+      font-size: 15px;
+    }
+
+    .timeline { display: grid; }
+
+    .timeline-item {
+      display: grid;
+      grid-template-columns: 92px 1fr auto;
+      gap: 12px;
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      align-items: start;
+    }
+
+    .timeline-item:last-child { border-bottom: 0; }
+
+    .time {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .event-title { font-weight: 900; margin-bottom: 3px; line-height: 1.3; }
+    .event-desc { color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .event-side { text-align: right; font-size: 13px; }
+    .grade { font-weight: 950; margin-bottom: 4px; }
+    .grade.good { color: var(--green); }
+    .grade.mid { color: var(--amber); }
+    .grade.bad { color: var(--red); }
+
+    .feedback-box {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+
+    .feedback-btn {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+      padding: 10px;
+      cursor: pointer;
+      font-weight: 900;
+      color: var(--muted);
+    }
+
+    .feedback-btn.good { color: var(--green); background: var(--green-soft); border-color: #bbf7d0; }
+    .feedback-btn.mid { color: var(--amber); background: var(--amber-soft); border-color: #fde68a; }
+    .feedback-btn.bad { color: var(--red); background: var(--red-soft); border-color: #fecaca; }
+
+    @media (max-width: 1180px) {
+      .hero-a, .journey, .app-content { grid-template-columns: 1fr; }
+      .detail { position: static; }
+      .app-shell { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+    }
+
+    @media (max-width: 860px) {
+      .topbar { align-items: stretch; flex-direction: column; border-radius: 24px; }
+      .tabs { width: 100%; }
+      .tab-btn { flex: 1; }
+      .nav-note { white-space: normal; text-align: center; }
+      .section-head { display: block; }
+      .section-note { margin-top: 8px; }
+      .grid-3, .metric-row, .rule-preview-grid, .app-summary, .detail-stats { grid-template-columns: 1fr; }
+      .hero-a { padding: 26px; }
+      h1 { letter-spacing: -0.05em; }
+      .timeline-item { grid-template-columns: 1fr; }
+      .event-side { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div class="brand"><div class="logo">🧠</div> TeamBrain</div>
+      <div class="tabs" aria-label="版本切换">
+        <button class="tab-btn active" data-target="versionA">A 产品展示页</button>
+        <button class="tab-btn" data-target="versionB">B 真实产品界面</button>
+      </div>
+      <div class="nav-note">同一份 HTML，两个版本：讲故事 + 真后台</div>
+    </header>
+
+    <main>
+      <section id="versionA" class="version active">
+        <div class="hero-a">
+          <div>
+            <div class="eyebrow">给用户看的版本｜规则变化可见</div>
+            <h1>不是告诉你 AI 变聪明了，<br />而是让你看见它怎么变聪明。</h1>
+            <p>
+              TeamBrain 把团队每天纠正 AI 的经验沉淀成规则，并展示每条规则从哪里来、现在分数是多少、为什么升分或降分、过去触发时 AI 是否真的用对了。
+            </p>
+            <div class="hero-actions">
+              <a class="button" href="#a-story">看用户故事</a>
+              <a class="button dark" href="#a-rules">看规则变化</a>
+            </div>
+          </div>
+
+          <div class="story-card">
+            <div class="window-top">
+              <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+              <span>本周 TeamBrain 规则变化</span>
+            </div>
+            <div class="story-list">
+              <div class="story-item">
+                <div class="story-icon">➕</div>
+                <div><strong>新增规则：不要用 mock 数据冒充完成</strong><span>来自多次人工纠正，当前评分 92</span></div>
+                <div class="score-pill">+8</div>
+              </div>
+              <div class="story-item">
+                <div class="story-icon">📈</div>
+                <div><strong>规则升分：提交前保留可抽检证据</strong><span>触发后被用户确认有效，当前评分 87</span></div>
+                <div class="score-pill">+5</div>
+              </div>
+              <div class="story-item">
+                <div class="story-icon">⚠️</div>
+                <div><strong>规则降分：优先遵循团队已有偏好</strong><span>部分探索任务中过度限制，当前评分 79</span></div>
+                <div class="score-pill" style="color:#fecaca;background:rgba(239,68,68,.16);border-color:rgba(239,68,68,.22);">-3</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section class="section" id="a-story">
+          <div class="section-head">
+            <h2>故事：从“我刚纠正过你”到“下次你先别犯”</h2>
+            <p class="section-note">用户看到的不是一堆抽象知识库，而是一条条会自动更新、会被验证、会变强或变弱的团队规则。</p>
+          </div>
+
+          <div class="journey">
+            <div class="persona">
+              <div class="persona-face">👩‍💻</div>
+              <h2 style="font-size:32px;color:#fff;">小林的痛点</h2>
+              <p>小林每天都和 AI 一起做功能。过去她最烦的是：AI 经常声称“已经完成”，但后来发现只是用 mock 数据跑通；下次换一个会话，AI 又忘了这条教训。</p>
+              <p>TeamBrain 的价值是：把这次纠正变成一条可追踪的团队规则，并在未来持续评估它到底有没有用。</p>
+            </div>
+
+            <div class="steps">
+              <div class="step"><div class="num">1</div><div><h3>用户纠正 AI</h3><p>小林指出：不能用 mock 数据冒充真实完成，必须基于真实输入或真实验证。</p></div></div>
+              <div class="step"><div class="num">2</div><div><h3>TeamBrain 新增规则</h3><p>系统把这次纠正沉淀为规则，并展示“新增原因”和“初始评分”。</p></div></div>
+              <div class="step"><div class="num">3</div><div><h3>后续触发可追溯</h3><p>每次 AI 准备再次犯同类错误时，规则会触发，并记录触发上下文。</p></div></div>
+              <div class="step"><div class="num">4</div><div><h3>人工评价是否合理</h3><p>用户可以标记：这次规则使用合理、待确认或不合理。</p></div></div>
+              <div class="step"><div class="num">5</div><div><h3>规则自动升降分</h3><p>高价值规则升分，误触发规则降分；团队能看到规则为什么变化。</p></div></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-head">
+            <h2>用户能一眼看到的 4 件事</h2>
+            <p class="section-note">这个版本适合展示给用户、老板、评审或投资人，重点讲清楚产品价值。</p>
+          </div>
+          <div class="grid-3">
+            <article class="feature-card"><div class="feature-icon">➕</div><h3>新增了什么规则</h3><p>最近团队大脑学到了什么，不再藏在聊天记录里。</p></article>
+            <article class="feature-card"><div class="feature-icon">🏆</div><h3>每条规则现在几分</h3><p>规则不是固定死的，而是有当前可信度和价值分。</p></article>
+            <article class="feature-card"><div class="feature-icon">📈</div><h3>为什么升分或降分</h3><p>用户能看到升降背后的具体原因，而不是黑盒变化。</p></article>
+            <article class="feature-card"><div class="feature-icon">🔔</div><h3>过去在哪里触发</h3><p>点击规则后看到历史触发记录、场景和结果。</p></article>
+            <article class="feature-card"><div class="feature-icon">✅</div><h3>AI 用得是否合理</h3><p>每次触发都能被评价：合理、待确认、不合理。</p></article>
+            <article class="feature-card"><div class="feature-icon">🧭</div><h3>团队经验持续进化</h3><p>真正有用的经验会变强，过时或误触发的经验会变弱。</p></article>
+          </div>
+        </section>
+
+        <section class="section" id="a-rules">
+          <div class="section-head">
+            <h2>规则变化展示</h2>
+            <p class="section-note">这不是技术日志，而是用户能理解的“规则生命线”：新增、触发、被采纳、被质疑、升降分。</p>
+          </div>
+
+          <div class="metric-row">
+            <div class="metric-card"><strong>3</strong><span>本周新增规则</span></div>
+            <div class="metric-card"><strong>18</strong><span>当前生效规则</span></div>
+            <div class="metric-card"><strong>126</strong><span>近 7 天触发</span></div>
+            <div class="metric-card"><strong>89%</strong><span>AI 使用合理率</span></div>
+          </div>
+
+          <div class="rule-preview-grid" style="margin-top:16px;">
+            <article class="rule-preview">
+              <div class="rule-preview-top"><div><div class="rule-title">不要用 mock 数据冒充真实完成</div><div class="muted">当前评分 92，本周 +8</div></div><span class="badge new">新增</span></div>
+              <p class="muted">当 AI 声称任务已完成时，必须能看到真实输入、真实输出或真实验证证据。</p>
+              <div class="mini-timeline">
+                <div class="mini-event"><span><b>6 天前</b> 创建规则</span><span>+60</span></div>
+                <div class="mini-event"><span><b>4 天前</b> 多次拦截有效</span><span>+14</span></div>
+                <div class="mini-event"><span><b>2 天前</b> 示例场景误触发</span><span style="color:var(--red);">-6</span></div>
+                <div class="mini-event"><span><b>今天</b> 真实任务触发准确</span><span>+24</span></div>
+              </div>
+            </article>
+
+            <article class="rule-preview">
+              <div class="rule-preview-top"><div><div class="rule-title">优先遵循团队已有偏好</div><div class="muted">当前评分 79，本周 -3</div></div><span class="badge watch">观察中</span></div>
+              <p class="muted">当团队已有稳定选择时，AI 不要重新发明流程；但探索型任务里需要避免触发过宽。</p>
+              <div class="mini-timeline">
+                <div class="mini-event"><span><b>10 天前</b> 创建规则</span><span>+62</span></div>
+                <div class="mini-event"><span><b>6 天前</b> 减少重复解释</span><span>+12</span></div>
+                <div class="mini-event"><span><b>3 天前</b> 限制探索空间</span><span style="color:var(--red);">-9</span></div>
+                <div class="mini-event"><span><b>今天</b> 继续观察</span><span style="color:var(--red);">-3</span></div>
+              </div>
+            </article>
+          </div>
+        </section>
+      </section>
+
+      <section id="versionB" class="version">
+        <div class="app-shell">
+          <aside class="sidebar">
+            <div class="brand"><div class="logo">🧠</div> TeamBrain</div>
+            <nav class="side-nav">
+              <div class="side-link active">规则变化</div>
+              <div class="side-link">新增规则</div>
+              <div class="side-link">触发历史</div>
+              <div class="side-link">AI 使用评价</div>
+              <div class="side-link">团队反馈</div>
+            </nav>
+            <div class="side-card">
+              <b style="color:#fff;">今天重点</b><br />
+              1 条规则触发过宽，2 条新规则评分上升。建议先查看“观察中”的规则。
+            </div>
+          </aside>
+
+          <div class="app-main">
+            <header class="app-header">
+              <div>
+                <h1>规则变化看板</h1>
+                <p>查看新增规则、当前评分、评分来源、触发历史，以及 AI 使用是否合理。</p>
+              </div>
+              <div class="filters">
+                <input class="filter" placeholder="搜索规则：mock / 证据 / 偏好" />
+                <select class="filter"><option>最近 7 天</option><option>最近 30 天</option><option>全部</option></select>
+                <select class="filter"><option>全部状态</option><option>新增</option><option>稳定</option><option>观察中</option></select>
+              </div>
+            </header>
+
+            <section class="app-summary">
+              <div class="summary-tile"><strong>3</strong><span>本周新增规则</span></div>
+              <div class="summary-tile"><strong>18</strong><span>当前生效规则</span></div>
+              <div class="summary-tile"><strong>126</strong><span>近 7 天触发</span></div>
+              <div class="summary-tile"><strong>89%</strong><span>AI 使用合理率</span></div>
+            </section>
+
+            <section class="app-content">
+              <div style="display:grid;gap:18px;min-width:0;">
+                <div class="card">
+                  <div class="card-head">
+                    <div><h2>新增的规则</h2><p>最近被 TeamBrain 学到、正在进入团队经验库的规则。</p></div>
+                    <span class="badge new">3 条新增</span>
+                  </div>
+                  <div class="new-rule-list" id="newRuleList"></div>
+                </div>
+
+                <div class="card">
+                  <div class="card-head">
+                    <div><h2>所有规则评分</h2><p>点击任意规则，在右侧查看评分升降与触发历史。</p></div>
+                    <span class="badge purple">可点击查看详情</span>
+                  </div>
+                  <div class="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>规则</th>
+                          <th>状态</th>
+                          <th>当前评分</th>
+                          <th>分数来源</th>
+                          <th>近 7 天触发</th>
+                          <th>AI 使用情况</th>
+                        </tr>
+                      </thead>
+                      <tbody id="ruleTableBody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <aside class="card detail">
+                <div class="card-head">
+                  <div><h2>规则详情</h2><p>触发历史、评分变化、AI 是否用对。</p></div>
+                </div>
+                <div class="detail-body" id="detailBody"></div>
+              </aside>
+            </section>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const rules = {
+      rule1: {
+        title: "不要用 mock 数据冒充真实完成",
+        status: "新增",
+        statusClass: "new",
+        score: 92,
+        delta: "+8",
+        deltaClass: "delta-up",
+        desc: "当 AI 声称任务已完成时，必须基于真实输入、真实输出或真实验证证据。",
+        added: "2 天前",
+        triggers7d: 26,
+        usage: { good: 88, mid: 8, bad: 4 },
+        reasons: ["触发后多次纠正有效", "用户多次确认有用", "仍有少量示例场景误判"],
+        stats: ["26", "88%", "4%"],
+        statsLabels: ["近 7 天触发", "AI 使用合理率", "不合理使用率"],
+        scoreHistory: [
+          ["6 天前", "规则创建", "由用户多次纠正“不要用 mock 数据冒充完成”后沉淀为正式规则。", "+60", "good", "初始建规则"],
+          ["4 天前", "明显升分", "连续 3 次拦截到 AI 用演示数据声称完成，用户确认提醒有效。", "+14", "good", "纠错有效"],
+          ["2 天前", "小幅降分", "在教学示例任务中误把正常示例数据当成问题触发。", "-6", "bad", "触发过宽"],
+          ["今天", "再次升分", "最近多次拦截准确，AI 采纳后输出质量明显提升。", "+24", "good", "高价值"]
+        ],
+        triggers: [
+          ["今天 09:20", "AI 声称“功能已完成”", "系统发现回答只基于 mock 输入，没有真实验证证据。AI 接受提醒后补充真实结果。", "合理", "good"],
+          ["昨天 16:05", "AI 提交“通过测试”结论", "只展示了示例输出，没有展示真实检查过程。用户认为这次提醒避免了误报喜。", "合理", "good"],
+          ["2 天前 11:40", "AI 生成说明示例", "这是教学示例，并非真正宣称完成；系统仍触发了规则。", "不合理", "bad"]
+        ]
+      },
+      rule2: {
+        title: "提交结果前，必须保留可抽检证据",
+        status: "新增",
+        statusClass: "new",
+        score: 87,
+        delta: "+5",
+        deltaClass: "delta-up",
+        desc: "AI 给出完成、正确、已验证等结论时，应提供可让人低成本核查的依据。",
+        added: "4 天前",
+        triggers7d: 19,
+        usage: { good: 84, mid: 11, bad: 5 },
+        reasons: ["减少口头完成", "透明度提升", "简单场景下偶尔偏重"],
+        stats: ["19", "84%", "5%"],
+        statsLabels: ["近 7 天触发", "AI 使用合理率", "不合理使用率"],
+        scoreHistory: [
+          ["5 天前", "规则创建", "用户希望 AI 给结论时必须附带可抽检依据。", "+58", "good", "初始建规则"],
+          ["3 天前", "稳定升分", "多次帮助用户快速抽检 AI 结论，节省反复追问时间。", "+18", "good", "透明度提高"],
+          ["昨天", "轻微降分", "某些简单场景下，证据要求略显繁琐。", "-4", "mid", "成本偏高"],
+          ["今天", "再次升分", "在高风险输出中价值很高，用户反馈正面。", "+15", "good", "风险控制有效"]
+        ],
+        triggers: [
+          ["今天 13:30", "AI 给出“已经验证通过”", "系统要求补充可核查依据。AI 补充后，用户可以直接检查。", "合理", "good"],
+          ["昨天 10:15", "AI 汇报“结果正确”", "没有附来源或可检查结果，因此被提醒。用户认为很必要。", "合理", "good"],
+          ["3 天前 18:05", "AI 给出非常简单的答复", "系统仍要求较完整证据，显得略重。", "待确认", "mid"]
+        ]
+      },
+      rule3: {
+        title: "优先遵循团队已有偏好",
+        status: "观察中",
+        statusClass: "watch",
+        score: 79,
+        delta: "-3",
+        deltaClass: "delta-down",
+        desc: "如果团队已有明确偏好，AI 应优先遵守；但探索型任务里需要避免过度限制。",
+        added: "6 天前",
+        triggers7d: 14,
+        usage: { good: 71, mid: 18, bad: 11 },
+        reasons: ["减少重复讨论", "部分任务触发过宽", "个别场景限制探索"],
+        stats: ["14", "71%", "11%"],
+        statsLabels: ["近 7 天触发", "AI 使用合理率", "不合理使用率"],
+        scoreHistory: [
+          ["10 天前", "规则创建", "为了减少 AI 每次都重新争论已经定过的做法。", "+62", "good", "初始建规则"],
+          ["6 天前", "升分", "帮助 AI 自动跟随团队习惯，减少解释次数。", "+12", "good", "减少重复讨论"],
+          ["3 天前", "降分", "在需要探索新方案的任务中，系统仍强推旧偏好。", "-9", "bad", "触发偏宽"],
+          ["今天", "小幅降分", "仍需区分稳定偏好与允许探索的场景。", "-3", "mid", "继续观察"]
+        ],
+        triggers: [
+          ["今天 15:10", "AI 选择团队惯用方案", "系统提示沿用团队已有选择，避免重新走旧争论。", "合理", "good"],
+          ["昨天 14:00", "AI 想尝试不同方向", "任务本来允许探索，系统仍强行触发偏好规则。", "不合理", "bad"],
+          ["4 天前 09:50", "AI 沿用团队习惯流程", "避免了再次解释背景偏好。", "合理", "good"]
+        ]
+      },
+      rule4: {
+        title: "避免使用团队已淘汰的旧方案",
+        status: "稳定",
+        statusClass: "stable",
+        score: 96,
+        delta: "+2",
+        deltaClass: "delta-up",
+        desc: "如果团队已明确放弃某做法，AI 应优先避免再次选择。",
+        added: "30 天前",
+        triggers7d: 31,
+        usage: { good: 94, mid: 4, bad: 2 },
+        reasons: ["长期稳定高价值", "误报少", "被大量正确采纳"],
+        stats: ["31", "94%", "2%"],
+        statsLabels: ["近 7 天触发", "AI 使用合理率", "不合理使用率"],
+        scoreHistory: [
+          ["30 天前", "规则创建", "团队多次强调旧方案已弃用，因此固化为规则。", "+68", "good", "初始建规则"],
+          ["20 天前", "持续升分", "拦截准确率高，用户认可度高。", "+16", "good", "长期有效"],
+          ["7 天前", "再升分", "最近触发多次，几乎都被认为合理。", "+10", "good", "高稳定性"],
+          ["今天", "小幅升分", "继续保持高价值低误报。", "+2", "good", "稳定"]
+        ],
+        triggers: [
+          ["今天 08:50", "AI 准备使用旧方案", "系统提醒该方案已被团队淘汰，AI 改为当前推荐做法。", "合理", "good"],
+          ["昨天 17:30", "AI 再次提到已弃用流程", "系统拦截，避免重复走老路。", "合理", "good"],
+          ["3 天前 10:00", "AI 参考旧资料", "系统提示这类资料对应的做法已过时。", "合理", "good"]
+        ]
+      }
+    };
+
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const versions = document.querySelectorAll('.version');
+    tabButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tabButtons.forEach(b => b.classList.remove('active'));
+        versions.forEach(v => v.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.target).classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    });
+
+    function usagePills(rule) {
+      return `
+        <div class="usage-pills">
+          <span class="badge stable">合理 ${rule.usage.good}%</span>
+          <span class="badge watch">待确认 ${rule.usage.mid}%</span>
+          <span class="badge bad">不合理 ${rule.usage.bad}%</span>
+        </div>
+      `;
+    }
+
+    function renderNewRules() {
+      const list = document.getElementById('newRuleList');
+      const newRules = Object.entries(rules).filter(([_, r]) => r.status === '新增' || r.status === '观察中');
+      list.innerHTML = newRules.map(([key, rule]) => `
+        <div class="new-rule" onclick="selectRule('${key}')">
+          <div class="new-rule-top">
+            <div>
+              <div class="rule-title">${rule.title}</div>
+              <div class="muted">${rule.desc}</div>
+            </div>
+            <span class="badge ${rule.statusClass}">${rule.status}</span>
+          </div>
+          <div class="muted">新增于：${rule.added} · 当前评分：<b style="color:var(--ink);">${rule.score}</b> · 本周变化：<b class="${rule.deltaClass}">${rule.delta}</b></div>
+        </div>
+      `).join('');
+    }
+
+    function renderRuleTable(selectedKey = 'rule1') {
+      const body = document.getElementById('ruleTableBody');
+      body.innerHTML = Object.entries(rules).map(([key, rule]) => `
+        <tr class="rule-row ${key === selectedKey ? 'selected' : ''}" onclick="selectRule('${key}')">
+          <td>
+            <div class="rule-title">${rule.title}</div>
+            <div class="muted">${rule.desc}</div>
+          </td>
+          <td><span class="badge ${rule.statusClass}">${rule.status}</span></td>
+          <td><span class="score">${rule.score}</span><span class="${rule.deltaClass}">${rule.delta}</span><span class="muted"> 本周</span></td>
+          <td><div class="reason-list">${rule.reasons.map(r => `<div>· ${r}</div>`).join('')}</div></td>
+          <td>${rule.triggers7d} 次</td>
+          <td>${usagePills(rule)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function gradeClass(grade) {
+      if (grade === 'good') return 'good';
+      if (grade === 'bad') return 'bad';
+      return 'mid';
+    }
+
+    function selectRule(key) {
+      const rule = rules[key];
+      renderRuleTable(key);
+      const detail = document.getElementById('detailBody');
+      detail.innerHTML = `
+        <div class="detail-title">
+          <div>
+            <h3>${rule.title}</h3>
+            <div class="muted" style="margin-top:6px;">${rule.desc}</div>
+          </div>
+          <span class="badge ${rule.statusClass}">${rule.status}</span>
+        </div>
+
+        <div class="detail-stats">
+          ${rule.stats.map((s, i) => `
+            <div class="small-stat"><strong>${s}</strong><span>${rule.statsLabels[i]}</span></div>
+          `).join('')}
+        </div>
+
+        <div class="block">
+          <h4>评分升降记录</h4>
+          <div class="timeline">
+            ${rule.scoreHistory.map(item => `
+              <div class="timeline-item">
+                <div class="time">${item[0]}</div>
+                <div>
+                  <div class="event-title">${item[1]}</div>
+                  <div class="event-desc">${item[2]}</div>
+                </div>
+                <div class="event-side">
+                  <div class="grade ${gradeClass(item[4])}">${item[3]}</div>
+                  <div class="muted">${item[5]}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="block">
+          <h4>过去触发情况 + AI 使用是否合理</h4>
+          <div class="timeline">
+            ${rule.triggers.map(item => `
+              <div class="timeline-item">
+                <div class="time">${item[0]}</div>
+                <div>
+                  <div class="event-title">${item[1]}</div>
+                  <div class="event-desc">${item[2]}</div>
+                </div>
+                <div class="event-side">
+                  <div class="grade ${gradeClass(item[4])}">${item[3]}</div>
+                  <div class="muted">人工评价</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="block">
+          <h4>这次触发你觉得合理吗？</h4>
+          <div style="padding:14px;">
+            <div class="feedback-box">
+              <button class="feedback-btn good">合理</button>
+              <button class="feedback-btn mid">待确认</button>
+              <button class="feedback-btn bad">不合理</button>
+            </div>
+            <p class="muted" style="margin:10px 0 0;">用户的评价会进入这条规则的后续评分变化。</p>
+          </div>
+        </div>
+      `;
+    }
+
+    renderNewRules();
+    renderRuleTable('rule1');
+    selectRule('rule1');
+  </script>
+</body>
+</html>
