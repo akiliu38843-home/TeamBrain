@@ -33,7 +33,7 @@
   reasoning_loop: false
   known_limitation: false
 
-✻ Brewed for 24s
+✻ Brewed for 21s
 
 ❯ /export /Users/m1/projects/TeamBrain/.claude/worktrees/design-skills/docs/vendored-skills-verification/evidence/design-html/03-tmux-export.md
   ⎿  Conversation exported to: /Users/m1/projects/TeamBrain/.claude/worktrees/design-skills/docs/vendored-skills-verification/evidence/design-html/03-tmux-export.md
@@ -41,7 +41,7 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ❯ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  PR #14                                                                                                              tmux focus-events off · add 'set -g focus-events on' to ~/.tmux.conf and reattach for focus tracking
+  PR #14                                                                                                                                                                                       6 MCP servers failed · /mcp
 
 
 

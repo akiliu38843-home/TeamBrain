@@ -31,4 +31,11 @@
 
 ⏺ VERIFY_DESIGN_SHOTGUN_OK
 
-✻ Worked for 1m 13s
+  premature_stopping: false
+  permission_seeking: false
+  ownership_dodging: false
+  simplest_fix: false
+  reasoning_loop: false
+  known_limitation: false
+
+✻ Baked for 17s

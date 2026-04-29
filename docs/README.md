@@ -12,6 +12,7 @@ the indexes below to choose what to read first.
 | Understand the architecture shape | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Look up implementation details | [SYSTEM.md](SYSTEM.md) |
 | Verify or test a feature/fix | [feature-verification.md](feature-verification.md) |
+| Check PR #14 status | [pr-14-status.md](pr-14-status.md) |
 | Find foundational specs | [specs/README.md](specs/README.md) |
 | Find later milestone specs and plans | [superpowers/README.md](superpowers/README.md) |
 | Review historical Phase 1 and superseded docs | [backup/README.md](backup/README.md) |
@@ -35,6 +36,8 @@ the indexes below to choose what to read first.
 1. [feature-verification.md](feature-verification.md) for the required
    feature/fix verification gate: `claudefast`, `codex`, JSON hard-match, tmux
    `/export`, and commit/PR evidence.
+2. [pr-14-status.md](pr-14-status.md) for the current PR #14 local status
+   index when GitHub access is blocked.
 
 ### Milestone Work
 
@@ -52,6 +55,7 @@ the indexes below to choose what to read first.
 | `superpowers/plans/` | Task-level implementation plans for later milestones. |
 | `notes/` | Small decision records. |
 | `feature-verification.md` | Feature/fix verification gate and evidence requirements. |
+| `pr-14-status.md` | PR #14 local status index for restricted verification sessions. |
 | `research/` | Research notes that informed roadmap decisions. |
 | `dogfood/` | Current dogfood reports. |
 | `backup/` | Historical and superseded documents retained for traceability. |
