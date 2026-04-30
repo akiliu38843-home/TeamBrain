@@ -38,22 +38,27 @@
 
 ### DAY 1 detail — Hour 2 – 24「Skeleton + Review + Real Task #1」🔄 IN PROGRESS
 
-H2 – 6 Skeleton parallel build（4 agents × 8 outputs，按 STRUCTURE.md 计 9 个文件 + 1 个目录）：
+H2 – 6 Skeleton parallel build (8 sonnet writers × 1 file each, atomic commits) — ⚠️ **DONE WITH CLEANUP-REQUIRED VERDICT**:
 
-| Owner | Output | 状态 | Artifact / 缺口 |
-|-------|--------|------|-----------------|
-| Agent A (Claude) | `docs/teambrain/README.md` | ✅ Done | 5-min onboarding flow |
-| Agent A (Claude) | `docs/teambrain/STRUCTURE.md` | ✅ Done | 9-file canonical layout |
-| Agent B (Claude) | `docs/teambrain/TRAP_FORMAT.md` | ✅ Done | trap schema + linter recipe |
-| Agent B (Claude) | `docs/teambrain/TRAPS.md` | ⏳ TODO | 需要从 Day 0 trap dump 中挑 P0 写入 |
-| Agent C (Codex) | `docs/teambrain/TASK_TEMPLATE.md` | ⏳ TODO | 任务模板 |
-| Agent C (Codex) | `docs/teambrain/VERIFY_TEMPLATE.md` | ⏳ TODO | judge harness 模板 |
-| Agent D (Codex) | `docs/teambrain/agent_rules/claude.md` | ⏳ TODO | `agent_rules/` 目录已建空 |
-| Agent D (Codex) | `docs/teambrain/agent_rules/codex.md` | ⏳ TODO | 同上 |
-| Reviewer | `docs/teambrain/CONVERGENCE.md` | ⏳ TODO | H6 owner merge 后才填 |
+| Owner | Output | 状态 | Commit / Artifact |
+|-------|--------|------|-------------------|
+| skeleton-architect (sonnet) | `docs/teambrain/STRUCTURE.md` | ✅ Done | 529a6a7 — 9-file canonical layout |
+| readme-writer (sonnet) | `docs/teambrain/README.md` | ✅ Done | 8519046 — 5-min onboarding flow |
+| trap-format-author (sonnet) | `docs/teambrain/TRAP_FORMAT.md` | ✅ Done | 75a95c4 — trap schema + linter recipe |
+| verify-template-author (sonnet) | `docs/teambrain/VERIFY_TEMPLATE.md` | ✅ Done | ebc321a — 3-stage judge harness |
+| traps-curator (sonnet) | `docs/teambrain/TRAPS.md` | ✅ Done | 7e7288c — 5 P0 + 35 condensed + 10 standards + 5 cases |
+| task-template-author (sonnet) | `docs/teambrain/TASK_TEMPLATE.md` | ✅ Done | dad4222 — anti-mock + evidence checklists |
+| claude-rules-author (sonnet) | `docs/teambrain/agent_rules/claude.md` | ✅ Done | c6a4886 — FASTPROBE batch=2 cap |
+| codex-rules-author (sonnet) | `docs/teambrain/agent_rules/codex.md` | ✅ Done | 6fa6a2c — image-gen + sandbox guards |
+| convergence-reviewer (opus) | `docs/teambrain/CONVERGENCE.md` | ✅ Done | H6-12 reviewer pass (this commit) |
 
-H6 – 12 Reviewer pass + human cleanup — ⏳ **未启动**。
-H12 – 24 Real Task #1（real owner work + transcript + evidence）— ⏳ **未启动**。
+H6 – 12 Reviewer pass + human cleanup — ⚠️ **REVIEWER PASS DONE; CLEANUP REQUIRED**:
+- Verdict: `CLEANUP-REQUIRED` — see [`../teambrain/CONVERGENCE.md`](../teambrain/CONVERGENCE.md).
+- Counts: **P0=6**, P1=7, P2=3. Cleanup queue items 1-6 BLOCK H12-24.
+- Top P0 themes: TRAPS.md schema drift vs TRAP_FORMAT spec (P0 entries use hyphenated `wrong-pattern`/`evidence link` labels; P1/P2 table drops `verify_command` and `evidence_link` columns; `category: testing` violates enum); TASK_TEMPLATE example uses `VERIFY#unit-pass-coverage-80` and `TRAP#git-force-push` slugs that fail the spec regex; `agent_rules/claude.md` uses uppercase `TRAPS-READ:` anchor while `codex.md` uses lowercase `traps-read:` — VERIFY-CLAUDE-005 grep rejects every Codex agent's first commit.
+- Reviewer wrote only CONVERGENCE.md + this status update; the 8 reviewed files are NOT modified by reviewer — fixes go to listed owners via cleanup queue.
+
+H12 – 24 Real Task #1（real owner work + transcript + evidence）— ⛔️ **BLOCKED on cleanup queue items 1-6**. Cannot start until TRAPS.md / TASK_TEMPLATE / agent_rules cleanup commits land.
 
 DAY 1 退出准则（必须全部 ✅ 才能进入 DAY 2）：
 1. STRUCTURE.md 所列 9 个文件全部存在且非空。
