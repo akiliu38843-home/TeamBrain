@@ -19,13 +19,13 @@
 | Day | Hour 范围 | 阶段 | 状态 | 备注 |
 |-----|-----------|------|------|------|
 | **DAY 0** | H0 – H2 | Frame the problem | ✅ **DONE** | Mission + trap dump + HTML 快照已产出 |
-| **DAY 1** | H2 – H24 | Skeleton + Reviewer + Real Task #1 | 🔄 **IN PROGRESS** | 部分骨架已落地，reviewer pass 与 Real Task #1 未启动 |
+| **DAY 1** | H2 – H24 | Skeleton + Reviewer + Real Task #1 | 🔄 **IN PROGRESS** | H2-6 骨架 8/8 + H6-12 reviewer pass 已 commit；verdict = `CLEANUP-REQUIRED` (P0=6)；H12-24 Real Task #1 BLOCKED on cleanup |
 | **DAY 2** | H24 – H48 | Patch the brain + Real Task #2 (start) | ⏳ **TODO** | 等待 owner approval 才可启动 |
 | **DAY 3** | H48 – H72 | Real Task #2 finish + Release v0.1 | ⏳ **TODO** | 等待 owner approval 才可启动 |
 
 > ⛔️ **Pause gate**：DAY 2/3 不在本 commit 范围内。owner 必须显式批准
-> 后，agent 才能继续推进 H24 之后的工作；当前停在 DAY 1 的 reviewer pass
-> 之前。
+> 后，agent 才能继续推进 H24 之后的工作；当前停在 DAY 1 的 cleanup queue
+> 之前（H6-12 reviewer pass 已落地，但 cleanup 与 Real Task #1 仍未启动）。
 
 ### DAY 0 detail — Hour 0 – 2「Frame the problem」FINISHED ✅
 

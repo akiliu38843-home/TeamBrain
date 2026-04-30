@@ -100,7 +100,7 @@ Wildcards allowed only when the glob is unambiguous (e.g., `packages/core/src/fl
 
 **Required content:**
 - Exact output file paths (not directories).
-- Commit message convention: `feat(m{N}): <imperative sentence>` or `fix(m{N}): ...`.
+- Commit message convention: `feat(teambrain): <imperative sentence>` or `fix(teambrain): ...`.
 - Any artifact that must be attached (e.g., `.judge/<run_id>/judge.json`, screenshot).
 
 **Verify hook:** Reviewer runs `git show --stat HEAD` and confirms all listed paths are present.
@@ -228,7 +228,7 @@ Deliverable:
   - packages/core/src/flags.ts — new export `billing_v2: boolean`
   - packages/core/src/__tests__/flags.test.ts — ≥3 new tests covering on/off/default
   - .judge/abc1234/judge.json, stdout.txt, coverage.json
-  - Commit message: feat(m1): add billing_v2 feature flag to core
+  - Commit message: feat(teambrain): add billing_v2 feature flag to core
 
 Success criteria:
   pnpm test --filter packages/core 2>&1 | grep -E "passed|failed"
