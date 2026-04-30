@@ -14,9 +14,20 @@
 
 72 小时把 TeamBrain 从「空 repo + 一个想法」推进到 v0.1，靠人 + agent 不间断协作完成。
 
-## Day 0 Status (as of 2026-05-01)
+## Multi-Day Status Snapshot (as of 2026-05-01)
 
-**Day 0 / Hour 0 – 2「Frame the problem」阶段：FINISHED ✅**
+| Day | Hour 范围 | 阶段 | 状态 | 备注 |
+|-----|-----------|------|------|------|
+| **DAY 0** | H0 – H2 | Frame the problem | ✅ **DONE** | Mission + trap dump + HTML 快照已产出 |
+| **DAY 1** | H2 – H24 | Skeleton + Reviewer + Real Task #1 | 🔄 **IN PROGRESS** | 部分骨架已落地，reviewer pass 与 Real Task #1 未启动 |
+| **DAY 2** | H24 – H48 | Patch the brain + Real Task #2 (start) | ⏳ **TODO** | 等待 owner approval 才可启动 |
+| **DAY 3** | H48 – H72 | Real Task #2 finish + Release v0.1 | ⏳ **TODO** | 等待 owner approval 才可启动 |
+
+> ⛔️ **Pause gate**：DAY 2/3 不在本 commit 范围内。owner 必须显式批准
+> 后，agent 才能继续推进 H24 之后的工作；当前停在 DAY 1 的 reviewer pass
+> 之前。
+
+### DAY 0 detail — Hour 0 – 2「Frame the problem」FINISHED ✅
 
 | 产出 | 状态 | Artifact |
 |------|------|----------|
@@ -25,8 +36,34 @@
 | HTML 快照 | ✅ Done | [2026-05-01-teambrain-72h-bootstrap.html](2026-05-01-teambrain-72h-bootstrap.html) |
 | 生成方式 | ✅ Reproducible | 7 路并行 `claudefast -p --output-format stream-json --verbose`（FASTPROBE pattern, see `docs/FASTPROBE.md`），尾部 `<laziness-self-report>` 6 项均 false |
 
-下一阶段：**Hour 2 – 6 / Skeleton parallel build**（尚未启动）。Day 0 work
-本身已收敛，可以驱动 Hour 2 – 6 的四 agent 并行骨架构建。
+### DAY 1 detail — Hour 2 – 24「Skeleton + Review + Real Task #1」🔄 IN PROGRESS
+
+H2 – 6 Skeleton parallel build（4 agents × 8 outputs，按 STRUCTURE.md 计 9 个文件 + 1 个目录）：
+
+| Owner | Output | 状态 | Artifact / 缺口 |
+|-------|--------|------|-----------------|
+| Agent A (Claude) | `docs/teambrain/README.md` | ✅ Done | 5-min onboarding flow |
+| Agent A (Claude) | `docs/teambrain/STRUCTURE.md` | ✅ Done | 9-file canonical layout |
+| Agent B (Claude) | `docs/teambrain/TRAP_FORMAT.md` | ✅ Done | trap schema + linter recipe |
+| Agent B (Claude) | `docs/teambrain/TRAPS.md` | ⏳ TODO | 需要从 Day 0 trap dump 中挑 P0 写入 |
+| Agent C (Codex) | `docs/teambrain/TASK_TEMPLATE.md` | ⏳ TODO | 任务模板 |
+| Agent C (Codex) | `docs/teambrain/VERIFY_TEMPLATE.md` | ⏳ TODO | judge harness 模板 |
+| Agent D (Codex) | `docs/teambrain/agent_rules/claude.md` | ⏳ TODO | `agent_rules/` 目录已建空 |
+| Agent D (Codex) | `docs/teambrain/agent_rules/codex.md` | ⏳ TODO | 同上 |
+| Reviewer | `docs/teambrain/CONVERGENCE.md` | ⏳ TODO | H6 owner merge 后才填 |
+
+H6 – 12 Reviewer pass + human cleanup — ⏳ **未启动**。
+H12 – 24 Real Task #1（real owner work + transcript + evidence）— ⏳ **未启动**。
+
+DAY 1 退出准则（必须全部 ✅ 才能进入 DAY 2）：
+1. STRUCTURE.md 所列 9 个文件全部存在且非空。
+2. Reviewer agent 已对每个文件出具 pass/fail，CONVERGENCE.md 已落盘。
+3. Real Task #1 的 transcript + 命令 evidence + 失败点列表已归档。
+
+### DAY 2 / DAY 3 — ⏳ TODO（pause gate active）
+
+未启动。详见后文 H24 – 36 / H36 – 60 / H60 – 72 各阶段定义。等待 owner
+显式 approval 后再继续；不要 agent 自己越过 pause gate。
 
 ### Mission statement
 
