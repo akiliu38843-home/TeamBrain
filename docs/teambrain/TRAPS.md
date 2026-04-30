@@ -53,7 +53,7 @@ Start at P0 — these are the traps that have caused actual production incidents
 - **right_pattern**: Mock only at system boundaries (network, filesystem). Core logic uses real collaborators in integration tests.
 - **evidence_link**: Day 0 dump §B trap #15 — "真实调用链一改全挂 → Mock 最小化，核心逻辑用真协作对象做集成测试"
 - **severity**: P0
-- **verify_command**: `mock_count=$(grep -rn "jest.mock\|vi.mock" packages/ --include="*.test.ts" | wc -l); test_count=$(find packages/ -name "*.test.ts" | wc -l); ratio=$((mock_count * 100 / (test_count + 1))); echo "mock ratio: ${ratio}%"; [ "$ratio" -lt 50 ] && echo "PASS" || echo "FAIL: ratio >= 50%, requires tech-lead sign-off before merge"` — exit message must be PASS; FAIL blocks merge
+- **verify_command**: `mock_count=$(grep -rcE 'jest\.mock|vi\.mock' packages/ --include='*.test.ts' | awk -F: '{s+=$2} END{print s}'); test_count=$(find packages -name '*.test.ts' | wc -l); awk -v m="$mock_count" -v t="$test_count" 'BEGIN{ ratio=(t>0?m/t:0); if(ratio>0.5){print "FAIL: mock ratio "ratio" > 0.5 (threshold)"; exit 1} print "PASS: mock ratio "ratio }'` — exit 0 = PASS, exit 1 = FAIL; threshold is 0.5, not a smell
 
 ---
 
@@ -65,7 +65,7 @@ Start at P0 — these are the traps that have caused actual production incidents
 - **right_pattern**: Staged rollout: 5% → 15% → 50% → 100%, each step with human confirmation gate and error-rate check. Rollback script must be in CI before deploy runs.
 - **evidence_link**: Day 0 dump §C trap #21 — "灰度无梯度 — 流量突增 bug 集中爆"; trap #22 — "回滚脚本没进 CI — 灾难时刻敲错命令"
 - **severity**: P0
-- **verify_command**: `grep -rh "ROLLOUT_PERCENT\|canary\|rollback" .github/workflows/ --include="*.yml" | grep -v "^#" | tee /tmp/deploy-check.txt; grep -qE "\b(5|10)\b" /tmp/deploy-check.txt && grep -q "rollback" /tmp/deploy-check.txt && echo "PASS: staged rollout + rollback found" || echo "FAIL: missing canary step or rollback job"` — must print PASS
+- **verify_command**: `grep -rh "ROLLOUT_PERCENT\|canary\|rollback" .github/workflows/ --include="*.yml" \| grep -v "^#" \| tee /tmp/deploy-check.txt; grep -qE "\b(5|10)\b" /tmp/deploy-check.txt && grep -q "rollback" /tmp/deploy-check.txt && echo "PASS: staged rollout + rollback found" || echo "FAIL: missing canary step or rollback job"` — must print PASS
 
 ---
 
