@@ -17,7 +17,7 @@
 Before touching any file, open `docs/teambrain/TRAPS.md` and read every P0 entry.
 
 **Catch:** The commit message for your first commit must include the structured anchor:
-`traps-read: P0=[<trap-id>, ...] relevant=[<trap-id>, ...]`
+`traps-read: P0=[<trap-ids checked>] relevant=[<trap-ids that apply>]`
 
 A reviewer or CI harness greps for `^traps-read:` (lowercase). Missing or uppercase = commit rejected.
 
