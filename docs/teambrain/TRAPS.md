@@ -65,7 +65,7 @@ Start at P0 — these are the traps that have caused actual production incidents
 - **right_pattern**: Staged rollout: 5% → 15% → 50% → 100%, each step with human confirmation gate and error-rate check. Rollback script must be in CI before deploy runs.
 - **evidence_link**: Day 0 dump §C trap #21 — "灰度无梯度 — 流量突增 bug 集中爆"; trap #22 — "回滚脚本没进 CI — 灾难时刻敲错命令"
 - **severity**: P0
-- **verify_command**: `grep -rh "ROLLOUT_PERCENT\|canary\|rollback" .github/workflows/ --include="*.yml" \| grep -v "^#" \| tee /tmp/deploy-check.txt; grep -qE "\b(5|10)\b" /tmp/deploy-check.txt && grep -q "rollback" /tmp/deploy-check.txt && echo "PASS: staged rollout + rollback found" || echo "FAIL: missing canary step or rollback job"` — must print PASS
+- **verify_command**: `grep -rh "ROLLOUT_PERCENT\|canary\|rollback" .github/workflows/ --include="*.yml" \| grep -v "^#" \| tee /tmp/deploy-check.txt; grep -qE "\b(5\|10)\b" /tmp/deploy-check.txt && grep -q "rollback" /tmp/deploy-check.txt && echo "PASS: staged rollout + rollback found"; [ $? -ne 0 ] && echo "FAIL: missing canary step or rollback job"` — must print PASS
 
 ---
 
@@ -159,10 +159,10 @@ Start at P0 — these are the traps that have caused actual production incidents
 
 ## 5 Typical Failure Cases
 
-| # | Background | Wrong Decision | Blast & Loss | Root Lesson | Would-Have-Prevented |
-|---|-----------|----------------|-------------|-------------|----------------------|
-| 1 | Core module author departed, no docs | "Code is documentation" | 6× maintenance cost 6 months later, 2 P0 incidents | Knowledge not encoded = zero; turnover accelerates entropy | TRAP-COOP-003 (no "why" rationale in docs) |
-| 2 | OKR sprint crunch, testing time cut | "Sacrifice tests for velocity" | Core flow failure post-launch; 800万+ order loss | Quality is not a phase; debt accrues with compound interest | TRAP-REVIEW-001 (skip tests) |
-| 3 | 2 years of tech debt, refactor blocked | "If it works, don't touch it" | Small change triggers circular dependency; 3-day cascade failure | Tech debt is compound interest; later = more expensive | TRAP-REVIEW-002 (mock 套娃 hiding coupling) |
-| 4 | Hiring season, strong individual hired | "We'll train culture fit later" | 6 months in: collaboration friction leads to 2 senior departures | Hiring is reverse selection; mis-hire cost multiplies | TRAP-COOP-008 (assign by availability not skill) |
-| 5 | Team familiar with microservices, new system chosen | "Use the tech we know" | Distributed transactions/network/ops far exceeded estimates; 4-month delay | Characterise the problem domain first, then match technology | TRAP-COOP-002 (optimistic estimation only) |
+| # | Background | Wrong Decision | Blast & Loss | Root Lesson | Would-Have-Prevented | Source |
+|---|-----------|----------------|-------------|-------------|----------------------|--------|
+| 1 | Core module author departed, no docs | "Code is documentation" | 6× maintenance cost 6 months later, 2 P0 incidents | Knowledge not encoded = zero; turnover accelerates entropy | TRAP-COOP-003 (no "why" rationale in docs) | Day 0 dump §Ⅲ case #1 |
+| 2 | OKR sprint crunch, testing time cut | "Sacrifice tests for velocity" | Core flow failure post-launch; 800万+ order loss | Quality is not a phase; debt accrues with compound interest | TRAP-REVIEW-001 (skip tests) | Day 0 dump §Ⅲ case #2 |
+| 3 | 2 years of tech debt, refactor blocked | "If it works, don't touch it" | Small change triggers circular dependency; 3-day cascade failure | Tech debt is compound interest; later = more expensive | TRAP-REVIEW-002 (mock 套娃 hiding coupling) | Day 0 dump §Ⅲ case #3 |
+| 4 | Hiring season, strong individual hired | "We'll train culture fit later" | 6 months in: collaboration friction leads to 2 senior departures | Hiring is reverse selection; mis-hire cost multiplies | TRAP-COOP-008 (assign by availability not skill) | Day 0 dump §Ⅲ case #4 |
+| 5 | Team familiar with microservices, new system chosen | "Use the tech we know" | Distributed transactions/network/ops far exceeded estimates; 4-month delay | Characterise the problem domain first, then match technology | TRAP-COOP-002 (optimistic estimation only) | Day 0 dump §Ⅲ case #5 |
