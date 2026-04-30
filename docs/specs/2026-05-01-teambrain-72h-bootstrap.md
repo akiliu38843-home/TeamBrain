@@ -19,7 +19,7 @@
 | Day | Hour 范围 | 阶段 | 状态 | 备注 |
 |-----|-----------|------|------|------|
 | **DAY 0** | H0 – H2 | Frame the problem | ✅ **DONE** | Mission + trap dump + HTML 快照已产出 |
-| **DAY 1** | H2 – H24 | Skeleton + Reviewer + Real Task #1 | 🔄 **IN PROGRESS** | H2-6 骨架 8/8 + H6-12 reviewer pass 已 commit；verdict = `CLEANUP-REQUIRED` (P0=6)；H12-24 Real Task #1 BLOCKED on cleanup |
+| **DAY 1** | H2 – H24 | Skeleton + Reviewer + Real Task #1 | 🔄 **IN PROGRESS** | H2-6 骨架 8/8 ✅ + H6-12 reviewer pass 2 轮 ✅；最终 verdict = `READY`（P0=0 / P1=0 / P2=3 deferred）；H12-24 Real Task #1 cleanup-blocker 已解，等 owner 指派真任务 |
 | **DAY 2** | H24 – H48 | Patch the brain + Real Task #2 (start) | ⏳ **TODO** | 等待 owner approval 才可启动 |
 | **DAY 3** | H48 – H72 | Real Task #2 finish + Release v0.1 | ⏳ **TODO** | 等待 owner approval 才可启动 |
 
@@ -38,7 +38,7 @@
 
 ### DAY 1 detail — Hour 2 – 24「Skeleton + Review + Real Task #1」🔄 IN PROGRESS
 
-H2 – 6 Skeleton parallel build (8 sonnet writers × 1 file each, atomic commits) — ⚠️ **DONE WITH CLEANUP-REQUIRED VERDICT**:
+H2 – 6 Skeleton parallel build (8 sonnet writers × 1 file each, atomic commits) — ✅ **DONE** (后经 H6-12 cleanup 2 轮 → READY)：
 
 | Owner | Output | 状态 | Commit / Artifact |
 |-------|--------|------|-------------------|
@@ -52,13 +52,14 @@ H2 – 6 Skeleton parallel build (8 sonnet writers × 1 file each, atomic commit
 | codex-rules-author (sonnet) | `docs/teambrain/agent_rules/codex.md` | ✅ Done | 6fa6a2c — image-gen + sandbox guards |
 | convergence-reviewer (opus) | `docs/teambrain/CONVERGENCE.md` | ✅ Done | H6-12 reviewer pass (this commit) |
 
-H6 – 12 Reviewer pass + human cleanup — ⚠️ **REVIEWER PASS DONE; CLEANUP REQUIRED**:
-- Verdict: `CLEANUP-REQUIRED` — see [`../teambrain/CONVERGENCE.md`](../teambrain/CONVERGENCE.md).
-- Counts: **P0=6**, P1=7, P2=3. Cleanup queue items 1-6 BLOCK H12-24.
-- Top P0 themes: TRAPS.md schema drift vs TRAP_FORMAT spec (P0 entries use hyphenated `wrong-pattern`/`evidence link` labels; P1/P2 table drops `verify_command` and `evidence_link` columns; `category: testing` violates enum); TASK_TEMPLATE example uses `VERIFY#unit-pass-coverage-80` and `TRAP#git-force-push` slugs that fail the spec regex; `agent_rules/claude.md` uses uppercase `TRAPS-READ:` anchor while `codex.md` uses lowercase `traps-read:` — VERIFY-CLAUDE-005 grep rejects every Codex agent's first commit.
-- Reviewer wrote only CONVERGENCE.md + this status update; the 8 reviewed files are NOT modified by reviewer — fixes go to listed owners via cleanup queue.
+H6 – 12 Reviewer pass + human cleanup — ✅ **DONE** (2 轮 review → READY)：
+- 最终 verdict: `READY` — 完整 review trail 见 [`../teambrain/CONVERGENCE.md`](../teambrain/CONVERGENCE.md)（含 1st-pass 全部 findings、cleanup queue、2nd-pass sign-off、Final READY sign-off）。
+- Round 1 (commit 6f50017): `CLEANUP-REQUIRED`，P0=6 / P1=7 / P2=3。Top P0 themes: TRAPS.md schema drift vs TRAP_FORMAT spec（hyphen vs underscore 字段名、P1/P2 table 缺 `verify_command` / `evidence_link` 两列、`category: testing` violates enum）；TASK_TEMPLATE example 用 `VERIFY#...` / `TRAP#<slug>` 不符合 id regex；`agent_rules/claude.md` 用 uppercase `TRAPS-READ:` 而 `codex.md` 用 lowercase `traps-read:` — VERIFY-CLAUDE-005 grep 会 reject 每个 Codex agent 的 first commit。
+- Cleanup loop: 主 lead 通过 SendMessage 把 per-file findings 路由回 4 个 originating teammates（traps-curator / task-template-author / claude-rules-author / codex-rules-author），不让 lead 静默 patch。共 11 个 atomic cleanup commits（含 traps-curator 5 个 + task-template-author 3 个 + claude-rules-author 3 个 + codex-rules-author 1 个）。
+- Round 2 (commit 03c15db): 残留 1 个 P1（`feat(m{N})` 漏改 `agent_rules/codex.md:99`），routed back → codex-rules-author 一行修复 commit `283f5a4` → `READY`，P2 cosmetic findings 按 1st-pass 指引 deferred 到 Real Task #1 之后统一清理。
+- Reviewer 只写 CONVERGENCE.md + 本 status；8 份 reviewed files 全部由 originating writer 自行修复，零 lead-side patch。
 
-H12 – 24 Real Task #1（real owner work + transcript + evidence）— ⛔️ **BLOCKED on cleanup queue items 1-6**. Cannot start until TRAPS.md / TASK_TEMPLATE / agent_rules cleanup commits land.
+H12 – 24 Real Task #1（real owner work + transcript + evidence）— ⏳ **READY TO START**（cleanup-blocker 已解，等 owner 指派一个 owner-real 任务）。
 
 DAY 1 退出准则（必须全部 ✅ 才能进入 DAY 2）：
 1. STRUCTURE.md 所列 9 个文件全部存在且非空。
