@@ -77,7 +77,7 @@ Start at P0 — these are the traps that have caused actual production incidents
 - **right_pattern**: Structured handoff doc updated before shift change containing: alert thresholds, most recent root causes (≤7 days), emergency contacts. Template: `docs/oncall/handoff-YYYY-MM-DD.md`
 - **evidence_link**: Day 0 dump §D trap #40 — "On-call 交接只口头说一句 → 交接文档结构化：阈值 / 最近根因 / 应急联系人"
 - **severity**: P0
-- **verify_command**: `latest=$(find docs/oncall -name "handoff-*.md" -mtime -1 | head -1); [ -n "$latest" ] && lines=$(wc -l < "$latest") && [ "$lines" -ge 10 ] && echo "PASS: handoff doc present, $lines lines" || echo "FAIL: no handoff doc updated within 24h or doc < 10 lines"`
+- **verify_command**: `latest=$(find docs/oncall -name "handoff-*.md" -mtime -1 | head -1); [ -n "$latest" ] && lines=$(wc -l < "$latest") && [ "$lines" -ge 10 ] && echo "PASS: handoff doc present, $lines lines" || echo "FAIL: no handoff doc updated within 24h or doc < 10 lines"` — note: `-mtime -1` is POSIX; on macOS use `find -Bd 1d` as equivalent; the above is portable across GNU/BSD find
 
 ---
 
