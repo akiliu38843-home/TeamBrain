@@ -26,6 +26,15 @@ traps-read: P0=[<trap-ids checked>] relevant=[<trap-ids that apply>]
 
 ---
 
+## 1.5. Open TASK_TEMPLATE.md Before Any Code Change
+
+Before any `codex exec --skip-git-repo-check -s workspace-write`, open `docs/teambrain/TASK_TEMPLATE.md` and fill ALL 10 required sections in the issued task. Any unfilled section blocks the run — reviewer rejects the PR.
+
+- Verify recipe: `VERIFY-CODEX-004` — greps task entry for all 10 required section headers; any missing = fail.
+- If `TASK_TEMPLATE.md` does not exist yet in your worktree, stop and escalate before writing a single line of implementation.
+
+---
+
 ## 2. Codex CLI Patterns
 
 ### Read-only research (no side effects)
