@@ -96,7 +96,7 @@ If a task genuinely requires broader permissions, stop and escalate to human (se
 ### Atomic commit after every Edit/Write
 Per AGENTS.md rule (atomic-commits-on-edit): after any `Edit` or `Write` tool call, commit immediately with a single-concern commit message. Do not batch unrelated file changes into one commit.
 
-Commit message format: `feat(m{N}): <what> [traps-read: ...]`
+Commit message format: `feat(teambrain): <what> [traps-read: ...]`
 
 ### Worktree placement
 Per CLAUDE.md: all worktrees go under `.codex/worktrees/<task-name>` inside the repo.
