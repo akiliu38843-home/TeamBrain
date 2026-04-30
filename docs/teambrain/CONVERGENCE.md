@@ -332,3 +332,22 @@ P0 deep-dives (5) all use underscored field labels (`wrong_pattern`, `right_patt
 | Timestamp | 2026-05-01 |
 | Verdict | **CLEANUP-REQUIRED** (P0=0, P1=1, P2=3 deferred) |
 | Next phase pointer | (a) codex-rules-author lands one-line `m{N}→teambrain` fix; (b) reviewer flips to READY without re-audit; (c) Hour 12-24 Real Task #1 may begin. Spec H2-6 row stays ⚠️ until step (a) lands. |
+
+---
+
+## Final READY sign-off (post-residual fix)
+
+The 2nd-pass reviewer pre-approved promotion to `READY` once the one-line residual P1 (codex.md:99) lands, with no 3rd-pass audit required.
+
+| Field | Value |
+|-------|-------|
+| Residual P1 fix commit | `283f5a4` — `fix(teambrain): codex.md commit-msg example feat(m{N}) → feat(teambrain)` |
+| Verification | `grep -c 'feat(m' docs/teambrain/agent_rules/codex.md` = 0 (codex-rules-author confirmed; lead re-verified) |
+| Final P0/P1/P2 counts | P0=0 resolved, P1=0 remaining, P2=3 deferred (per 1st-pass guidance, bundle after Real Task #1) |
+| Final verdict | **READY** |
+| Promoted by | team-lead (per pre-approval from convergence-reviewer-2 sign-off block above) |
+| Timestamp | 2026-05-01 |
+| Spec update | `docs/specs/2026-05-01-teambrain-72h-bootstrap.md` Day 1 H2-6 / H6-12 rows flipped from ⚠️ CLEANUP-REQUIRED to ✅ DONE in the same atomic-commit pass |
+| Hour 12-24 (Real Task #1) | Unblocked from cleanup; remains pending owner-provided real task per bootstrap §Hour 12 – 24 |
+| Cleanup-loop summary | Round 1 review → 6 P0 + 7 P1 + 3 P2 found → routed to 4 owners via SendMessage → 11 atomic cleanup commits landed → Round 2 review → 1 residual P1 found → routed to codex-rules-author → 1 atomic fix `283f5a4` → READY. Total cleanup rounds: 2 of 3 cap. |
+
