@@ -14,6 +14,24 @@
 
 72 小时把 TeamBrain 从「空 repo + 一个想法」推进到 v0.1，靠人 + agent 不间断协作完成。
 
+## Day 0 Status (as of 2026-05-01)
+
+**Day 0 / Hour 0 – 2「Frame the problem」阶段：FINISHED ✅**
+
+| 产出 | 状态 | Artifact |
+|------|------|----------|
+| Mission statement (≤200 字) | ✅ Done | 见下文 *Mission statement* 段 |
+| 原始 trap dump | ✅ Done | [../notes/2026-05-01-day0-team-experience-dump.md](../notes/2026-05-01-day0-team-experience-dump.md) — 40 坑 + 10 标准 + 5 失败案例 |
+| HTML 快照 | ✅ Done | [2026-05-01-teambrain-72h-bootstrap.html](2026-05-01-teambrain-72h-bootstrap.html) |
+| 生成方式 | ✅ Reproducible | 7 路并行 `claudefast -p --output-format stream-json --verbose`（FASTPROBE pattern, see `docs/FASTPROBE.md`），尾部 `<laziness-self-report>` 6 项均 false |
+
+下一阶段：**Hour 2 – 6 / Skeleton parallel build**（尚未启动）。Day 0 work
+本身已收敛，可以驱动 Hour 2 – 6 的四 agent 并行骨架构建。
+
+### Mission statement
+
+> TeamBrain 是 agent 团队的**共享经验脑**：把每次踩过的坑、判断标准、失败案例固化成可验证规则，让新 agent / 新人 5 分钟内能避开历史坑、跑通真实任务；不靠口头审、不靠 mock 通过、不靠"我感觉应该这样"。
+
 ## Cast & Constraints
 
 - **1 人类 owner**：方向、删废话、补真实失败案例。
