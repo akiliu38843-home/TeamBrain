@@ -41,7 +41,7 @@ Start at P0 — these are the traps that have caused actual production incidents
 - **right_pattern**: DoD gate: CI enforces coverage delta ≥ 0 on every PR; no merge allowed with open `TODO.*test` markers
 - **evidence_link**: Day 0 dump §B trap #20 — "'以后再补测试'成习惯 → DoD 必须含测试，无测试不算完成"; Failure case #2 — 800万+ order loss from skipped testing
 - **severity**: P0
-- **verify_command**: Scope: TeamBrain Markdown docs — `grep -r "TODO.*test\|later.*test\|add.*test" docs/` returns zero results before merge. For source code repos substitute `src/` or `packages/`. Also check CI config for `--coverage-threshold` presence.
+- **verify_command**: TeamBrain scope (Markdown-only repo): `grep -rn "TODO.*test\|later.*test\|add.*test" docs/ && echo "FAIL: deferred test markers found" || echo "PASS"`. For source-code repos substitute `docs/` with `src/` or `packages/`. Scope is conditional on repo type — mark as N/A for pure Markdown repos with no CI.
 
 ---
 
@@ -53,7 +53,7 @@ Start at P0 — these are the traps that have caused actual production incidents
 - **right_pattern**: Mock only at system boundaries (network, filesystem). Core logic uses real collaborators in integration tests.
 - **evidence_link**: Day 0 dump §B trap #15 — "真实调用链一改全挂 → Mock 最小化，核心逻辑用真协作对象做集成测试"
 - **severity**: P0
-- **verify_command**: `mock_count=$(grep -rn "jest.mock\|vi.mock" packages/ --include="*.test.ts" | wc -l); test_count=$(find packages/ -name "*.test.ts" | wc -l); echo "ratio: $((mock_count * 100 / (test_count + 1)))%"` — ratio must be < 50%; any result ≥ 50% blocks merge without tech-lead sign-off
+- **verify_command**: `mock_count=$(grep -rn "jest.mock\|vi.mock" packages/ --include="*.test.ts" | wc -l); test_count=$(find packages/ -name "*.test.ts" | wc -l); ratio=$((mock_count * 100 / (test_count + 1))); echo "mock ratio: ${ratio}%"; [ "$ratio" -lt 50 ] && echo "PASS" || echo "FAIL: ratio >= 50%, requires tech-lead sign-off before merge"` — exit message must be PASS; FAIL blocks merge
 
 ---
 
@@ -65,7 +65,7 @@ Start at P0 — these are the traps that have caused actual production incidents
 - **right_pattern**: Staged rollout: 5% → 15% → 50% → 100%, each step with human confirmation gate and error-rate check. Rollback script must be in CI before deploy runs.
 - **evidence_link**: Day 0 dump §C trap #21 — "灰度无梯度 — 流量突增 bug 集中爆"; trap #22 — "回滚脚本没进 CI — 灾难时刻敲错命令"
 - **severity**: P0
-- **verify_command**: `grep -r "ROLLOUT_PERCENT\|canary\|rollback" .github/workflows/ --include="*.yml" | grep -v "^#"` — output must contain at least one line matching `5` (or `10`) percent AND at least one line matching `rollback`; zero matches = deploy pipeline fails gate
+- **verify_command**: `grep -rh "ROLLOUT_PERCENT\|canary\|rollback" .github/workflows/ --include="*.yml" | grep -v "^#" | tee /tmp/deploy-check.txt; grep -qE "\b(5|10)\b" /tmp/deploy-check.txt && grep -q "rollback" /tmp/deploy-check.txt && echo "PASS: staged rollout + rollback found" || echo "FAIL: missing canary step or rollback job"` — must print PASS
 
 ---
 
@@ -77,7 +77,7 @@ Start at P0 — these are the traps that have caused actual production incidents
 - **right_pattern**: Structured handoff doc updated before shift change containing: alert thresholds, most recent root causes (≤7 days), emergency contacts. Template: `docs/oncall/handoff-YYYY-MM-DD.md`
 - **evidence_link**: Day 0 dump §D trap #40 — "On-call 交接只口头说一句 → 交接文档结构化：阈值 / 最近根因 / 应急联系人"
 - **severity**: P0
-- **verify_command**: `find docs/oncall -name "handoff-*.md" -mtime -1 | head -1` — must return a non-empty path (file modified within 24h of shift start); then `wc -l "$(find docs/oncall -name 'handoff-*.md' -mtime -1 | head -1)"` must be ≥ 10
+- **verify_command**: `latest=$(find docs/oncall -name "handoff-*.md" -mtime -1 | head -1); [ -n "$latest" ] && lines=$(wc -l < "$latest") && [ "$lines" -ge 10 ] && echo "PASS: handoff doc present, $lines lines" || echo "FAIL: no handoff doc updated within 24h or doc < 10 lines"`
 
 ---
 
