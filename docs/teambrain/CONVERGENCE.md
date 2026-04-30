@@ -247,3 +247,88 @@ Ordered by dependency — earlier items unblock later items. Each item maps to a
 | Timestamp | 2026-05-01 |
 | Verdict | CLEANUP-REQUIRED (P0=6, P1=7, P2=3) |
 | Next phase pointer | Hour 12-24 Real Task #1 — BLOCKED until cleanup queue items 1-6 are committed. After cleanup, owner restarts H12-24 per bootstrap plan §Hour 12-24. |
+
+---
+
+```
+   ROUND 1                ROUND 2 (this section)
+   ┌──────────┐           ┌──────────────┐
+   │ P0 = 6   │           │ verify each  │
+   │ P1 = 7   │ ────────▶ │  cleanup hit │
+   │ P2 = 3   │           │  end-state   │
+   └──────────┘           └──────┬───────┘
+                                 │
+                                 ▼
+                          CLEANUP-REQUIRED
+                          (1 residual P1)
+```
+
+# Second-pass sign-off — Opus reviewer 2
+
+Independent re-audit of the 9 cleanup commits (incl. 3 supplementary that landed after the original 6) routed back to the writers after 1st-pass verdict `CLEANUP-REQUIRED`. End-state diff vs `c6a4886` re-examined; this section appended only — no 1st-pass content rewritten.
+
+## Verdict
+
+**`CLEANUP-REQUIRED`** — 1 residual P1.
+
+P0 remaining: **0** (all 6 resolved). P1 remaining: **1** (F-P1-6 leaked, only TASK_TEMPLATE.md was patched; `agent_rules/codex.md:99` still reads `feat(m{N})`). P2 deferred per 1st-pass instructions.
+
+H12-24 Real Task #1 is **NEAR-READY** — the residual is a single one-line fix; not a structural blocker. Reviewer chooses CLEANUP-REQUIRED over READY because mandate states any P1 leak prevents sign-off. Recommend immediate follow-up commit by codex-rules-author then auto-promote to READY.
+
+## Per-finding resolution table
+
+| Finding | 1st-pass | Cleanup commit(s) | END-STATE verify | Resolved? |
+|---------|---------|-------------------|------------------|-----------|
+| F-P0-1 (hyphen→underscore) | FAIL | 2e3d936 | `grep -c "wrong-pattern\|right-pattern" TRAPS.md` = 0; underscore variants = 5 each | ✅ Y |
+| F-P0-2 (5→7 cols, 35 rows) | FAIL | 2e3d936 | awk lint: PASS rows 35/35, all evidence_link populated | ✅ Y |
+| F-P0-3 (testing→review enum) | FAIL | 2e3d936 | `grep "category: testing\|TRAP-TEST-" TRAPS.md` = 0; categories ⊆ {git, review, ops, coop} | ✅ Y |
+| F-P0-4 (VERIFY# slug) | FAIL | 49d3fcb, c451f3a | TASK_TEMPLATE.md:117 = `VERIFY-PNPM-001` (regex-match) | ✅ Y |
+| F-P0-5 (TRAP# slug) | FAIL | 49d3fcb, c451f3a | TASK_TEMPLATE.md:181-183, 253-254 use `TRAP-GIT-001 / TRAP-REVIEW-002 / TRAP-OPS-011` | ✅ Y |
+| F-P0-6 (anchor format) | FAIL | 140e134, a6ffa71, 211e372 | claude.md:20,22,171 + codex.md:24,99 all lowercase `traps-read:`; VERIFY-CLAUDE-005 grep updated | ✅ Y |
+| F-P1-1 (sign-off fallback) | PARTIAL | 2318a77, 69170dc | TRAP-REVIEW-002 verify_command uses `awk` ratio > 0.5 → exit 1, no "sign-off" string | ✅ Y |
+| F-P1-2 (assertion missing) | PARTIAL | 2318a77, 799430f | TRAP-OPS-001 prints PASS or FAIL via `grep -qE "\b(5\|10)\b" && grep -q "rollback"` | ✅ Y |
+| F-P1-3 (portable date math) | PARTIAL | 2318a77, 1d2d9cc | TRAP-COOP-001 uses `find -mtime -1` with portability note; lines ≥ 10 gate | ✅ Y |
+| F-P1-4 (TS-only grep) | PARTIAL | 2318a77 | TRAP-REVIEW-001 scopes to `docs/`, conditional on repo type | ✅ Y |
+| F-P1-5 (STRUCTURE no-op) | PARTIAL | n/a (confirm) | STRUCTURE.md:46 row reads against this file ✓ | ✅ Y |
+| F-P1-6 (m{N}→teambrain) | PARTIAL | 0b22a41 | **TASK_TEMPLATE.md:103, 231 fixed; codex.md:99 STILL `feat(m{N})`** | ❌ **N** |
+| F-P1-7 (TASK_TEMPLATE pointer) | PARTIAL | 140e134, fa05230, 211e372 | claude.md §1.5 + codex.md §1.5 both name TASK_TEMPLATE.md by path | ✅ Y |
+
+## New checks K-N
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| K — TRAP-OPS-011 absorbed in 7-col table | ⚠️ PARTIAL | Row present (`TRAPS.md:113`); verify_command + evidence_link populated. Severity kept at **P0** (not reclassified to P1 as instructed). Defensible: bootstrap constraint is hard-blocking. Flagged advisory only. |
+| L — Legacy aliases eradicated | ✅ PASS | `grep -rn "TRAP#\|VERIFY#\|TRAP-TEST-\|TRAPS-READ:\|category: testing"` in 8 reviewed files = 0 hits. All hits are inside CONVERGENCE.md narrative quotes (acceptable). |
+| M — Anchor consistency | ✅ PASS | `traps-read:` lowercase identical in claude.md:20 + codex.md:24. VERIFY-CLAUDE-005 (claude.md:171) regex `^traps-read: P0=\[` matches both. |
+| N — claude.md end-state cleanliness | ✅ PASS | 173 lines, 1 H1 + 6 numbered H2 (incl. §1.5) + 7 AP H3 — no orphans, no duplicates from the 140e134→a6ffa71→fa05230 sequence. Atomic-commit redundancy is acceptable; end-state is correct. |
+
+## TRAP_FORMAT lint result
+
+`awk -F'|' 'NR>2 && /^\| TRAP-/ && NF>=8 { ... }'` against `docs/teambrain/TRAPS.md` P1/P2 table:
+
+- **PASS rows**: **35 / 35**
+- **FAIL rows**: 0
+- All 7 columns populated for every row including TRAP-OPS-011.
+
+P0 deep-dives (5) all use underscored field labels (`wrong_pattern`, `right_pattern`, `verify_command`, `evidence_link`); 0 hyphenated variants.
+
+## Cleanup queue (residual)
+
+| # | Finding | Action | Owner | Blocks H12-24? |
+|---|---------|--------|-------|----------------|
+| 1 | F-P1-6 (codex side) | Replace `feat(m{N})` at `agent_rules/codex.md:99` with `feat(teambrain)`; align with claude.md convention. One-line edit. | codex-rules-author | NO (warn-level) |
+| 2 | Check K advisory | Optional: reclassify TRAP-OPS-011 severity from P0 → P1 if owner agrees it is enforcement-not-failure. Keep P0 if treating "no evidence" as P0 incident. | traps-curator | NO |
+
+## Sign-off block (2nd pass)
+
+| Field | Value |
+|-------|-------|
+| Reviewer | convergence-reviewer-2 (Opus, teammate on team `teambrain-day1`) |
+| Reviewed cleanup commits | 2e3d936, 2318a77, 49d3fcb, c451f3a, 0b22a41, 140e134, a6ffa71, fa05230, 211e372 (+ supplementary 799430f, 1d2d9cc, 69170dc) |
+| Source-of-truth refs | 1st-pass CONVERGENCE.md sections above; bootstrap §H6-12 rules 1-3; checks A-J (1st pass) + K-N (this pass) |
+| Files re-examined (not modified) | TRAPS.md, TRAP_FORMAT.md, TASK_TEMPLATE.md, VERIFY_TEMPLATE.md, README.md, STRUCTURE.md, agent_rules/claude.md, agent_rules/codex.md |
+| TRAP_FORMAT lint | 35/35 PASS |
+| Checks K, L, M, N | PARTIAL (advisory), PASS, PASS, PASS |
+| Timestamp | 2026-05-01 |
+| Verdict | **CLEANUP-REQUIRED** (P0=0, P1=1, P2=3 deferred) |
+| Next phase pointer | (a) codex-rules-author lands one-line `m{N}→teambrain` fix; (b) reviewer flips to READY without re-audit; (c) Hour 12-24 Real Task #1 may begin. Spec H2-6 row stays ⚠️ until step (a) lands. |
