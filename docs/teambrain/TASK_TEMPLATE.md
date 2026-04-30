@@ -179,7 +179,7 @@ Any hit that is not pre-existing (check `git diff`) is a rejection.
 **Required content:** List the TRAPS.md trap IDs that apply to this task, with a one-line confirmation that the agent has read each. Example:
 ```
 [ ] TRAP-GIT-001 — confirmed read; will use --force-with-lease
-[ ] TRAP-TEST-002 — confirmed read; will verify no it.skip added
+[ ] TRAP-REVIEW-002 — confirmed read; will verify no it.skip added
 [ ] TRAP-OPS-011 — confirmed read; will save .judge/ before commit
 ```
 If no traps apply, write: "Reviewed TRAPS.md; no applicable traps for this task scope."
@@ -250,7 +250,7 @@ Anti-mock checklist:
   [x] Coverage delta: +2.1% (was 81.1%, now 83.2%)
 
 Trap-awareness checklist:
-  [x] TRAP-TEST-002 — confirmed read; verified no it.skip added
+  [x] TRAP-REVIEW-002 — confirmed read; verified no it.skip added
   [x] TRAP-OPS-011 — confirmed read; .judge/ saved before commit
 
 Reviewer hand-off:
