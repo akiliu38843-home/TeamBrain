@@ -26,9 +26,11 @@ A reviewer or CI harness greps for `^traps-read:` (lowercase). Missing or upperc
 
 ---
 
-## 1.5. Task template (mandatory before any code change)
+## 1.5. Open TASK_TEMPLATE.md before any code change
 
-Open `docs/teambrain/TASK_TEMPLATE.md` and fill ALL 10 sections before writing any code or making any file change beyond this setup step.
+Before any Edit/Write, open `docs/teambrain/TASK_TEMPLATE.md` and fill ALL 10 required sections in the issued task. Treat any unfilled section as a hard block — reviewer will reject the PR.
+
+**Verify:** `VERIFY-CLAUDE-006: open-task-template-before-edit` — harness checks that a TASK_TEMPLATE fill commit precedes the first Edit/Write commit in the PR.
 
 ---
 
