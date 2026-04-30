@@ -15,7 +15,7 @@
 
 ## How to read this file
 
-Start at P0 — these are the traps that have caused actual production incidents or major team setbacks. Read the wrong-pattern first: if you recognise your current action in it, stop. Check the verify hint before proceeding. P1/P2 are condensed as a quick-scan table; consult them when entering a new phase (release, review, oncall). The 10 standards and 5 failure cases at the bottom are the structural backbone — they explain *why* the traps exist, not just what to avoid.
+Start at P0 — these are the traps that have caused actual production incidents or major team setbacks. Read the wrong_pattern first: if you recognise your current action in it, stop. Check the verify_command before proceeding. P1/P2 are condensed as a quick-scan table; consult them when entering a new phase (release, review, oncall). The 10 standards and 5 failure cases at the bottom are the structural backbone — they explain *why* the traps exist, not just what to avoid.
 
 ---
 
@@ -25,35 +25,35 @@ Start at P0 — these are the traps that have caused actual production incidents
 
 - **category**: git
 - **trigger**: `git push --force` on a shared branch
-- **wrong-pattern**: `git push --force origin main` (or any shared branch without `--force-with-lease`)
-- **right-pattern**: `git push --force-with-lease origin <branch>` — aborts if remote has commits you haven't seen
-- **evidence link**: Day 0 dump §A trap #1 — "别人 commit 直接被覆盖消失"
+- **wrong_pattern**: `git push --force origin main` (or any shared branch without `--force-with-lease`)
+- **right_pattern**: `git push --force-with-lease origin <branch>` — aborts if remote has commits you haven't seen
+- **evidence_link**: Day 0 dump §A trap #1 — "别人 commit 直接被覆盖消失"
 - **severity**: P0
-- **verify hint**: `git config --get receive.denyNonFastForwards` should return `true` on protected branches; also check `git remote show origin | grep -i "force"` for branch protection status
+- **verify_command**: `git config --get receive.denyNonFastForwards` should return `true` on protected branches; also check `git remote show origin | grep -i "force"` for branch protection status
 
 ---
 
-### TRAP-TEST-001
+### TRAP-REVIEW-001
 
-- **category**: review / testing
+- **category**: review
 - **trigger**: Merging code with `// TODO: add tests later` or any "以后再补测试" comment
-- **wrong-pattern**: PR merged with `// TODO: test` or commit message containing "will add tests" / "no test needed" ⚠️ MOCK LOOPHOLE — skip-if-no-test patterns must be blocked
-- **right-pattern**: DoD gate: `grep -r "TODO.*test\|later.*test\|add.*test" --include="*.ts" src/` returns zero results before merge; CI enforces coverage delta ≥ 0 on every PR
-- **evidence link**: Day 0 dump §B trap #20 — "'以后再补测试'成习惯 → DoD 必须含测试，无测试不算完成"; Failure case #2 — 800万+ order loss from skipped testing
+- **wrong_pattern**: PR merged with `// TODO: test` or commit message containing "will add tests" / "no test needed" ⚠️ MOCK LOOPHOLE — skip-if-no-test patterns must be blocked
+- **right_pattern**: DoD gate: CI enforces coverage delta ≥ 0 on every PR; no merge allowed with open `TODO.*test` markers
+- **evidence_link**: Day 0 dump §B trap #20 — "'以后再补测试'成习惯 → DoD 必须含测试，无测试不算完成"; Failure case #2 — 800万+ order loss from skipped testing
 - **severity**: P0
-- **verify hint**: `git log --oneline -20 | grep -i "no test\|todo test\|will test"` should be empty; check CI config for `--coverage-threshold`
+- **verify_command**: Scope: TeamBrain Markdown docs — `grep -r "TODO.*test\|later.*test\|add.*test" docs/` returns zero results before merge. For source code repos substitute `src/` or `packages/`. Also check CI config for `--coverage-threshold` presence.
 
 ---
 
-### TRAP-TEST-002
+### TRAP-REVIEW-002
 
-- **category**: testing
+- **category**: review
 - **trigger**: Mocking every collaborator so the test suite passes even when the real integration is broken
-- **wrong-pattern**: `jest.mock('../database')`, `jest.mock('../api-client')` wrapping the entire module under test — mock 套娃 (mock turtles all the way down) ⚠️ MOCK LOOPHOLE
-- **right-pattern**: Mock only at system boundaries (network, filesystem). Core logic uses real collaborators in integration tests. `grep -r "jest.mock\|sinon.stub" --include="*.test.ts" | wc -l` should be < 30% of test file count
-- **evidence link**: Day 0 dump §B trap #15 — "真实调用链一改全挂 → Mock 最小化，核心逻辑用真协作对象做集成测试"
+- **wrong_pattern**: `jest.mock('../database')`, `jest.mock('../api-client')` wrapping the entire module under test — mock 套娃 (mock turtles all the way down) ⚠️ MOCK LOOPHOLE
+- **right_pattern**: Mock only at system boundaries (network, filesystem). Core logic uses real collaborators in integration tests.
+- **evidence_link**: Day 0 dump §B trap #15 — "真实调用链一改全挂 → Mock 最小化，核心逻辑用真协作对象做集成测试"
 - **severity**: P0
-- **verify hint**: `grep -rn "jest.mock\|vi.mock" packages/ --include="*.test.ts" | wc -l` vs total test count; any ratio > 0.5 is a smell requiring reviewer sign-off
+- **verify_command**: `mock_count=$(grep -rn "jest.mock\|vi.mock" packages/ --include="*.test.ts" | wc -l); test_count=$(find packages/ -name "*.test.ts" | wc -l); echo "ratio: $((mock_count * 100 / (test_count + 1)))%"` — ratio must be < 50%; any result ≥ 50% blocks merge without tech-lead sign-off
 
 ---
 
@@ -61,11 +61,11 @@ Start at P0 — these are the traps that have caused actual production incidents
 
 - **category**: ops
 - **trigger**: Releasing directly to 100% traffic without a staged rollout
-- **wrong-pattern**: Deploy script with no canary step, or `kubectl set image` directly applied to all replicas at once; `ROLLOUT_PERCENT=100` as first and only step
-- **right-pattern**: Staged rollout: 5% → 15% → 50% → 100%, each step with human confirmation gate and error-rate check. Rollback script must be in CI before deploy runs.
-- **evidence link**: Day 0 dump §C trap #21 — "灰度无梯度 — 流量突增 bug 集中爆"; trap #22 — "回滚脚本没进 CI — 灾难时刻敲错命令"
+- **wrong_pattern**: Deploy script with no canary step, or `kubectl set image` directly applied to all replicas at once; `ROLLOUT_PERCENT=100` as first and only step
+- **right_pattern**: Staged rollout: 5% → 15% → 50% → 100%, each step with human confirmation gate and error-rate check. Rollback script must be in CI before deploy runs.
+- **evidence_link**: Day 0 dump §C trap #21 — "灰度无梯度 — 流量突增 bug 集中爆"; trap #22 — "回滚脚本没进 CI — 灾难时刻敲错命令"
 - **severity**: P0
-- **verify hint**: `grep -r "ROLLOUT_PERCENT\|canary\|rollback" .github/workflows/ --include="*.yml" | grep -v "^#"` must show staged percentages and rollback job
+- **verify_command**: `grep -r "ROLLOUT_PERCENT\|canary\|rollback" .github/workflows/ --include="*.yml" | grep -v "^#"` — output must contain at least one line matching `5` (or `10`) percent AND at least one line matching `rollback`; zero matches = deploy pipeline fails gate
 
 ---
 
@@ -73,53 +73,53 @@ Start at P0 — these are the traps that have caused actual production incidents
 
 - **category**: coop
 - **trigger**: On-call handoff delivered verbally with no written runbook update
-- **wrong-pattern**: Slack message "hey you're on call now, just watch the dashboard" with no doc update ⚠️ verbal-only rule — no ground-truth trail
-- **right-pattern**: Structured handoff doc updated before shift change containing: alert thresholds, most recent root causes (≤7 days), emergency contacts. Template: `docs/oncall/handoff-YYYY-MM-DD.md`
-- **evidence link**: Day 0 dump §D trap #40 — "On-call 交接只口头说一句 → 交接文档结构化：阈值 / 最近根因 / 应急联系人"
+- **wrong_pattern**: Slack message "hey you're on call now, just watch the dashboard" with no doc update ⚠️ verbal-only rule — no ground-truth trail
+- **right_pattern**: Structured handoff doc updated before shift change containing: alert thresholds, most recent root causes (≤7 days), emergency contacts. Template: `docs/oncall/handoff-YYYY-MM-DD.md`
+- **evidence_link**: Day 0 dump §D trap #40 — "On-call 交接只口头说一句 → 交接文档结构化：阈值 / 最近根因 / 应急联系人"
 - **severity**: P0
-- **verify hint**: `ls -lt docs/oncall/handoff-*.md | head -1` — most recent file must be within 24h of current on-call shift start; `wc -l` on that file must be ≥ 10 lines
+- **verify_command**: `find docs/oncall -name "handoff-*.md" -mtime -1 | head -1` — must return a non-empty path (file modified within 24h of shift start); then `wc -l "$(find docs/oncall -name 'handoff-*.md' -mtime -1 | head -1)"` must be ≥ 10
 
 ---
 
 ## P1 / P2 Condensed
 
-| id | category | wrong | right | severity |
-|----|----------|-------|-------|----------|
-| TRAP-GIT-002 | git | commit message: "fix bug" / "update" | imperative: `feat(scope): description` | P1 |
-| TRAP-GIT-003 | git | PR with no description, raw link dump | PR body: what / why / how-to-verify | P1 |
-| TRAP-GIT-004 | git | giant commit mixing unrelated changes | atomic commits, one logical concern per commit | P1 |
-| TRAP-GIT-005 | git | long-lived feature branch, never rebased | `git rebase main` daily or every 2 days | P1 |
-| TRAP-GIT-006 | git | hotfix directly on main without PR | hotfix branch → PR + review → cherry-pick to prod | P1 |
-| TRAP-GIT-007 | git | `git merge` without `--no-ff` on history branches | use `--no-ff` to preserve merge nodes; rebase for linear history | P2 |
-| TRAP-GIT-008 | git | `.gitignore` edit has no effect (file already staged) | `git rm -r --cached . && git add .` | P2 |
-| TRAP-GIT-009 | git | no protected branch rules | set branch protection: require PR + review + status checks | P1 |
-| TRAP-GIT-010 | git | `git stash` without `-m` name | `git stash push -m "context-description"` | P2 |
-| TRAP-TEST-003 | review | coverage % looks fine, new code 0% delta | per-PR incremental coverage gate in CI | P1 |
-| TRAP-TEST-004 | review | TDD red/green reversed — tests written after code | strict red → green → refactor; PR blocked if no failing test first | P1 |
-| TRAP-TEST-005 | review | code review only catches style issues | linter owns style; review gates on correctness / security / maintainability | P1 |
-| TRAP-TEST-006 | review | hardcoded test data breaks on field rename | use factory / fixture pattern for test data | P1 |
-| TRAP-TEST-007 | review | nobody checks test logic quality | reviewer has duty to challenge test assertions | P1 |
-| TRAP-TEST-008 | review | `/* istanbul ignore */` to hit coverage % ⚠️ | CI limit on ignore directives; each must link a ticket | P1 |
-| TRAP-TEST-009 | review | E2E tests run on every unit test loop | pyramid: unit → integration → E2E only for critical paths | P2 |
-| TRAP-OPS-002 | ops | no rollback script in CI | rollback script checked into CI, tested same as deploy script | P1 |
-| TRAP-OPS-003 | ops | monitoring only P99 latency | P50 / P90 / P99 all configured; SLO based on P50 | P1 |
-| TRAP-OPS-004 | ops | health check depends on downstream services | health check tests only process liveness, not downstream | P1 |
-| TRAP-OPS-005 | ops | experiment flags and feature flags share state | isolate experiment vars from feature flags, separate namespaces | P1 |
-| TRAP-OPS-006 | ops | rollback skips schema compatibility check | schema changes must be backward compatible; validate before rollback | P1 |
-| TRAP-OPS-007 | ops | oncall dashboard has 20+ charts | oncall board: only QPS / Error / Latency — 3 charts max | P2 |
-| TRAP-OPS-008 | ops | tracing disabled during canary to reduce cost | sampling rate ≥10%; never disable tracing entirely during rollout | P1 |
-| TRAP-OPS-009 | ops | deploy scheduled during peak traffic | deploys always in low-traffic window | P1 |
-| TRAP-OPS-010 | ops | no data backfill plan for new schema fields | schema changes must ship with backfill script | P1 |
-| TRAP-OPS-011 | ops | task closed without saving `.judge/` evidence artifacts | every task must save `stdout.txt`, `coverage.json`, `judge.json` to `.judge/<run_id>/` before committing; verbal "evidence" is rejected | P0 |
-| TRAP-COOP-002 | coop | estimate = best case only | three-point estimate × 1.3: `(best + 4×likely + worst) / 6 × 1.3` | P1 |
-| TRAP-COOP-003 | coop | design doc with no "why X over Y" rationale | every design doc must have an alternatives-considered section | P1 |
-| TRAP-COOP-004 | coop | runbook only covers the happy path | runbook footer: "historical incidents" section mandatory | P1 |
-| TRAP-COOP-005 | coop | new team member gets link dump, no pair session | day 1: in-person task walkthrough; week 2+: 15-min daily pairing | P1 |
-| TRAP-COOP-006 | coop | estimate has no buffer padding | external deadline = internal estimate + 2-week buffer | P1 |
-| TRAP-COOP-007 | coop | doc review comment: "this is wrong" with no direction | review comment must include: priority (P0/P1) + suggested fix direction | P2 |
-| TRAP-COOP-008 | coop | task assigned by "whoever is free" | assign via skill matrix; critical path tasks assigned by competency | P2 |
-| TRAP-COOP-009 | coop | meeting agenda without owner/due per item | every agenda item must close with: conclusion + owner + due date | P2 |
-| TRAP-COOP-010 | coop | new contributor PR merged without walkthrough | before merge: 15-min "why did I write it this way" session | P2 |
+| id | category | severity | wrong_pattern | right_pattern | verify_command | evidence_link |
+|----|----------|----------|---------------|---------------|----------------|---------------|
+| TRAP-GIT-002 | git | P1 | commit message: "fix bug" / "update" | imperative: `feat(scope): description` | `git log --oneline -20 \| grep -E "^[a-f0-9]+ (fix bug\|update\|wip)$"` returns empty | Day 0 dump §A trap #2 |
+| TRAP-GIT-003 | git | P1 | PR with no description, raw link dump | PR body: what / why / how-to-verify | `gh pr view <N> --json body -q '.body'` must be non-empty and ≥ 50 chars | Day 0 dump §A trap #3 |
+| TRAP-GIT-004 | git | P1 | giant commit mixing unrelated changes | atomic commits, one logical concern per commit | `git show --stat HEAD \| grep -c "^\s"` — file count > 15 triggers review | Day 0 dump §A trap #4 |
+| TRAP-GIT-005 | git | P1 | long-lived feature branch, never rebased | `git rebase main` daily or every 2 days | `git log --oneline HEAD..origin/main \| wc -l` — > 20 diverged commits = rebase required | Day 0 dump §A trap #5 |
+| TRAP-GIT-006 | git | P1 | hotfix directly on main without PR | hotfix branch → PR + review → cherry-pick to prod | `git log --oneline origin/main -5 \| grep -v "Merge\|feat\|fix\|chore"` returns empty | Day 0 dump §A trap #6 |
+| TRAP-GIT-007 | git | P2 | `git merge` without `--no-ff` on history branches | use `--no-ff` to preserve merge nodes; rebase for linear history | `git log --merges --oneline -5` shows merge commits with two parents | Day 0 dump §A trap #7 |
+| TRAP-GIT-008 | git | P2 | `.gitignore` edit has no effect (file already staged) | `git rm -r --cached . && git add .` | `git status --short \| grep "^??"` shows no previously-ignored files | Day 0 dump §A trap #8 |
+| TRAP-GIT-009 | git | P1 | no protected branch rules | set branch protection: require PR + review + status checks | `gh api repos/:owner/:repo/branches/main/protection --jq '.required_pull_request_reviews'` non-null | Day 0 dump §A trap #9 |
+| TRAP-GIT-010 | git | P2 | `git stash` without `-m` name | `git stash push -m "context-description"` | `git stash list \| grep -v ": On "` — all entries must have a descriptive name after the colon | Day 0 dump §A trap #10 |
+| TRAP-REVIEW-003 | review | P1 | coverage % looks fine, new code 0% delta | per-PR incremental coverage gate in CI | `diff-cover coverage.xml --compare-branch=main` — new-lines coverage must be ≥ 80% | Day 0 dump §B trap #14 |
+| TRAP-REVIEW-004 | review | P1 | TDD red/green reversed — tests written after code | strict red → green → refactor; PR blocked if no failing test first | PR description must include "Red test commit: \<sha\>" before implementation commit sha | Day 0 dump §B trap #12 |
+| TRAP-REVIEW-005 | review | P1 | code review only catches style issues | linter owns style; review gates on correctness / security / maintainability | PR checklist must include "Correctness reviewed" and "Security reviewed" checkboxes | Day 0 dump §B trap #13 |
+| TRAP-REVIEW-006 | review | P1 | hardcoded test data breaks on field rename | use factory / fixture pattern for test data | `grep -rn "[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\|id: 1234" --include="*.test.ts"` returns empty | Day 0 dump §B trap #16 |
+| TRAP-REVIEW-007 | review | P1 | nobody checks test logic quality | reviewer has duty to challenge test assertions | PR review thread must have ≥ 1 comment on test assertions; template enforced | Day 0 dump §B trap #17 |
+| TRAP-REVIEW-008 | review | P1 | `/* istanbul ignore */` to hit coverage % ⚠️ | CI limit on ignore directives; each must link a ticket | `grep -rn "istanbul ignore\|c8 ignore" src/ \| wc -l` must be ≤ 3; each instance must have a GH issue URL on same line | Day 0 dump §B trap #18 |
+| TRAP-REVIEW-009 | review | P2 | E2E tests run on every unit test loop | pyramid: unit → integration → E2E only for critical paths | CI job matrix has separate `test:unit`, `test:integration`, `test:e2e` stages; E2E not in default push pipeline | Day 0 dump §B trap #19 |
+| TRAP-OPS-002 | ops | P1 | no rollback script in CI | rollback script checked into CI, tested same as deploy script | `find .github/workflows -name "*.yml" -exec grep -l "rollback" {} \;` returns ≥ 1 file | Day 0 dump §C trap #22 |
+| TRAP-OPS-003 | ops | P1 | monitoring only P99 latency | P50 / P90 / P99 all configured; SLO based on P50 | Monitoring config must contain quantile entries `0.5`, `0.9`, `0.99`; `grep -r "0\.5\b\|0\.9\b\|0\.99\b" config/` | Day 0 dump §C trap #23 |
+| TRAP-OPS-004 | ops | P1 | health check depends on downstream services | health check tests only process liveness, not downstream | `curl -w "%{time_total}" /health` response time < 50ms and returns 200 with no downstream calls | Day 0 dump §C trap #24 |
+| TRAP-OPS-005 | ops | P1 | experiment flags and feature flags share state | isolate experiment vars from feature flags, separate namespaces | `grep -rn "EXPERIMENT_\|FEATURE_" config/ \| awk -F: '{print $2}'` — no line must match both prefixes | Day 0 dump §C trap #25 |
+| TRAP-OPS-006 | ops | P1 | rollback skips schema compatibility check | schema changes must be backward compatible; validate before rollback | `grep -rn "DROP COLUMN" db/migrations/` triggers review; each drop must be preceded by nullable/default migration | Day 0 dump §C trap #26 |
+| TRAP-OPS-007 | ops | P2 | oncall dashboard has 20+ charts | oncall board: only QPS / Error / Latency — 3 charts max | `jq '.panels \| length' oncall-dashboard.json` must be ≤ 3 | Day 0 dump §C trap #27 |
+| TRAP-OPS-008 | ops | P1 | tracing disabled during canary to reduce cost | sampling rate ≥10%; never disable tracing entirely during rollout | `grep -r "TRACE_SAMPLE_RATE\|sampling_rate" config/ \| grep -v "#"` must show value ≥ 0.1 | Day 0 dump §C trap #28 |
+| TRAP-OPS-009 | ops | P1 | deploy scheduled during peak traffic | deploys always in low-traffic window | CI deploy job `cron:` must reference off-peak hours (e.g., 02:00–06:00 UTC); `grep -r "cron:" .github/workflows/*.yml` | Day 0 dump §C trap #29 |
+| TRAP-OPS-010 | ops | P1 | no data backfill plan for new schema fields | schema changes must ship with backfill script | `git show --name-only \| grep "backfill"` non-empty for any migration PR | Day 0 dump §C trap #30 |
+| TRAP-OPS-011 | ops | P0 | task closed without saving `.judge/` evidence artifacts | every task must save `stdout.txt`, `coverage.json`, `judge.json` to `.judge/<run_id>/` before committing; verbal "evidence" is rejected | `find .judge/ -name "judge.json" -newer <last-commit-timestamp> \| wc -l` must be ≥ 1 per task close | TeamBrain bootstrap constraint |
+| TRAP-COOP-002 | coop | P1 | estimate = best case only | three-point estimate × 1.3: `(best + 4×likely + worst) / 6 × 1.3` | PR description for feature work must contain fields `best:`, `likely:`, `worst:`; ratio `likely/best` ≥ 1.3 | Day 0 dump §D trap #31 |
+| TRAP-COOP-003 | coop | P1 | design doc with no "why X over Y" rationale | every design doc must have an alternatives-considered section | `grep -l "Alternatives\|Why.*over\|We chose" docs/design/*.md \| wc -l` equals total design doc count | Day 0 dump §D trap #32 |
+| TRAP-COOP-004 | coop | P1 | runbook only covers the happy path | runbook footer: "historical incidents" section mandatory | `grep -l "Historical\|Past incidents\|事故" docs/oncall/*.md \| wc -l` equals total runbook count | Day 0 dump §D trap #33 |
+| TRAP-COOP-005 | coop | P1 | new team member gets link dump, no pair session | day 1: in-person task walkthrough; week 2+: 15-min daily pairing | Onboarding checklist PR has "Day 1 walkthrough: done" and "Week 2 pairing: scheduled" items checked | Day 0 dump §D trap #34 |
+| TRAP-COOP-006 | coop | P1 | estimate has no buffer padding | external deadline = internal estimate + 2-week buffer | Project plan doc must contain `buffer: 2w` or `+14d`; `grep "buffer\|2 week" docs/plan*.md` non-empty | Day 0 dump §D trap #35 |
+| TRAP-COOP-007 | coop | P2 | doc review comment: "this is wrong" with no direction | review comment must include: priority (P0/P1) + suggested fix direction | PR review comments must match pattern `P[01]: .*→`; reviewer template enforced | Day 0 dump §D trap #36 |
+| TRAP-COOP-008 | coop | P2 | task assigned by "whoever is free" | assign via skill matrix; critical path tasks assigned by competency | Sprint board critical-path tasks must have an assignee with matching skill tag in team roster | Day 0 dump §D trap #37 |
+| TRAP-COOP-009 | coop | P2 | meeting agenda without owner/due per item | every agenda item must close with: conclusion + owner + due date | Meeting notes must have `owner:` and `due:` for each item; `grep -c "owner:" notes.md` ≥ agenda item count | Day 0 dump §D trap #38 |
+| TRAP-COOP-010 | coop | P2 | new contributor PR merged without walkthrough | before merge: 15-min "why did I write it this way" session | PR timeline shows a review comment from maintainer containing "walkthrough" within 48h of first commit | Day 0 dump §D trap #39 |
 
 ---
 
@@ -162,7 +162,7 @@ Start at P0 — these are the traps that have caused actual production incidents
 | # | Background | Wrong Decision | Blast & Loss | Root Lesson | Would-Have-Prevented |
 |---|-----------|----------------|-------------|-------------|----------------------|
 | 1 | Core module author departed, no docs | "Code is documentation" | 6× maintenance cost 6 months later, 2 P0 incidents | Knowledge not encoded = zero; turnover accelerates entropy | TRAP-COOP-003 (no "why" rationale in docs) |
-| 2 | OKR sprint crunch, testing time cut | "Sacrifice tests for velocity" | Core flow failure post-launch; 800万+ order loss | Quality is not a phase; debt accrues with compound interest | TRAP-TEST-001 (skip tests) |
-| 3 | 2 years of tech debt, refactor blocked | "If it works, don't touch it" | Small change triggers circular dependency; 3-day cascade failure | Tech debt is compound interest; later = more expensive | TRAP-TEST-002 (mock 套娃 hiding coupling) |
+| 2 | OKR sprint crunch, testing time cut | "Sacrifice tests for velocity" | Core flow failure post-launch; 800万+ order loss | Quality is not a phase; debt accrues with compound interest | TRAP-REVIEW-001 (skip tests) |
+| 3 | 2 years of tech debt, refactor blocked | "If it works, don't touch it" | Small change triggers circular dependency; 3-day cascade failure | Tech debt is compound interest; later = more expensive | TRAP-REVIEW-002 (mock 套娃 hiding coupling) |
 | 4 | Hiring season, strong individual hired | "We'll train culture fit later" | 6 months in: collaboration friction leads to 2 senior departures | Hiring is reverse selection; mis-hire cost multiplies | TRAP-COOP-008 (assign by availability not skill) |
 | 5 | Team familiar with microservices, new system chosen | "Use the tech we know" | Distributed transactions/network/ops far exceeded estimates; 4-month delay | Characterise the problem domain first, then match technology | TRAP-COOP-002 (optimistic estimation only) |
