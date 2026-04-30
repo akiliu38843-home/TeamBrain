@@ -16,13 +16,19 @@
 
 Before touching any file, open `docs/teambrain/TRAPS.md` and read every P0 entry.
 
-**Catch:** The commit message for your first commit must include the line:
-`TRAPS-READ: confirmed P0 entries seen: <comma-separated trap IDs>`
+**Catch:** The commit message for your first commit must include the structured anchor:
+`traps-read: P0=[<trap-id>, ...] relevant=[<trap-id>, ...]`
 
-A reviewer or CI harness will grep the commit message for `TRAPS-READ:`. Missing it means the commit is rejected.
+A reviewer or CI harness greps for `^traps-read:` (lowercase). Missing or uppercase = commit rejected.
 
 **Wrong:** Start editing code immediately on agent start.
 **Right:** `Read docs/teambrain/TRAPS.md` → scan P0 entries → proceed.
+
+---
+
+## 1.5. Task template (mandatory before any code change)
+
+Open `docs/teambrain/TASK_TEMPLATE.md` and fill ALL 10 sections before writing any code or making any file change beyond this setup step.
 
 ---
 
@@ -160,6 +166,6 @@ Every rule above must be machine-checkable. Recipes follow the schema in `docs/t
 | `VERIFY-CLAUDE-002` | AP-3: greps diff for `it\.skip\|xit\|xdescribe`; any new match = fail |
 | `VERIFY-CLAUDE-003` | AP-5: checks git log order — if refactor commit timestamp < test commit timestamp in same PR = fail |
 | `VERIFY-CLAUDE-004` | AP-1 + AP-4: runs `lazy-signal-verifier.sh` on agent response text; any lazy-signal pattern = fail |
-| `VERIFY-CLAUDE-005` | Trap discovery: greps first commit message in session for `TRAPS-READ:` anchor; missing = fail |
+| `VERIFY-CLAUDE-005` | Trap discovery: greps first commit message in session for `^traps-read: P0=\[` anchor (lowercase + structured); missing or wrong case = fail |
 
 All recipes produce evidence to `.judge/<ISO_TIMESTAMP>_<RECIPE_ID>/judge.json`. LLM judge reads only that file — never reruns the tool.
