@@ -110,6 +110,7 @@ Start at P0 — these are the traps that have caused actual production incidents
 | TRAP-OPS-008 | ops | tracing disabled during canary to reduce cost | sampling rate ≥10%; never disable tracing entirely during rollout | P1 |
 | TRAP-OPS-009 | ops | deploy scheduled during peak traffic | deploys always in low-traffic window | P1 |
 | TRAP-OPS-010 | ops | no data backfill plan for new schema fields | schema changes must ship with backfill script | P1 |
+| TRAP-OPS-011 | ops | task closed without saving `.judge/` evidence artifacts | every task must save `stdout.txt`, `coverage.json`, `judge.json` to `.judge/<run_id>/` before committing; verbal "evidence" is rejected | P0 |
 | TRAP-COOP-002 | coop | estimate = best case only | three-point estimate × 1.3: `(best + 4×likely + worst) / 6 × 1.3` | P1 |
 | TRAP-COOP-003 | coop | design doc with no "why X over Y" rationale | every design doc must have an alternatives-considered section | P1 |
 | TRAP-COOP-004 | coop | runbook only covers the happy path | runbook footer: "historical incidents" section mandatory | P1 |

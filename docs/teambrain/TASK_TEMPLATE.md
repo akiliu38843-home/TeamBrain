@@ -114,7 +114,7 @@ Wildcards allowed only when the glob is unambiguous (e.g., `packages/core/src/fl
 **Purpose:** Make "done" machine-readable so no verbal sign-off is possible.
 
 **Required content:** One of:
-- A `VERIFY_TEMPLATE.md` recipe ID (e.g., `VERIFY#unit-pass-coverage-80`).
+- A `VERIFY_TEMPLATE.md` recipe ID (e.g., `VERIFY-PNPM-001`).
 - A shell command + exact expected output. Example:
   ```bash
   pnpm test --filter packages/core 2>&1 | tail -1
@@ -178,9 +178,9 @@ Any hit that is not pre-existing (check `git diff`) is a rejection.
 
 **Required content:** List the TRAPS.md trap IDs that apply to this task, with a one-line confirmation that the agent has read each. Example:
 ```
-[ ] TRAP#git-force-push — confirmed read; will use --force-with-lease
-[ ] TRAP#mock-coverage  — confirmed read; will verify no it.skip added
-[ ] TRAP#missing-evidence — confirmed read; will save .judge/ before commit
+[ ] TRAP-GIT-001 — confirmed read; will use --force-with-lease
+[ ] TRAP-TEST-002 — confirmed read; will verify no it.skip added
+[ ] TRAP-OPS-011 — confirmed read; will save .judge/ before commit
 ```
 If no traps apply, write: "Reviewed TRAPS.md; no applicable traps for this task scope."
 
@@ -250,8 +250,8 @@ Anti-mock checklist:
   [x] Coverage delta: +2.1% (was 81.1%, now 83.2%)
 
 Trap-awareness checklist:
-  [x] TRAP#mock-coverage — confirmed read; verified no it.skip added
-  [x] TRAP#missing-evidence — confirmed read; .judge/ saved before commit
+  [x] TRAP-TEST-002 — confirmed read; verified no it.skip added
+  [x] TRAP-OPS-011 — confirmed read; .judge/ saved before commit
 
 Reviewer hand-off:
   Reviewer: @alice (backend)
