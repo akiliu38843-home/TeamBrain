@@ -52,10 +52,13 @@ Execute the commands listed in `VERIFY_TEMPLATE.md` for your task type. Match ac
 
 **Step 5 — Atomic commit + log evidence (30 s)**
 ```
+mkdir -p docs/teambrain/evidence/<run_id>
+# Fill INDEX.md, judge-summary.json, transcript.md, stdout.txt, stderr.txt, failures.md.
 git add <changed files>
-git commit -m "feat(<scope>): <what> — verified: <verify command + result>"
+git add docs/teambrain/evidence/<run_id>/
+git commit -m "feat(<scope>): <what> — verified: <run_id>"
 ```
-Evidence (command output, file paths, exit codes) goes in the commit message or a linked evidence file. No evidence = task not done.
+Evidence must be committed under `docs/teambrain/evidence/<run_id>/` before the task is declared done. The commit message may reference the run ID and verification result, but it is not the archive. Command output, file paths, exit codes, reviewer hand-off, failures, and raw `.judge/<run_id>/` pointers belong in the committed archive. Commit-message-only evidence = task not done.
 
 ## Where to Find What
 
@@ -66,6 +69,7 @@ Evidence (command output, file paths, exit codes) goes in the commit message or 
 | `docs/teambrain/TRAP_FORMAT.md` | How to write a new trap entry |
 | `docs/teambrain/TASK_TEMPLATE.md` | Template to fill before starting any task |
 | `docs/teambrain/VERIFY_TEMPLATE.md` | Executable verification commands by task type |
+| `docs/teambrain/evidence/<run_id>/` | Committed archive for one verification run |
 | `docs/teambrain/agent_rules/` | Stack-specific rule files (claude.md, codex.md) |
 | `docs/specs/2026-05-01-teambrain-72h-bootstrap.md` | Bootstrap plan, success bar, anti-patterns |
 

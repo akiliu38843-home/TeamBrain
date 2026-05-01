@@ -10,6 +10,8 @@
  │  ├── TASK_TEMPLATE.md← template for new task docs    │
  │  ├── VERIFY_TEMPLATE.md← harness verification schema │
  │  ├── CONVERGENCE.md  ← H6-12 reviewer convergence   │
+ │  ├── evidence/       ← committed verification archive│
+ │  │   └── <run_id>/   ← per-run audit evidence        │
  │  └── agent_rules/                                    │
  │      ├── claude.md   ← rules injected into Claude   │
  │      └── codex.md    ← rules injected into Codex    │
@@ -28,7 +30,7 @@ This file is the single authoritative reference for what lives where in `docs/te
 Written by the readme-writer teammate. Entry point for any new agent or human joining the team; maps the purpose of each file and the flow for finding traps, templates, and rules. Ground-truth verifiable: `grep -q "TRAPS.md" docs/teambrain/README.md` must succeed.
 
 ### `STRUCTURE.md` (this file)
-Defines the canonical directory layout and per-file ownership. Any agent before creating or moving a file checks this registry. Ground-truth verifiable: `ls docs/teambrain/` output must match the tree above exactly.
+Defines the canonical directory layout and per-file ownership. Any agent before creating or moving a file checks this registry. Ground-truth verifiable: `find docs/teambrain -maxdepth 2` must include the registered paths above; it must not assume `ls docs/teambrain/` equals a fixed file-only skeleton, because registered directories such as `evidence/` are canonical too.
 
 ### `TRAPS.md`
 Written by the traps-curator teammate. Curated index of all known traps with IDs, severity, and one-line summaries. Agents read this first when starting a task to avoid known failure modes. Ground-truth verifiable: each trap entry must have an `id:` field matching `TRAP-\d+` pattern, checkable via `grep -c "^| TRAP-" docs/teambrain/TRAPS.md`.
@@ -45,6 +47,9 @@ Written by the verify-template-author teammate. Defines how a third-party judge 
 ### `CONVERGENCE.md`
 Written by the Opus reviewer agent during H6-12. Records which skeleton files passed review, which had mock loopholes, and what was fixed. Agents in later phases read this to know the current quality baseline. Ground-truth verifiable: every file in the tree above appears as a row with a pass/fail status.
 
+### `evidence/<run_id>/`
+Committed audit archive for a verification run. Each run stores its PR-auditable index, judge summary JSON, transcript, stdout/stderr excerpts or checksums, failures list, and pointers to raw local `.judge/<run_id>/` evidence. Ground-truth verifiable: every completed onboarding or real-task claim has a committed `docs/teambrain/evidence/<run_id>/INDEX.md` and `judge-summary.json`; commit-message-only evidence is insufficient.
+
 ### `agent_rules/claude.md`
 Rules injected directly into Claude Code sessions (via CLAUDE.md import or system prompt). Agents read this to know which rules are active in a Claude session. Ground-truth verifiable: `grep -q "TeamBrain" docs/teambrain/agent_rules/claude.md` must succeed.
 
@@ -59,7 +64,6 @@ When the corpus grows, new paths follow this convention — do not create them u
 
 | Future path | Purpose |
 |---|---|
-| `docs/teambrain/evidence/<run_id>/` | Committed audit archive for a verification run: summary JSON, index, checksums, and pointers to local raw `.judge/<run_id>/` evidence |
 | `docs/teambrain/runbooks/<topic>.md` | Step-by-step operational guides for recurring tasks |
 | `docs/teambrain/traps/<TRAP-ID>.md` | Full detail file for a single trap when TRAPS.md entry exceeds 200 lines |
 | `docs/teambrain/tasks/<YYYY-MM-DD>-<slug>.md` | Per-task documents instantiated from TASK_TEMPLATE.md |
