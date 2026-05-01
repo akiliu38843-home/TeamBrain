@@ -110,7 +110,7 @@ Stop and message the human immediately if any of the following is true:
 ### AP-2: Fake completion — claiming tests pass without reading judge.json
 **Wrong:** "Tests are green" (based on exit code 0 alone, no judge.json read).
 
-**Right:** Read `.judge/<run_id>/judge.json`, check `metrics` and `evidence_dir` contents, then state pass/fail with the run_id.
+**Right:** Read `.judge/<run_id>/judge.json`, check VERIFY_TEMPLATE schema fields plus `metrics`/`status` or `missing_evidence`, then state verdict with the run_id.
 **Catch:** VERIFY recipe requires `judge_input` path; a verdict without a file path reference is rejected per `VERIFY_TEMPLATE.md` banned pattern #1.
 
 ---
@@ -164,7 +164,7 @@ Every rule above must be machine-checkable. Recipes follow the schema in `docs/t
 
 | Recipe ID | What it catches |
 |-----------|----------------|
-| `VERIFY-CLAUDE-001` | AP-2: reads `.judge/<run_id>/judge.json`, asserts `pass: true`; rejects verbal verdicts |
+| `VERIFY-CLAUDE-001` | AP-2: reads `.judge/<run_id>/judge.json`; judges via VERIFY_TEMPLATE schema, metrics/status, and `missing_evidence`; rejects verbal verdicts |
 | `VERIFY-CLAUDE-002` | AP-3: greps diff for `it\.skip\|xit\|xdescribe`; any new match = fail |
 | `VERIFY-CLAUDE-003` | AP-5: checks git log order — if refactor commit timestamp < test commit timestamp in same PR = fail |
 | `VERIFY-CLAUDE-004` | AP-1 + AP-4: runs `lazy-signal-verifier.sh` on agent response text; any lazy-signal pattern = fail |

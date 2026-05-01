@@ -195,4 +195,4 @@ Codex-specific example recipes to create when needed:
 | `VERIFY-CODEX-002` | Sandbox mode used correctly; evidence: codex exec command log shows `-s read-only` or `-s workspace-write`, never `dangerouslyDisableSandbox` |
 | `VERIFY-CODEX-003` | Feature verification step-2 JSON parity; evidence: `jq -S .` diff of claudefast step-1 output and codex exec step-2 output is empty (byte-identical) |
 
-Each recipe must fill all VERIFY_TEMPLATE.md required fields: `recipe_id`, `prerequisites`, `command`, `expected_output`, `failure_modes`, `evidence_path`, `judge_input`.
+Each recipe must fill all VERIFY_TEMPLATE.md required fields: `recipe_id`, `prerequisites`, `command`, `expected_output`, `failure_modes`, `evidence_path`, `archive_path`, `judge_input`.
