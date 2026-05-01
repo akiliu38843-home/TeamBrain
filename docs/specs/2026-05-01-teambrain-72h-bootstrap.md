@@ -19,13 +19,13 @@
 | Day | Hour 范围 | 阶段 | 状态 | 备注 |
 |-----|-----------|------|------|------|
 | **DAY 0** | H0 – H2 | Frame the problem | ✅ **DONE** | Mission + trap dump + HTML 快照已产出 |
-| **DAY 1** | H2 – H24 | Skeleton + Reviewer + Real Task #1 | 🔄 **IN PROGRESS** | H2-6 骨架 8/8 ✅ + H6-12 reviewer pass 2 轮 ✅；最终 verdict = `READY`（P0=0 / P1=0 / P2=3 deferred）；H12-24 Real Task #1 cleanup-blocker 已解，等 owner 指派真任务 |
+| **DAY 1** | H2 – H24 | Skeleton + Reviewer + Real Task #1 | 🔄 **IN PROGRESS** | H2-12 已达 `READY`（H2-6 骨架 8/8 ✅ + H6-12 reviewer/cleanup 2 轮 ✅；P0=0 / P1=0 / P2=3 deferred）；H12-24 Real Task #1 等 owner 指派真任务 |
 | **DAY 2** | H24 – H48 | Patch the brain + Real Task #2 (start) | ⏳ **TODO** | 等待 owner approval 才可启动 |
 | **DAY 3** | H48 – H72 | Real Task #2 finish + Release v0.1 | ⏳ **TODO** | 等待 owner approval 才可启动 |
 
-> ⛔️ **Pause gate**：DAY 2/3 不在本 commit 范围内。owner 必须显式批准
-> 后，agent 才能继续推进 H24 之后的工作；当前停在 DAY 1 的 cleanup queue
-> 之前（H6-12 reviewer pass 已落地，但 cleanup 与 Real Task #1 仍未启动）。
+> ⛔️ **H24+ pause gate**：DAY 2/3 不在本 commit 范围内。owner 必须显式批准
+> 后，agent 才能继续推进 H24 之后的工作。当前仍在 DAY 1：H2-12 已 READY，
+> H12-24 Real Task #1 等 owner 指派真任务与对应 evidence/transcript。
 
 ### DAY 0 detail — Hour 0 – 2「Frame the problem」FINISHED ✅
 
@@ -66,7 +66,7 @@ DAY 1 退出准则（必须全部 ✅ 才能进入 DAY 2）：
 2. Reviewer agent 已对每个文件出具 pass/fail，CONVERGENCE.md 已落盘。
 3. Real Task #1 的 transcript + 命令 evidence + 失败点列表已归档。
 
-### DAY 2 / DAY 3 — ⏳ TODO（pause gate active）
+### DAY 2 / DAY 3 — ⏳ TODO（H24+ pause gate active）
 
 未启动。详见后文 H24 – 36 / H36 – 60 / H60 – 72 各阶段定义。等待 owner
 显式 approval 后再继续；不要 agent 自己越过 pause gate。
