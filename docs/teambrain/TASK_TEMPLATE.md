@@ -1,29 +1,8 @@
 # TASK_TEMPLATE.md
 
-```
-TASK LIFECYCLE
-==============
+`owner task -> filled record -> VERIFY command -> required evidence archive -> reviewer verdict -> DONE`
 
-  owner assigns real task
-    |
-    v
-  agent reads TRAPS.md + fills every required field
-    |
-    v
-  runs VERIFY recipe / fixed shell command
-    |
-    v
-  archives transcript + command evidence + failure list + judge JSON summary
-    |
-    v
-  reviewer checks evidence, then task may be marked DONE
-
-REJECT:
-  no owner task -> cannot start Real Task #1
-  blank/N/A field -> reject
-  verbal completion -> reject
-  missing raw judge.json or docs judge-summary.json -> reject
-```
+Reject: no owner task, blank/N/A field, verbal completion, missing raw `.judge/<run_id>/judge.json`, or missing any required docs archive file.
 
 ---
 
@@ -97,6 +76,7 @@ success_criteria:
   command: ""
   expected_output: ""
   judge_json_check: ""
+  missing_evidence_policy: "fail if any required raw/archive file is missing or empty"
 
 evidence_checklist:
   index: "docs/teambrain/evidence/<run_id>/INDEX.md"
@@ -152,11 +132,11 @@ Name exact output files, commit message convention, and evidence directory. Dire
 
 ### 6. Success criteria
 
-Provide a `VERIFY_TEMPLATE.md` recipe ID or a real shell command with exact expected output. "CI green", "tests pass", and "looks good" are not success criteria.
+Provide a `VERIFY_TEMPLATE.md` recipe ID or a real shell command with exact expected output. The command must fail on missing raw/archive evidence. "CI green", "tests pass", and "looks good" are not success criteria.
 
 ### 7. Evidence checklist
 
-Archive raw harness output under `.judge/<run_id>/` and committed audit evidence under `docs/teambrain/evidence/<run_id>/`. The minimum committed set is:
+Archive raw harness output under `.judge/<run_id>/` and committed audit evidence under `docs/teambrain/evidence/<run_id>/`. Missing or empty files in this contract are `missing_evidence` and block DONE:
 
 ```text
 INDEX.md            archive index and raw evidence pointer
@@ -166,6 +146,8 @@ stderr.txt          command stderr excerpt or checksum + raw path
 failures.md         observed failures, or "No failures observed" with evidence
 judge-summary.json  JSON summary derived from .judge/<run_id>/judge.json
 ```
+
+Raw required file: `.judge/<run_id>/judge.json`.
 
 `run_id` should be ISO timestamp plus short slug before commit, then may include the final short commit SHA after commit.
 
@@ -190,7 +172,7 @@ Reject these patterns before assignment:
 1. Vague scope such as "clean up docs" without exact files.
 2. Context stored only in Slack, chat, or memory.
 3. Success criteria with no executable command or recipe ID.
-4. Raw `.judge/<run_id>/judge.json` or committed `judge-summary.json` missing.
+4. Raw `.judge/<run_id>/judge.json` or any required archive file missing.
 5. Failure list omitted because "nothing failed".
 6. Agent marks Day 1 H12-24 completed before owner assigns a real task.
 7. Judge summary written without raw `.judge/<run_id>/judge.json`.

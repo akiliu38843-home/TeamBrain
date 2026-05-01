@@ -1,20 +1,10 @@
 # VERIFY_TEMPLATE.md
 
-```
- ┌──────────┐     ┌──────────┐     ┌──────────┐
- │   RUN    │────▶│   DUMP   │────▶│   READ   │
- │ pinned   │     │ .judge/  │     │ LLM judge│
- │  tools   │     │ + docs/  │     │ raw JSON │
- │set -euo  │     │ archive  │     │ only     │
- └──────────┘     └──────────┘     └──────────┘
-   execute          record           conclude
-```
-
----
+`RUN pinned tools -> DUMP .judge/ + docs archive -> READ raw JSON with separate LLM judge.`
 
 ## Bedrock principle
 
-Code does not grade itself. A fixed third-party harness runs fixed tools, dumps fixed JSON and raw evidence under `.judge/<run_id>/`; a separate LLM judge reads raw JSON only — never reruns the tool. Because `.judge/` is gitignored local raw output, every real verification run that must support a PR also archives an auditable summary/index under `docs/teambrain/evidence/<run_id>/` or another registered docs path.
+Code does not grade itself. A fixed harness runs fixed tools, dumps raw JSON/evidence under `.judge/<run_id>/`, archives required proof under `docs/teambrain/evidence/<run_id>/`, and a separate LLM judge reads raw JSON only.
 
 ---
 
@@ -35,11 +25,29 @@ Every TeamBrain verify entry MUST contain all of the following fields:
 
 ---
 
+## Required archive gate
+
+Every real-task harness MUST create and validate this committed archive set before any pass verdict:
+
+```text
+docs/teambrain/evidence/<run_id>/
+  INDEX.md
+  transcript.md
+  stdout.txt
+  stderr.txt
+  failures.md
+  judge-summary.json
+```
+
+Missing any file above is `missing_evidence` and MUST make the harness fail, even when the tool command exits 0. `judge-summary.json` MUST be derived from `.judge/<run_id>/judge.json`; it cannot replace the raw judge JSON.
+
+---
+
 ## Evidence retention contract
 
-- `.judge/<run_id>/` is the canonical local raw judge output: `judge.json`, stdout/stderr, coverage, screenshots, and other bulky evidence.
+- `.judge/<run_id>/` is the canonical local raw judge output: `judge.json`, stdout/stderr, coverage, screenshots, and bulky evidence.
 - `.judge/` is transient and gitignored. A PR cannot rely on `.judge/` alone to self-prove a real task.
-- `docs/teambrain/evidence/<run_id>/` is the canonical committed audit archive. It contains `INDEX.md`, `judge-summary.json`, checksums or excerpts, and pointers back to `.judge/<run_id>/`.
+- `docs/teambrain/evidence/<run_id>/` is the canonical committed audit archive. It contains the required archive gate files, checksums or excerpts, and pointers back to `.judge/<run_id>/`.
 - Do not fabricate completion evidence. If a real task was not run, the archive must say it is a template, dry run, or missing run; never imply Real Task #1 or any named task completed without raw judge evidence.
 
 ---
@@ -67,6 +75,10 @@ pnpm typecheck \
 
 # Capture metrics (example: count error lines)
 ERROR_COUNT=$(grep -c "error TS" "${EVIDENCE_DIR}/stdout.txt" || true)
+FAILURES="No failures observed; see ${EVIDENCE_DIR}/judge.json and command logs."
+if [ "${EXIT_CODE}" -ne 0 ] || [ "${ERROR_COUNT}" -ne 0 ]; then
+  FAILURES="Command failed or mismatched expected output; inspect stdout/stderr."
+fi
 
 # ── DUMP ─────────────────────────────────────────────────────────────────────
 cat > "${EVIDENCE_DIR}/judge.json" <<EOF
@@ -80,8 +92,20 @@ cat > "${EVIDENCE_DIR}/judge.json" <<EOF
   "evidence_dir": "${EVIDENCE_DIR}",
   "archive_dir": "${ARCHIVE_DIR}",
   "stdout_path": "${EVIDENCE_DIR}/stdout.txt",
-  "stderr_path": "${EVIDENCE_DIR}/stderr.txt"
+  "stderr_path": "${EVIDENCE_DIR}/stderr.txt",
+  "failure_list_path": "${ARCHIVE_DIR}/failures.md"
 }
+EOF
+
+cp "${EVIDENCE_DIR}/stdout.txt" "${ARCHIVE_DIR}/stdout.txt"
+cp "${EVIDENCE_DIR}/stderr.txt" "${ARCHIVE_DIR}/stderr.txt"
+printf '%s\n' "${FAILURES}" > "${ARCHIVE_DIR}/failures.md"
+cat > "${ARCHIVE_DIR}/transcript.md" <<EOF
+# Transcript ${RUN_ID}
+
+- recipe_id: ${RECIPE_ID}
+- command: pnpm typecheck
+- result: exit_code=${EXIT_CODE}, ts_error_count=${ERROR_COUNT}
 EOF
 
 cat > "${ARCHIVE_DIR}/judge-summary.json" <<EOF
@@ -93,7 +117,8 @@ cat > "${ARCHIVE_DIR}/judge-summary.json" <<EOF
     "ts_error_count": ${ERROR_COUNT}
   },
   "raw_evidence_dir": "${EVIDENCE_DIR}",
-  "raw_judge_path": "${EVIDENCE_DIR}/judge.json"
+  "raw_judge_path": "${EVIDENCE_DIR}/judge.json",
+  "failure_list_path": "${ARCHIVE_DIR}/failures.md"
 }
 EOF
 
@@ -103,9 +128,20 @@ cat > "${ARCHIVE_DIR}/INDEX.md" <<EOF
 - recipe_id: ${RECIPE_ID}
 - raw_evidence_dir: \`${EVIDENCE_DIR}\` (local, gitignored)
 - summary: \`${ARCHIVE_DIR}/judge-summary.json\`
-- stdout: \`${EVIDENCE_DIR}/stdout.txt\`
-- stderr: \`${EVIDENCE_DIR}/stderr.txt\`
+- transcript: \`${ARCHIVE_DIR}/transcript.md\`
+- stdout: \`${ARCHIVE_DIR}/stdout.txt\` (raw: \`${EVIDENCE_DIR}/stdout.txt\`)
+- stderr: \`${ARCHIVE_DIR}/stderr.txt\` (raw: \`${EVIDENCE_DIR}/stderr.txt\`)
+- failures: \`${ARCHIVE_DIR}/failures.md\`
 EOF
+
+MISSING=0
+for f in INDEX.md transcript.md stdout.txt stderr.txt failures.md judge-summary.json; do
+  [ -s "${ARCHIVE_DIR}/${f}" ] || { echo "missing_evidence:${ARCHIVE_DIR}/${f}" >&2; MISSING=1; }
+done
+[ -s "${EVIDENCE_DIR}/judge.json" ] || { echo "missing_evidence:${EVIDENCE_DIR}/judge.json" >&2; MISSING=1; }
+[ "${MISSING}" -eq 0 ] || exit 2
+if [ "${EXIT_CODE}" -ne 0 ]; then exit "${EXIT_CODE}"; fi
+[ "${ERROR_COUNT}" -eq 0 ] || exit 3
 
 # ── READ ─────────────────────────────────────────────────────────────────────
 # Separate LLM judge reads raw JSON only — does NOT rerun the tool
@@ -124,11 +160,7 @@ stdout (first 100 lines): $(head -n 100 "${EVIDENCE_DIR}/stdout.txt")
 
 ```yaml
 recipe_id: VERIFY-PNPM-001
-prerequisites:
-  - node >= 18
-  - pnpm installed (pnpm --version must exit 0)
-  - repo root package.json present with typecheck script
-  - no uncommitted generated files that would break tsc
+prerequisites: [node >= 18, pnpm installed, repo root package.json present]
 command: "scripts/verify/VERIFY-PNPM-001.sh"
 expected_output:
   exit_code: 0
@@ -137,7 +169,7 @@ failure_modes:
   - timeout: command runs > 120s
   - exit_code != 0: tsc found type errors
   - mismatch: exit_code=0 but stdout contains "error TS" lines
-  - missing_evidence: .judge/{RUN_ID}/judge.json or docs/teambrain/evidence/{RUN_ID}/INDEX.md not written
+  - missing_evidence: raw judge JSON or required docs archive file missing/empty
   - mock_detected: tsconfig paths redirected to stubs
 evidence_path: ".judge/{RUN_ID}/"
 archive_path: "docs/teambrain/evidence/{RUN_ID}/"
@@ -148,15 +180,15 @@ judge_input: ".judge/{RUN_ID}/judge.json"
 
 ## Banned patterns
 
-1. **Verbal sign-off** — "I reviewed the output and it looks fine." Not evidence. Rejected.
-2. **Agent self-grading** — the same agent that wrote the code also declares it passing. Structural conflict of interest.
-3. **Hidden `|| true`** — silences exit codes; the harness MUST propagate failures, never suppress them.
-4. **Exit-code-only check** — `exit 0` alone is insufficient; `expected_output` must also assert on stdout/stderr content.
-5. **Single-LLM judge that also wrote the test** — the judge must be a separate invocation with no write access to the code under test.
-6. **Pseudo-code commands** — `command` field must be a real executable shell line, not "run the typecheck step".
-7. **`verify_command` omitted** — no loopholes; every VERIFY entry requires a concrete `command`.
-8. **PR proof only in `.judge/`** — `.judge/` is local raw output and gitignored; archive a summary/index under docs before claiming a PR is evidenced.
-9. **Fabricated real-task evidence** — never create docs that imply a named real task completed unless the referenced raw judge run exists.
+1. **Verbal sign-off** — "looks fine" is not evidence.
+2. **Agent self-grading** — writer cannot be the final judge.
+3. **Hidden `|| true`** — harnesses must preserve failures.
+4. **Exit-code-only check** — assert stdout/stderr or JSON too.
+5. **Single-LLM judge that also wrote the test** — use a separate invocation.
+6. **Pseudo-code commands** — `command` must be executable.
+7. **`verify_command` omitted** — every VERIFY entry needs a command.
+8. **PR proof only in `.judge/`** — archive required docs proof too.
+9. **Fabricated real-task evidence** — never imply completion without raw judge evidence.
 
 ---
 

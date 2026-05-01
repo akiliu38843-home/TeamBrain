@@ -27,6 +27,8 @@ docs/teambrain/evidence/<run_id>/
   judge-summary.json
 ```
 
+The matching raw harness file `.judge/<run_id>/judge.json` is also required. Missing or empty raw judge JSON, or any missing/empty file in the committed layout above, is `missing_evidence` and must fail the VERIFY harness/reviewer check.
+
 Use a stable `run_id`, preferably `YYYYMMDDTHHMMSSZ-<task-slug>` before commit. After commit, mention the short commit SHA in `INDEX.md`.
 
 ## Required files
