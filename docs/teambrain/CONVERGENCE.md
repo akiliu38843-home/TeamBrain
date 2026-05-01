@@ -351,3 +351,10 @@ The 2nd-pass reviewer pre-approved promotion to `READY` once the one-line residu
 | Hour 12-24 (Real Task #1) | Unblocked from cleanup; remains pending owner-provided real task per bootstrap §Hour 12 – 24 |
 | Cleanup-loop summary | Round 1 review → 6 P0 + 7 P1 + 3 P2 found → routed to 4 owners via SendMessage → 11 atomic cleanup commits landed → Round 2 review → 1 residual P1 found → routed to codex-rules-author → 1 atomic fix `283f5a4` → READY. Total cleanup rounds: 2 of 3 cap. |
 
+---
+
+## Current status note
+
+- **H2-12 status**: READY. Skeleton, reviewer pass, cleanup loop, and final READY sign-off are complete.
+- **H12-24 status**: pending owner-provided Real Task #1. Cleanup no longer blocks the start, but there is no owner real task in flight from this file alone.
+- **P2 status**: deferred and non-blocking for H12 start; this does **not** mean Day 1 is complete. Day 1 completes only after H12-24 Real Task #1 has owner evidence.
