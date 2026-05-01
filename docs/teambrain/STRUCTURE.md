@@ -40,7 +40,7 @@ Written by the trap-format-author teammate. Defines the schema (fields, required
 Written by the task-template-author teammate. Canonical template agents copy when creating a new task document. Contains task description, expected outputs, and harness evaluation stubs. Ground-truth verifiable: `grep -q "expected_outputs" docs/teambrain/TASK_TEMPLATE.md` must succeed.
 
 ### `VERIFY_TEMPLATE.md`
-Written by the verify-template-author teammate. Defines how a third-party judge harness runs, dumps JSON evidence, and what fields the LLM judge must read. No verbal review — harness output is the verdict. Ground-truth verifiable: `grep -q "exit_code" docs/teambrain/VERIFY_TEMPLATE.md` must succeed.
+Written by the verify-template-author teammate. Defines how a third-party judge harness runs, dumps local raw JSON evidence, and archives a PR-auditable summary/index into docs. No verbal review — harness output is the verdict. Ground-truth verifiable: `grep -q "archive_path" docs/teambrain/VERIFY_TEMPLATE.md` must succeed.
 
 ### `CONVERGENCE.md`
 Written by the Opus reviewer agent during H6-12. Records which skeleton files passed review, which had mock loopholes, and what was fixed. Agents in later phases read this to know the current quality baseline. Ground-truth verifiable: every file in the tree above appears as a row with a pass/fail status.
@@ -59,7 +59,7 @@ When the corpus grows, new paths follow this convention — do not create them u
 
 | Future path | Purpose |
 |---|---|
-| `docs/teambrain/evidence/<run_id>/` | Raw harness output (JSON, stdout/stderr) from a specific verification run |
+| `docs/teambrain/evidence/<run_id>/` | Committed audit archive for a verification run: summary JSON, index, checksums, and pointers to local raw `.judge/<run_id>/` evidence |
 | `docs/teambrain/runbooks/<topic>.md` | Step-by-step operational guides for recurring tasks |
 | `docs/teambrain/traps/<TRAP-ID>.md` | Full detail file for a single trap when TRAPS.md entry exceeds 200 lines |
 | `docs/teambrain/tasks/<YYYY-MM-DD>-<slug>.md` | Per-task documents instantiated from TASK_TEMPLATE.md |
