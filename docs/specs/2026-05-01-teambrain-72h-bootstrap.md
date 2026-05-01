@@ -42,7 +42,7 @@ H2 – 6 Skeleton parallel build (8 sonnet writers × 1 file each, atomic commit
 
 | Owner | Output | 状态 | Commit / Artifact |
 |-------|--------|------|-------------------|
-| skeleton-architect (sonnet) | `docs/teambrain/STRUCTURE.md` | ✅ Done | 529a6a7 — 9-file canonical layout |
+| skeleton-architect (sonnet) | `docs/teambrain/STRUCTURE.md` | ✅ Done | 529a6a7 — canonical layout registry |
 | readme-writer (sonnet) | `docs/teambrain/README.md` | ✅ Done | 8519046 — 5-min onboarding flow |
 | trap-format-author (sonnet) | `docs/teambrain/TRAP_FORMAT.md` | ✅ Done | 75a95c4 — trap schema + linter recipe |
 | verify-template-author (sonnet) | `docs/teambrain/VERIFY_TEMPLATE.md` | ✅ Done | ebc321a — 3-stage judge harness |
@@ -53,7 +53,7 @@ H2 – 6 Skeleton parallel build (8 sonnet writers × 1 file each, atomic commit
 | convergence-reviewer (opus) | `docs/teambrain/CONVERGENCE.md` | ✅ Done | H6-12 reviewer pass (this commit) |
 
 H6 – 12 Reviewer pass + human cleanup — ✅ **DONE** (2 轮 review → READY)：
-- 最终 verdict: `READY` — 完整 review trail 见 [`../teambrain/CONVERGENCE.md`](../teambrain/CONVERGENCE.md)（含 1st-pass 全部 findings、cleanup queue、2nd-pass sign-off、Final READY sign-off）。
+- 最终 verdict: `READY` — 当前状态入口见 [`../teambrain/CONVERGENCE.md`](../teambrain/CONVERGENCE.md)，完整 review trail 见 [`../teambrain/convergence/`](../teambrain/convergence/)（含 1st-pass 全部 findings、cleanup queue、2nd-pass sign-off、Final READY sign-off）。
 - Round 1 (commit 6f50017): `CLEANUP-REQUIRED`，P0=6 / P1=7 / P2=3。Top P0 themes: TRAPS.md schema drift vs TRAP_FORMAT spec（hyphen vs underscore 字段名、P1/P2 table 缺 `verify_command` / `evidence_link` 两列、`category: testing` violates enum）；TASK_TEMPLATE example 用 `VERIFY#...` / `TRAP#<slug>` 不符合 id regex；`agent_rules/claude.md` 用 uppercase `TRAPS-READ:` 而 `codex.md` 用 lowercase `traps-read:` — VERIFY-CLAUDE-005 grep 会 reject 每个 Codex agent 的 first commit。
 - Cleanup loop: 主 lead 通过 SendMessage 把 per-file findings 路由回 4 个 originating teammates（traps-curator / task-template-author / claude-rules-author / codex-rules-author），不让 lead 静默 patch。共 11 个 atomic cleanup commits（含 traps-curator 5 个 + task-template-author 3 个 + claude-rules-author 3 个 + codex-rules-author 1 个）。
 - Round 2 (commit 03c15db): 残留 1 个 P1（`feat(m{N})` 漏改 `agent_rules/codex.md:99`），routed back → codex-rules-author 一行修复 commit `283f5a4` → `READY`，P2 cosmetic findings 按 1st-pass 指引 deferred 到 Real Task #1 之后统一清理。
@@ -62,8 +62,8 @@ H6 – 12 Reviewer pass + human cleanup — ✅ **DONE** (2 轮 review → READY
 H12 – 24 Real Task #1（real owner work + transcript + evidence）— ⏳ **READY TO START**（cleanup-blocker 已解，等 owner 指派一个 owner-real 任务）。
 
 DAY 1 退出准则（必须全部 ✅ 才能进入 DAY 2）：
-1. STRUCTURE.md 所列 9 个文件全部存在且非空。
-2. Reviewer agent 已对每个文件出具 pass/fail，CONVERGENCE.md 已落盘。
+1. STRUCTURE.md registry 所列 canonical paths 全部存在且关键入口非空。
+2. Reviewer agent 已出具 current convergence status，CONVERGENCE.md 已落盘，完整 reviewer trail 归档在 `docs/teambrain/convergence/`。
 3. Real Task #1 的 transcript + 命令 evidence + 失败点列表已归档。
 
 ### DAY 2 / DAY 3 — ⏳ TODO（H24+ pause gate active）

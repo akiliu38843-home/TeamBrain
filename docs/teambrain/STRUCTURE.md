@@ -9,7 +9,8 @@
  │  ├── TRAP_FORMAT.md  ← schema for each trap record   │
  │  ├── TASK_TEMPLATE.md← template for new task docs    │
  │  ├── VERIFY_TEMPLATE.md← harness verification schema │
- │  ├── CONVERGENCE.md  ← H6-12 reviewer convergence   │
+ │  ├── CONVERGENCE.md  ← current convergence status    │
+ │  ├── convergence/    ← detailed reviewer trail       │
  │  ├── evidence/       ← committed verification archive│
  │  │   └── <run_id>/   ← per-run audit evidence        │
  │  └── agent_rules/                                    │
@@ -45,7 +46,10 @@ Written by the task-template-author teammate. Canonical template agents copy whe
 Written by the verify-template-author teammate. Defines how a third-party judge harness runs, dumps local raw JSON evidence, and archives a PR-auditable summary/index into docs. No verbal review — harness output is the verdict. Ground-truth verifiable: `grep -q "archive_path" docs/teambrain/VERIFY_TEMPLATE.md` must succeed.
 
 ### `CONVERGENCE.md`
-Written by the Opus reviewer agent during H6-12. Records which skeleton files passed review, which had mock loopholes, and what was fixed. Agents in later phases read this to know the current quality baseline. Ground-truth verifiable: every file in the tree above appears as a row with a pass/fail status.
+Written by the Opus reviewer agent during H6-12. Records the current convergence status entry: latest verdict, active blockers, cleanup state, and pointers to the detailed reviewer trail. Agents in later phases read this to know the current quality baseline. Ground-truth verifiable: it links to `docs/teambrain/convergence/` for detailed pass/fail history instead of embedding every per-file review row in the status file itself.
+
+### `convergence/`
+Detailed reviewer trail archive for convergence passes, including per-file findings, pass/fail history, cleanup routing, and sign-off evidence. Ground-truth verifiable: any completed convergence review referenced by `CONVERGENCE.md` has a corresponding artifact under `docs/teambrain/convergence/`.
 
 ### `evidence/<run_id>/`
 Committed audit archive for a verification run. Each run stores its PR-auditable index, judge summary JSON, transcript, stdout/stderr excerpts or checksums, failures list, and pointers to raw local `.judge/<run_id>/` evidence. Ground-truth verifiable: every completed onboarding or real-task claim has a committed `docs/teambrain/evidence/<run_id>/INDEX.md` and `judge-summary.json`; commit-message-only evidence is insufficient.
