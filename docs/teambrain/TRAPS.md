@@ -81,6 +81,18 @@ Start at P0 — these are the traps that have caused actual production incidents
 
 ---
 
+### TRAP-OPS-012
+
+- **category**: ops
+- **trigger**: Closing a real task without running the executable archive-gate harness; relying on convention or visual review of `docs/teambrain/evidence/<run_id>/` instead of a fixed binary
+- **wrong_pattern**: Reviewer eyeballs the evidence dir, agent claims "all 6 files present", or VERIFY recipe leaves `verify_command` as prose like "ensure archive gate is satisfied" — no executable. ⚠️ archive-gate-by-convention loophole.
+- **right_pattern**: Run `scripts/verify/tbrain-verify.sh <recipe_id> <run_id>` (binary closes GAP-1 + GAP-2 from Real Task #1 evidence). It writes raw `.judge/<run_id>/judge.json` with `metrics.archive_present`, `metrics.archive_missing`, and `missing_evidence`; a separate LLM judge then reads only the JSON file path (per AP-8 / GAP-3). Exit non-zero blocks the merge.
+- **evidence_link**: `docs/teambrain/evidence/20260502T000000Z-real-task-1/failures.md` GAP-2 ("archive gate is enforced by convention, not by a CI check") and GAP-1 ("no automated harness binary lives in repo yet")
+- **severity**: P0
+- **verify_command**: `scripts/verify/tbrain-verify.sh "${RECIPE_ID:?set RECIPE_ID}" "${RUN_ID:?set RUN_ID}" >/dev/null && jq -e '.missing_evidence == false and .metrics.archive_missing == 0 and .metrics.canonical_paths_missing == 0' ".judge/${RUN_ID}/judge.json"` — exit 0 = PASS; non-zero exit or `missing_evidence=true` = FAIL. Negative case for a fresh agent: invoking with `RUN_ID=20260101T000000Z-nonexistent` returns exit 2 and `missing_evidence=true`.
+
+---
+
 ## P1 / P2 Condensed
 
 | id | category | severity | wrong_pattern | right_pattern | verify_command | evidence_link |
