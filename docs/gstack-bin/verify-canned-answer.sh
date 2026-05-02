@@ -1,102 +1,110 @@
 #!/usr/bin/env bash
-# Verify the "gstack skills / brain sync bin path" canned answer by running
-# claudefast -p and grepping for canonical anchors. PASS = exit 0, FAIL = 1.
+# Semantic verifier for the "gstack skills / brain sync bin path" rule.
+#
+# Flow:
+#   1. Ask a fresh claudefast session the real trigger prompt.
+#   2. Ask claudefast again to judge the answer against the source rule doc.
+#   3. Parse the judge's structured JSON and use `.pass` for PASS / FAIL.
 #
 # USE_WHEN: user asks
 #   "gstack skills and brain sync bin — project level or user level ?"
-# DO_WHEN_USED: response must say the resolution is "project level" for both
-#   gstack skills and the brain sync bin in this repo.
-#
-# PASS conditions (all):
-#   1. "project level" appears (case-insensitive)
-#   2. The FIRST occurrence of either "project level" or "user level" in
-#      the response is "project level" — i.e. the canonical answer leads,
-#      and "user level" only appears later as a contrast or rejection.
-#   3. At least one of: .claude/skills, .codex/skills, .claude/, .codex/
-#      (referencing where project-level skills/configs live; we accept
-#      the short form because the response sometimes elides /skills).
-#
-# Why disambiguation #2 matters: a regression like "use user level, not
-# project level" still mentions both phrases, so a presence-only check
-# would falsely PASS. Requiring the first reference be "project level"
-# catches this — the canonical CLAUDE.md doc structure ("答 project
-# level"; project paths) puts the right phrase first by construction.
-# (Codex review on PR #56, follow-up after similar fix on github-account.)
-#
 # Source rule: CLAUDE.md "Gstack skills 与 brain sync bin 路径" section.
 
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-OUT="docs/gstack-bin/.last-verify.out"
+OUT_DIR="docs/gstack-bin"
+ANSWER_OUT="$OUT_DIR/.last-verify.out"
+JUDGE_OUT="$OUT_DIR/.last-judge.out"
+JUDGE_JSON="$OUT_DIR/.last-judge.json"
+JUDGE_PROMPT_FILE="$OUT_DIR/.last-judge-prompt.txt"
 
 PROMPT="gstack skills and brain sync bin — project level or user level ?"
+EXPECTED_DOC=$(sed -n '/^## Gstack skills 与 brain sync bin 路径$/,/^## /p' CLAUDE.md | sed '$d')
 
-if command -v zsh >/dev/null 2>&1; then
-    zsh -i -c "claudefast -p \"$PROMPT\"" > "$OUT" 2>&1 || {
+run_claudefast() {
+    local prompt="$1"
+    local output="$2"
+
+    if command -v zsh >/dev/null 2>&1; then
+        PROMPT_FOR_CLAUDEFAST="$prompt" zsh -i -c 'claudefast -p "$PROMPT_FOR_CLAUDEFAST"' > "$output" 2>&1
+    elif command -v claudefast >/dev/null 2>&1; then
+        claudefast -p "$prompt" > "$output" 2>&1
+    else
         echo "GSTACK-BIN VERIFY: FAIL"
-        echo "failed to run claudefast via zsh -i -c"
+        echo "neither zsh nor claudefast on PATH"
         exit 1
-    }
-elif command -v claudefast >/dev/null 2>&1; then
-    claudefast -p "$PROMPT" > "$OUT" 2>&1 || {
-        echo "GSTACK-BIN VERIFY: FAIL"
-        echo "failed to run claudefast directly"
-        exit 1
-    }
-else
-    echo "GSTACK-BIN VERIFY: FAIL"
-    echo "neither zsh nor claudefast on PATH"
-    exit 1
-fi
-
-misses=0
-missing_list=()
-
-# Required anchor — the answer phrase must appear
-if ! grep -i -F -- "project level" "$OUT" > /dev/null 2>&1; then
-    misses=$((misses + 1))
-    missing_list+=("project level (required)")
-fi
-
-# Disambiguation — the first occurrence of either "project level" or
-# "user level" must be "project level". Catches "use user level, not
-# project level" style regressions where both phrases appear but the
-# wrong one is the answer.
-first_level=$(grep -oi -E -- "(project level|user level)" "$OUT" | head -1 | tr 'A-Z' 'a-z')
-if [ -n "$first_level" ] && [ "$first_level" != "project level" ]; then
-    misses=$((misses + 1))
-    missing_list+=("first level reference is '$first_level' — wrong scope presented as the answer")
-fi
-
-# At least one of the install-path anchors must be present.
-# Order: prefer the longer form; fall back to bare directory mention.
-path_alt=(".claude/skills" ".codex/skills" ".claude/" ".codex/")
-path_hit=0
-for alt in "${path_alt[@]}"; do
-    if grep -i -F -- "$alt" "$OUT" > /dev/null 2>&1; then
-        path_hit=1
-        break
     fi
-done
-if [ "$path_hit" -eq 0 ]; then
-    misses=$((misses + 1))
-    missing_list+=(".claude/skills | .codex/skills | .claude/ | .codex/ (any)")
+}
+
+run_claudefast "$PROMPT" "$ANSWER_OUT" || {
+    echo "GSTACK-BIN VERIFY: FAIL"
+    echo "failed to run answer probe"
+    exit 1
+}
+
+cat > "$JUDGE_PROMPT_FILE" <<EOF
+You are a strict third-party judge for a project rule verifier.
+
+Evaluate whether ACTUAL_ANSWER semantically follows EXPECTED_DOC for the USER_TRIGGER.
+Do not require word-for-word matching. Judge the selected scope, not string anchors.
+
+Return ONLY valid minified JSON with this exact shape:
+{"pass":true,"rule":"gstack-bin","summary":"...","missing":[],"wrong":[]}
+
+Rules:
+- pass must be true only if the answer clearly says both gstack skills and brain sync bin paths are project level in this repo.
+- pass must be false if the answer selects user level as the scope for either gstack skills or brain sync bin paths.
+- pass may be true if user level is mentioned only as the thing not used or not depended on.
+- missing and wrong must be arrays of short strings.
+
+USER_TRIGGER:
+$PROMPT
+
+EXPECTED_DOC:
+$EXPECTED_DOC
+
+ACTUAL_ANSWER:
+$(cat "$ANSWER_OUT")
+EOF
+
+run_claudefast "$(cat "$JUDGE_PROMPT_FILE")" "$JUDGE_OUT" || {
+    echo "GSTACK-BIN VERIFY: FAIL"
+    echo "failed to run semantic judge"
+    exit 1
+}
+
+set +e
+node - "$JUDGE_OUT" "$JUDGE_JSON" <<'NODE'
+const fs = require('fs');
+const inputPath = process.argv[2];
+const outputPath = process.argv[3];
+const raw = fs.readFileSync(inputPath, 'utf8').trim();
+const match = raw.match(/\{[\s\S]*\}/);
+if (!match) {
+  console.error('judge did not return a JSON object');
+  process.exit(2);
+}
+let parsed;
+try {
+  parsed = JSON.parse(match[0]);
+} catch (error) {
+  console.error(`judge JSON parse failed: ${error.message}`);
+  process.exit(2);
+}
+fs.writeFileSync(outputPath, `${JSON.stringify(parsed, null, 2)}\n`);
+process.exit(parsed.pass === true ? 0 : 1);
+NODE
+status=$?
+set -e
+
+if [ "$status" -eq 0 ]; then
+    echo "GSTACK-BIN VERIFY: PASS"
+    cat "$JUDGE_JSON"
+    exit 0
 fi
 
-if [ "$misses" -eq 0 ]; then
-    echo "GSTACK-BIN VERIFY: PASS"
-    exit 0
-else
-    echo "GSTACK-BIN VERIFY: FAIL"
-    echo "missing anchors:"
-    for m in "${missing_list[@]}"; do
-        echo "  - $m"
-    done
-    echo "--- captured output (head -40) ---"
-    head -40 "$OUT"
-    echo "--- captured output (tail -10) ---"
-    tail -10 "$OUT"
-    exit 1
-fi
+echo "GSTACK-BIN VERIFY: FAIL"
+cat "$JUDGE_JSON" 2>/dev/null || cat "$JUDGE_OUT"
+exit "$status"

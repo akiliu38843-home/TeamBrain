@@ -34,10 +34,10 @@ to rules instead of features.
 | postpr | `what we shall do after each PR?` | `fetch the codex review`, `chatgpt-codex-connector`, `pulls/.*comments`, `silent`, `loop` | [`docs/postpr/verify-canned-answer.sh`](../postpr/verify-canned-answer.sh) | [`docs/POSTPR.md`](../POSTPR.md) |
 | dogfood | `explain what would happen when we say DOGFOOD` | `two tmux windows`, `left/right split`, `interact` | [`docs/dogfood/verify-canned-answer.sh`](../dogfood/verify-canned-answer.sh) | [`docs/DOGFOOD.md`](../DOGFOOD.md) |
 | bugreport | `what would happen when user find a bug?` | `github.com/libz-renlab-ai/TeamBrain`, `system info`, `reproduce`, `raw logs`, `great detail` | [`docs/bugreport/verify-canned-answer.sh`](../bugreport/verify-canned-answer.sh) | [`docs/BUGREPORT.md`](../BUGREPORT.md) |
-| fastprobe | `what would happen if we say word 'FASTPROBE' ?` | `claudefast -h`, `claudefast -p`, `parallel`/`并行`, `8`, `stream-json` | [`docs/fastprobe/verify-canned-answer.sh`](../fastprobe/verify-canned-answer.sh) | [`docs/FASTPROBE.md`](../FASTPROBE.md) |
-| project-tools | `what project tools we have ?` | `FASTPROBE`, `claudefast`, `DOGFOOD`, `POSTPR`, `BUGREPORT` | [`docs/project-tools/verify-canned-answer.sh`](../project-tools/verify-canned-answer.sh) | `CLAUDE.md` (Project tools section) |
+| fastprobe | `what would happen if we say word 'FASTPROBE' ?` | semantic judge JSON: correct 3-step recipe, including max 8 parallel dispatch and stream-json audit mode | [`docs/fastprobe/verify-canned-answer.sh`](../fastprobe/verify-canned-answer.sh) | [`docs/FASTPROBE.md`](../FASTPROBE.md) |
+| project-tools | `what project tools we have ?` | semantic judge JSON: available tool registry includes FASTPROBE, claudefast, DOGFOOD, BUGREPORT, POSTPR, RULE-VERIFY | [`docs/project-tools/verify-canned-answer.sh`](../project-tools/verify-canned-answer.sh) | `CLAUDE.md` (Project tools section) |
 | github-account | `what accounts we use for github ?` | semantic judge JSON: selected account must be `LiuShiyuMath`, not `liush2yuxjtu` | [`docs/github-account/verify-canned-answer.sh`](../github-account/verify-canned-answer.sh) | `CLAUDE.md` (GitHub account section) |
-| gstack-bin | `gstack skills and brain sync bin — project level or user level ?` | `project level`, `.claude/skills`/`.codex/skills` | [`docs/gstack-bin/verify-canned-answer.sh`](../gstack-bin/verify-canned-answer.sh) | `CLAUDE.md` (Gstack skills section) |
+| gstack-bin | `gstack skills and brain sync bin — project level or user level ?` | semantic judge JSON: selected scope must be project level for both gstack skills and brain sync bin paths | [`docs/gstack-bin/verify-canned-answer.sh`](../gstack-bin/verify-canned-answer.sh) | `CLAUDE.md` (Gstack skills section) |
 
 ## Run them all
 

@@ -1,79 +1,109 @@
 #!/usr/bin/env bash
-# Verify the "project tools" canned answer by running claudefast -p and
-# grepping for canonical anchors. PASS = exit 0, FAIL = exit 1.
+# Semantic verifier for the "project tools" rule.
+#
+# Flow:
+#   1. Ask a fresh claudefast session the real trigger prompt.
+#   2. Ask claudefast again to judge the answer against the source rule doc.
+#   3. Parse the judge's structured JSON and use `.pass` for PASS / FAIL.
 #
 # USE_WHEN: user asks "what project tools we have ?"
-# DO_WHEN_USED: response must list the project tool registry, in particular
-#   FASTPROBE must appear (the rule explicitly requires it). Other strong
-#   signals tie the answer to this repo's actual tool set.
-#
-# Anchors (case-insensitive):
-#   - FASTPROBE          (mandatory per CLAUDE.md "Project tools / FASTPROBE")
-#   - claudefast         (canonical CLI wrapper)
-#   - DOGFOOD            (live agent dev loop entry)
-#   - POSTPR             (post-PR Codex check entry)
-#   - BUGREPORT          (bug report entry)
-#   - RULE-VERIFY        (rule verification harness — added with this skill)
-#
 # Source rule: CLAUDE.md "Project tools / FASTPROBE" section.
 
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-OUT="docs/project-tools/.last-verify.out"
+OUT_DIR="docs/project-tools"
+ANSWER_OUT="$OUT_DIR/.last-verify.out"
+JUDGE_OUT="$OUT_DIR/.last-judge.out"
+JUDGE_JSON="$OUT_DIR/.last-judge.json"
+JUDGE_PROMPT_FILE="$OUT_DIR/.last-judge-prompt.txt"
 
 PROMPT="what project tools we have ?"
+EXPECTED_DOC=$(sed -n '/^## Project tools \/ FASTPROBE$/,/^## Bug report canned answer$/p' CLAUDE.md | sed '$d')
 
-if command -v zsh >/dev/null 2>&1; then
-    zsh -i -c "claudefast -p \"$PROMPT\"" > "$OUT" 2>&1 || {
+run_claudefast() {
+    local prompt="$1"
+    local output="$2"
+
+    if command -v zsh >/dev/null 2>&1; then
+        PROMPT_FOR_CLAUDEFAST="$prompt" zsh -i -c 'claudefast -p "$PROMPT_FOR_CLAUDEFAST"' > "$output" 2>&1
+    elif command -v claudefast >/dev/null 2>&1; then
+        claudefast -p "$prompt" > "$output" 2>&1
+    else
         echo "PROJECT-TOOLS VERIFY: FAIL"
-        echo "failed to run claudefast via zsh -i -c"
+        echo "neither zsh nor claudefast on PATH"
         exit 1
-    }
-elif command -v claudefast >/dev/null 2>&1; then
-    claudefast -p "$PROMPT" > "$OUT" 2>&1 || {
-        echo "PROJECT-TOOLS VERIFY: FAIL"
-        echo "failed to run claudefast directly"
-        exit 1
-    }
-else
-    echo "PROJECT-TOOLS VERIFY: FAIL"
-    echo "neither zsh nor claudefast on PATH"
-    exit 1
-fi
-
-anchors=(
-  "FASTPROBE"
-  "claudefast"
-  "DOGFOOD"
-  "POSTPR"
-  "BUGREPORT"
-  "RULE-VERIFY"
-)
-
-misses=0
-missing_list=()
-
-for anchor in "${anchors[@]}"; do
-    if ! grep -i -F -- "$anchor" "$OUT" > /dev/null 2>&1; then
-        misses=$((misses + 1))
-        missing_list+=("$anchor")
     fi
-done
+}
 
-if [ "$misses" -eq 0 ]; then
-    echo "PROJECT-TOOLS VERIFY: PASS"
-    exit 0
-else
+run_claudefast "$PROMPT" "$ANSWER_OUT" || {
     echo "PROJECT-TOOLS VERIFY: FAIL"
-    echo "missing anchors:"
-    for m in "${missing_list[@]}"; do
-        echo "  - $m"
-    done
-    echo "--- captured output (head -40) ---"
-    head -40 "$OUT"
-    echo "--- captured output (tail -10) ---"
-    tail -10 "$OUT"
+    echo "failed to run answer probe"
     exit 1
+}
+
+cat > "$JUDGE_PROMPT_FILE" <<EOF
+You are a strict third-party judge for a project rule verifier.
+
+Evaluate whether ACTUAL_ANSWER semantically follows EXPECTED_DOC for the USER_TRIGGER.
+Do not require word-for-word matching. Judge whether the project tool registry is presented as available tools, not negated text.
+
+Return ONLY valid minified JSON with this exact shape:
+{"pass":true,"rule":"project-tools","summary":"...","missing":[],"wrong":[]}
+
+Rules:
+- pass must be true only if the answer lists the TeamBrain project tools and explicitly includes FASTPROBE.
+- pass must also include the major canonical tools from the source docs: claudefast, DOGFOOD, BUGREPORT, POSTPR, and RULE-VERIFY.
+- pass must be false if these names appear only in a negated or forbidden list rather than as available project tools.
+- missing and wrong must be arrays of short strings.
+
+USER_TRIGGER:
+$PROMPT
+
+EXPECTED_DOC:
+$EXPECTED_DOC
+
+ACTUAL_ANSWER:
+$(cat "$ANSWER_OUT")
+EOF
+
+run_claudefast "$(cat "$JUDGE_PROMPT_FILE")" "$JUDGE_OUT" || {
+    echo "PROJECT-TOOLS VERIFY: FAIL"
+    echo "failed to run semantic judge"
+    exit 1
+}
+
+set +e
+node - "$JUDGE_OUT" "$JUDGE_JSON" <<'NODE'
+const fs = require('fs');
+const inputPath = process.argv[2];
+const outputPath = process.argv[3];
+const raw = fs.readFileSync(inputPath, 'utf8').trim();
+const match = raw.match(/\{[\s\S]*\}/);
+if (!match) {
+  console.error('judge did not return a JSON object');
+  process.exit(2);
+}
+let parsed;
+try {
+  parsed = JSON.parse(match[0]);
+} catch (error) {
+  console.error(`judge JSON parse failed: ${error.message}`);
+  process.exit(2);
+}
+fs.writeFileSync(outputPath, `${JSON.stringify(parsed, null, 2)}\n`);
+process.exit(parsed.pass === true ? 0 : 1);
+NODE
+status=$?
+set -e
+
+if [ "$status" -eq 0 ]; then
+    echo "PROJECT-TOOLS VERIFY: PASS"
+    cat "$JUDGE_JSON"
+    exit 0
 fi
+
+echo "PROJECT-TOOLS VERIFY: FAIL"
+cat "$JUDGE_JSON" 2>/dev/null || cat "$JUDGE_OUT"
+exit "$status"
