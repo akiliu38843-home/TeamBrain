@@ -93,6 +93,21 @@ Start at P0 — these are the traps that have caused actual production incidents
 
 ---
 
+## Real Task #1 GAP closure
+
+Each GAP surfaced by Real Task #1 (recorded under `evidence/20260502T000000Z-real-task-1/failures.md` §"TeamBrain framework gaps surfaced") has a committed closure in this brain. Day 3 exit criterion #2 — *"Task #1's failure points all have a corresponding TRAPS.md entry"* — is satisfied by this table. Each row carries an executable `verify_command` so the closure itself is checkable, not verbal.
+
+| GAP | Closure entry | Closure commit | verify_command (exit 0 = closure intact) |
+|-----|---------------|----------------|------------------------------------------|
+| GAP-1: no automated harness binary in `scripts/verify/` | `TRAP-OPS-012` (this file, P0) | `9230b3c` | `test -x scripts/verify/tbrain-verify.sh && bash scripts/verify/tbrain-verify.sh VERIFY-TBRAIN-001 20260502T000000Z-real-task-1 >/dev/null` |
+| GAP-2: archive gate enforced by convention only | `TRAP-OPS-012` `verify_command` (this file, P0) | `83c54b6` | `jq -e '.missing_evidence == false and .metrics.archive_missing == 0' .judge/20260502T000000Z-real-task-1/judge.json` |
+| GAP-3: judge prompt splices file contents instead of paths | `AP-8` + `VERIFY-CLAUDE-007` in `agent_rules/claude.md` | `181ac5f` | `! grep -RnE 'claudefast.*\$\((cat\|head\|tail) ' scripts/verify/ 2>/dev/null` |
+| GAP-4: `archive_dir` not enumerated in `judge-summary.json` schema | `evidence/README.md` "judge-summary.json required fields" table | `5819ab6` | `grep -q '\| ` + "`archive_dir`" + ` \|' docs/teambrain/evidence/README.md` |
+
+Also recorded as anti-mock evidence under `evidence/20260502T000000Z-real-task-2/failures.md` §"TeamBrain framework gaps tracked from Real Task #1", which marks all four GAPs **CLOSED** with the same commit SHAs.
+
+---
+
 ## P1 / P2 Condensed
 
 | id | category | severity | wrong_pattern | right_pattern | verify_command | evidence_link |
@@ -135,37 +150,41 @@ Start at P0 — these are the traps that have caused actual production incidents
 
 ---
 
-## 10 Team Standards
+## 10 Team Standards (governance scope)
 
-1. **上下文所有权 (Context Ownership)** — Every PR and design review must name a decision owner; if that person is absent, a named deputy is required. No owner = blocked.
-   - Verify: PR description field "Decision Owner: @handle" must be non-empty; CI check or template enforcement.
+> **Scope marker:** these are team-process norms, not trap-rules over code or evidence. The Day 3 hard rule "every rule has an executable verify command" applies here too — each standard below ships with an executable `verify_command` whose default scope is **PR descriptions / process docs**. For repos without those artifacts the harness must declare `scope: not_applicable` instead of silently passing; never claim PASS without either matching the command or asserting N/A scope.
 
-2. **承诺颗粒度 (Commitment Granularity)** — Minimum estimate unit is half a day. "I'm not sure" is valid; "maybe a few hours" is not.
-   - Verify: Sprint tracker estimates must be in increments of 0.5d; anything finer is flagged for re-estimation.
+1. **STANDARD-1 上下文所有权 (Context Ownership)** — Every PR and design review must name a decision owner; if that person is absent, a named deputy is required. No owner = blocked.
+   - `verify_command`: `gh pr view "${PR_NUM:?set PR_NUM}" --json body -q '.body' | grep -Eq '^Decision Owner: @[A-Za-z0-9_-]+' || { echo FAIL; exit 1; }; echo PASS`
 
-3. **阻塞可视化 (Blocker Visibility)** — Any blocker lasting > 1 day must be escalated. Silent waiting = spreading the risk.
-   - Verify: `gh issue list --label "blocked" --created ">$(date -d '1 day ago' +%Y-%m-%d)"` should prompt a daily triage.
+2. **STANDARD-2 承诺颗粒度 (Commitment Granularity)** — Minimum estimate unit is half a day. "I'm not sure" is valid; "maybe a few hours" is not.
+   - `verify_command`: `gh pr view "${PR_NUM:?set PR_NUM}" --json body -q '.body' | grep -Eq '\b([0-9]+(\.5)?)d\b' && grep -Evq '\b[0-9]+\.[0-9]+(?<!\.5)d\b' <(gh pr view "${PR_NUM}" --json body -q '.body') || { echo FAIL; exit 1; }; echo PASS`
 
-4. **契约优于默契 (Written Contract > Tacit Agreement)** — Cross-team interface agreements must be in writing before any code is written. Verbal = not agreed.
-   - Verify: PR description contains link to written interface doc or ADR for any cross-team dependency.
+3. **STANDARD-3 阻塞可视化 (Blocker Visibility)** — Any blocker lasting > 1 day must be escalated. Silent waiting = spreading the risk.
+   - `verify_command`: `count=$(gh issue list --label "blocked" --search "updated:<$(date -u -v-1d +%Y-%m-%d 2>/dev/null || date -u -d '1 day ago' +%Y-%m-%d)" --json number -q 'length'); test "$count" -eq 0 || { echo "FAIL stale blockers=$count"; exit 1; }; echo PASS`
 
-5. **增量即交付 (Increment = Delivery)** — A task is complete only when a working demo exists. "Code is written" ≠ done.
-   - Verify: PR checklist item "demo link or recorded screencast attached" is checked.
+4. **STANDARD-4 契约优于默契 (Written Contract > Tacit Agreement)** — Cross-team interface agreements must be in writing before any code is written.
+   - `verify_command`: `gh pr view "${PR_NUM:?set PR_NUM}" --json body -q '.body' | grep -Eq 'ADR-[0-9]+|docs/(adr|interface)/' || { echo FAIL; exit 1; }; echo PASS`
 
-6. **悲观估时法 (Pessimistic Estimation)** — All estimates multiplied by 1.5 before entering planning. Optimistic estimates are rejected.
-   - Verify: PR descriptions for feature work list best/likely/worst estimates; ratio likely/best ≥ 1.3.
+5. **STANDARD-5 增量即交付 (Increment = Delivery)** — A task is complete only when a working demo exists.
+   - `verify_command`: `gh pr view "${PR_NUM:?set PR_NUM}" --json body -q '.body' | grep -Eq '\[(x\|X)\]\s+demo\s+(link\|screencast)' || { echo FAIL; exit 1; }; echo PASS`
 
-7. **缺席即默认同意 (Absence = Consent)** — Reviewer absent ≥ 15 minutes in a scheduled review = waived; cannot object post-merge.
-   - Verify: Calendar event for review has start-time attendance logged; latecomers noted in review comments.
+6. **STANDARD-6 悲观估时法 (Pessimistic Estimation)** — All estimates multiplied by 1.5 before entering planning. Optimistic estimates are rejected.
+   - `verify_command`: `body=$(gh pr view "${PR_NUM:?set PR_NUM}" --json body -q '.body'); best=$(printf '%s' "$body" | grep -Eo 'best:\s*[0-9.]+' | grep -Eo '[0-9.]+' | head -1); likely=$(printf '%s' "$body" | grep -Eo 'likely:\s*[0-9.]+' | grep -Eo '[0-9.]+' | head -1); awk -v b="$best" -v l="$likely" 'BEGIN{ if (b+0>0 && l/b>=1.3) print "PASS"; else { print "FAIL"; exit 1 } }'`
 
-8. **失败即学习 (Failure = Learning)** — Every production incident and missed estimate triggers a mandatory post-mortem within 48h.
-   - Verify: `ls docs/postmortems/` has a file dated within 48h of every Sev-1/Sev-2 incident.
+7. **STANDARD-7 缺席即默认同意 (Absence = Consent)** — Reviewer absent ≥ 15 minutes in a scheduled review = waived.
+   - `verify_command`: `test -s "docs/reviews/${REVIEW_ID:?set REVIEW_ID}.md" && grep -Eq '^Attendance: ' "docs/reviews/${REVIEW_ID}.md" || { echo FAIL; exit 1; }; echo PASS`
 
-9. **依赖先验性 (Dependency Pre-validation)** — Cross-team dependencies must be confirmed before development starts. Discovery during development = unmanaged risk.
-   - Verify: Task description contains "Dependency confirmed by: @handle on YYYY-MM-DD" for any cross-team dep.
+8. **STANDARD-8 失败即学习 (Failure = Learning)** — Every production incident and missed estimate triggers a mandatory post-mortem within 48h.
+   - `verify_command`: `find docs/postmortems -name "*.md" -newer "docs/incidents/${INCIDENT_ID:?set INCIDENT_ID}.md" -mmin -2880 | grep -q . || { echo FAIL; exit 1; }; echo PASS`
 
-10. **退出条件先行 (DoD First)** — Work does not start until DoD is written and agreed by all stakeholders.
-    - Verify: Issue/PR template has a "Definition of Done" section; it must be non-empty before status moves to "In Progress".
+9. **STANDARD-9 依赖先验性 (Dependency Pre-validation)** — Cross-team dependencies must be confirmed before development starts.
+   - `verify_command`: `gh issue view "${ISSUE_NUM:?set ISSUE_NUM}" --json body -q '.body' | grep -Eq 'Dependency confirmed by: @[A-Za-z0-9_-]+ on [0-9]{4}-[0-9]{2}-[0-9]{2}' || { echo FAIL; exit 1; }; echo PASS`
+
+10. **STANDARD-10 退出条件先行 (DoD First)** — Work does not start until DoD is written and agreed by all stakeholders.
+    - `verify_command`: `body=$(gh issue view "${ISSUE_NUM:?set ISSUE_NUM}" --json body -q '.body'); printf '%s' "$body" | awk '/^## (Definition of Done|DoD)/{f=1; next} /^## /{f=0} f && NF{ok=1} END{ exit (ok?0:1) }' && echo PASS || { echo FAIL; exit 1; }`
+
+For Markdown-only repos like this one, every STANDARD-* `verify_command` is **scope: not_applicable** — declare it explicitly in the run's `judge-summary.json` under a `scope_skips` field rather than passing silently.
 
 ---
 
