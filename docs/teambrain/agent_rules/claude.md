@@ -156,6 +156,35 @@ Stop and message the human immediately if any of the following is true:
 
 ---
 
+### AP-8: Inlining file contents into the LLM judge prompt
+**Wrong:**
+```bash
+claudefast -p "
+You are a third-party judge.
+judge.json: $(cat .judge/${RUN_ID}/judge.json)
+stdout: $(head -n 100 .judge/${RUN_ID}/stdout.txt)
+"
+```
+The judge cannot independently verify what it received: command substitution silently expands to whatever the calling shell could read, so the judge ends up grading a copy controlled by the executor instead of the artefact itself.
+
+**Right:** Pass file paths and let the judge agent `Read` them through its own tool layer. The judge prompt names the file path; the agent itself fetches the file. This makes the audit trail reproducible — anyone re-running the judge command reads the same on-disk file the judge read.
+```bash
+claudefast -p "Read these files and emit JSON {recipe_id, run_id, conclusion, notes}:
+- .judge/${RUN_ID}/judge.json
+- docs/teambrain/evidence/${RUN_ID}/judge-summary.json
+- docs/teambrain/evidence/${RUN_ID}/failures.md"
+```
+**Catch:** `VERIFY-CLAUDE-007` scans every harness/judge file and flags any `claudefast -p ... "..."` block whose body contains `$(cat ...)` or `$(head ...)` — even when the substitution sits on a different line of the same here-string. Reference detector:
+
+```bash
+awk 'FNR==1{flag=0} /claudefast/{flag=1} flag && /\$\(cat |\$\(head /{print FILENAME ":" FNR ": " $0; bad=1} /^"$|^"\s*$|^\)\s*$|^EOF$/{flag=0} END{exit bad?1:0}' \
+  scripts/verify/*.sh docs/teambrain/VERIFY_TEMPLATE.md
+```
+
+Any non-zero exit = fail. Reproducible failing case: `docs/teambrain/VERIFY_TEMPLATE.md` lines 153–159 embed `$(cat "${EVIDENCE_DIR}/judge.json")` and `$(head -n 100 "${EVIDENCE_DIR}/stdout.txt")` directly inside a `claudefast -p "..."` block — the detector above prints those two lines and exits 1. Real Task #2 captures the violation, the right-pattern judge invocation, and the harness binary's preference for file-path arguments.
+
+---
+
 ## 6. Verify recipe pointer
 
 Every rule above must be machine-checkable. Recipes follow the schema in `docs/teambrain/VERIFY_TEMPLATE.md`.
@@ -169,5 +198,6 @@ Every rule above must be machine-checkable. Recipes follow the schema in `docs/t
 | `VERIFY-CLAUDE-003` | AP-5: checks git log order — if refactor commit timestamp < test commit timestamp in same PR = fail |
 | `VERIFY-CLAUDE-004` | AP-1 + AP-4: runs `lazy-signal-verifier.sh` on agent response text; any lazy-signal pattern = fail |
 | `VERIFY-CLAUDE-005` | Trap discovery: greps first commit message in session for `^traps-read: P0=\[` anchor (lowercase + structured); missing or wrong case = fail |
+| `VERIFY-CLAUDE-007` | AP-8: greps verify harness scripts and judge invocations for `claudefast.*\$\(cat ` / `claudefast.*\$\(head ` / equivalent command-substituted body inserts; any match = fail. Right pattern: judge prompt names a file path; agent reads the file itself. |
 
 All recipes produce evidence to `.judge/<ISO_TIMESTAMP>_<RECIPE_ID>/judge.json`. LLM judge reads only that file — never reruns the tool.
