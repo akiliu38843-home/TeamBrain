@@ -47,3 +47,7 @@ docs/dogfood/.last-verify.out
 .sandbox/
 docs/bugreport/.last-verify.out
 docs/postpr/.last-verify.out
+docs/fastprobe/.last-verify.out
+docs/project-tools/.last-verify.out
+docs/github-account/.last-verify.out
+docs/gstack-bin/.last-verify.out
