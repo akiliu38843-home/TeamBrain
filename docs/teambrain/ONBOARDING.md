@@ -112,8 +112,8 @@ mkdir -p "$ARCHIVE"
 scripts/verify/tbrain-verify.sh "$RECIPE_ID" "$RUN_ID" --task-title "Onboarding demo"
 test "$?" = 0 || { echo "archive gate failed"; exit 1; }
 
-# 3. Commit (atomic, single-concern):
-git add scripts/verify/tbrain-verify.sh docs/teambrain/evidence/"$RUN_ID"
+# 3. Commit (atomic, single-concern — evidence only, not the harness binary):
+git add docs/teambrain/evidence/"$RUN_ID"
 git commit -m "chore(teambrain): onboarding demo run $RUN_ID"
 ```
 

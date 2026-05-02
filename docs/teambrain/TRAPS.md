@@ -100,7 +100,7 @@ Each GAP surfaced by Real Task #1 (recorded under `evidence/20260502T000000Z-rea
 | GAP | Closure entry | Closure commit | verify_command (exit 0 = closure intact) |
 |-----|---------------|----------------|------------------------------------------|
 | GAP-1: no automated harness binary in `scripts/verify/` | `TRAP-OPS-012` (this file, P0) | `9230b3c` | `test -x scripts/verify/tbrain-verify.sh && bash scripts/verify/tbrain-verify.sh VERIFY-TBRAIN-001 20260502T000000Z-real-task-1 >/dev/null` |
-| GAP-2: archive gate enforced by convention only | `TRAP-OPS-012` `verify_command` (this file, P0) | `83c54b6` | `jq -e '.missing_evidence == false and .metrics.archive_missing == 0' .judge/20260502T000000Z-real-task-1/judge.json` |
+| GAP-2: archive gate enforced by convention only | `TRAP-OPS-012` `verify_command` (this file, P0) | `83c54b6` | `jq -e '.missing_evidence == false and .metrics.archive_missing == 0' .judge/20260502T000000Z-real-task-1/judge.json` *(historical run; for new runs replace the path with `.judge/${RUN_ID}/judge.json`)* |
 | GAP-3: judge prompt splices file contents instead of paths | `AP-8` + `VERIFY-CLAUDE-007` in `agent_rules/claude.md` | `181ac5f` | `! grep -RnE 'claudefast.*\$\((cat\|head\|tail) ' scripts/verify/ 2>/dev/null` |
 | GAP-4: `archive_dir` not enumerated in `judge-summary.json` schema | `evidence/README.md` "judge-summary.json required fields" table | `5819ab6` | `grep -q '\| ` + "`archive_dir`" + ` \|' docs/teambrain/evidence/README.md` |
 

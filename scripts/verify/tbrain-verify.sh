@@ -70,14 +70,6 @@ STDERR_PATH="${EVIDENCE_DIR}/stderr.txt"
 : > "${STDOUT_PATH}"
 : > "${STDERR_PATH}"
 
-run_section() {
-  local title="$1"
-  shift
-  printf '\n== %s ==\n' "${title}" >> "${STDOUT_PATH}"
-  "$@" >> "${STDOUT_PATH}" 2>> "${STDERR_PATH}" || true
-}
-
-# Anchor sweep: enumerate the key invariants Real Task #1 codified.
 ANCHOR_REGEX='must stay stable for the run|TASK_TITLE|archive_dir|Output JSON with recipe_id|metrics|missing_evidence|Never append or replace it with a commit SHA'
 ANCHOR_PATHS=(
   docs/teambrain/TASK_TEMPLATE.md
@@ -88,7 +80,7 @@ ANCHOR_PATHS=(
 ANCHOR_HITS=0
 for f in "${ANCHOR_PATHS[@]}"; do
   if [ -s "$f" ]; then
-    hits=$(grep -nE "${ANCHOR_REGEX}" "$f" | wc -l | tr -d ' ')
+    hits=$(grep -cE "${ANCHOR_REGEX}" "$f" 2>/dev/null || echo 0)
     ANCHOR_HITS=$((ANCHOR_HITS + hits))
     printf 'anchor: %s hits=%s\n' "$f" "$hits" >> "${STDOUT_PATH}"
   else
@@ -151,10 +143,10 @@ for f in "${ARCHIVE_REQUIRED[@]}"; do
 done
 
 # ----------------------------------------------------------------------------
-# Compute exit code precedence: input < bad inputs handled above. Here:
-#   missing canon path => 4
-#   missing archive    => 2
-#   anchor under floor => 3
+# Exit code precedence (highest wins; bad-input exit 5 already returned above):
+#   4 = canon path missing (structural breakage — harness cannot operate correctly)
+#   3 = anchor hits below floor (key invariants have disappeared from source)
+#   2 = archive gate failed (missing_evidence=true; evidence not yet committed)
 # ----------------------------------------------------------------------------
 EXIT_CODE=0
 MISSING_EVIDENCE=false
@@ -162,7 +154,7 @@ if [ "${CANON_MISSING}" -ne 0 ]; then
   EXIT_CODE=4
 fi
 if [ "${ARCHIVE_MISSING}" -ne 0 ]; then
-  MISSING_EVIDENCE=true
+  MISSING_EVIDENCE=true          # set unconditionally — even when EXIT_CODE is already 4
   if [ "${EXIT_CODE}" -eq 0 ]; then
     EXIT_CODE=2
   fi
