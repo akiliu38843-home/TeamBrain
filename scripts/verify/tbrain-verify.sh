@@ -78,10 +78,14 @@ ANCHOR_PATHS=(
   docs/teambrain/evidence/README.md
 )
 ANCHOR_HITS=0
+ANCHOR_FILES_WITH_HITS=0
 for f in "${ANCHOR_PATHS[@]}"; do
   if [ -s "$f" ]; then
     hits=$(grep -cE "${ANCHOR_REGEX}" "$f" 2>/dev/null || echo 0)
     ANCHOR_HITS=$((ANCHOR_HITS + hits))
+    if [ "${hits}" -gt 0 ]; then
+      ANCHOR_FILES_WITH_HITS=$((ANCHOR_FILES_WITH_HITS + 1))
+    fi
     printf 'anchor: %s hits=%s\n' "$f" "$hits" >> "${STDOUT_PATH}"
   else
     printf 'anchor: %s MISSING\n' "$f" >> "${STDERR_PATH}"
@@ -111,7 +115,7 @@ for p in "${CANON_PATHS[@]}"; do
     printf 'canon: %s OK\n' "$p" >> "${STDOUT_PATH}"
   else
     CANON_MISSING=$((CANON_MISSING + 1))
-    printf 'canon: %s MISSING\n' "$p" >> "${STDOUT_PATH}"
+    printf 'canon: %s MISSING\n' "$p" >> "${STDERR_PATH}"
   fi
 done
 
@@ -159,9 +163,9 @@ if [ "${ARCHIVE_MISSING}" -ne 0 ]; then
     EXIT_CODE=2
   fi
 fi
-# Anchor floor is conservative: at least 1 hit per anchor file.
+# Anchor floor: every anchor file must have at least 1 hit (per-file check, not aggregate sum).
 ANCHOR_FLOOR="${#ANCHOR_PATHS[@]}"
-if [ "${ANCHOR_HITS}" -lt "${ANCHOR_FLOOR}" ]; then
+if [ "${ANCHOR_FILES_WITH_HITS}" -lt "${ANCHOR_FLOOR}" ]; then
   if [ "${EXIT_CODE}" -eq 0 ]; then
     EXIT_CODE=3
   fi
@@ -170,21 +174,25 @@ fi
 # ----------------------------------------------------------------------------
 # DUMP — raw judge.json + summary mirror under archive (if archive_dir exists).
 # ----------------------------------------------------------------------------
+# Escape user-controlled strings for safe JSON embedding.
+TASK_TITLE_JSON=$(printf '%s' "${TASK_TITLE}" | sed 's/\\/\\\\/g; s/"/\\"/g')
+ARCHIVE_MISSING_LIST_JSON=$(printf '%s' "${ARCHIVE_MISSING_LIST}" | sed 's/\\/\\\\/g; s/"/\\"/g')
 JUDGE_PATH="${EVIDENCE_DIR}/judge.json"
 cat > "${JUDGE_PATH}" <<EOF
 {
   "recipe_id": "${RECIPE_ID}",
   "run_id": "${RUN_ID}",
-  "task_title": "${TASK_TITLE}",
+  "task_title": "${TASK_TITLE_JSON}",
   "exit_code": ${EXIT_CODE},
   "metrics": {
     "anchor_hits": ${ANCHOR_HITS},
     "anchor_floor": ${ANCHOR_FLOOR},
     "canonical_paths_ok": ${CANON_OK},
     "canonical_paths_missing": ${CANON_MISSING},
+    "anchor_files_with_hits": ${ANCHOR_FILES_WITH_HITS},
     "archive_present": ${ARCHIVE_PRESENT},
     "archive_missing": ${ARCHIVE_MISSING},
-    "archive_missing_list": "${ARCHIVE_MISSING_LIST}"
+    "archive_missing_list": "${ARCHIVE_MISSING_LIST_JSON}"
   },
   "missing_evidence": ${MISSING_EVIDENCE},
   "evidence_dir": "${EVIDENCE_DIR}",

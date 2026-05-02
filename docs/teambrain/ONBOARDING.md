@@ -100,13 +100,14 @@ Do **not** rely on a verbal "looks good". The harness output is the verdict. The
 ARCHIVE="docs/teambrain/evidence/$RUN_ID"
 mkdir -p "$ARCHIVE"
 
-# 1. Required 6 files (each non-empty):
-:> "$ARCHIVE/INDEX.md"
-:> "$ARCHIVE/transcript.md"
-:> "$ARCHIVE/stdout.txt"
-:> "$ARCHIVE/stderr.txt"
-:> "$ARCHIVE/failures.md"
-:> "$ARCHIVE/judge-summary.json"
+# 1. Required 6 files — each must be non-empty (harness uses -s). Use printf stubs:
+printf '# INDEX\nrun_id: %s\ntask_title: Onboarding demo\n' "$RUN_ID" > "$ARCHIVE/INDEX.md"
+printf '# Transcript\nOnboarding demo run.\n' > "$ARCHIVE/transcript.md"
+printf 'Onboarding demo stdout.\n' > "$ARCHIVE/stdout.txt"
+printf 'Onboarding demo stderr (none).\n' > "$ARCHIVE/stderr.txt"
+printf '# Failures\nNone — this is an onboarding demo, not a real task.\n' > "$ARCHIVE/failures.md"
+printf '{"run_id":"%s","task_title":"Onboarding demo","exit_code":0,"metrics":{},"raw_evidence_dir":".judge/%s","archive_dir":"docs/teambrain/evidence/%s","raw_judge_path":".judge/%s/judge.json","failure_list_path":"docs/teambrain/evidence/%s/failures.md"}\n' \
+  "$RUN_ID" "$RUN_ID" "$RUN_ID" "$RUN_ID" "$RUN_ID" > "$ARCHIVE/judge-summary.json"
 
 # 2. Re-run the harness — it must now exit 0 and pass the archive gate:
 scripts/verify/tbrain-verify.sh "$RECIPE_ID" "$RUN_ID" --task-title "Onboarding demo"
