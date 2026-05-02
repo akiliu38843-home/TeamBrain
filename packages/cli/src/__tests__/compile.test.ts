@@ -124,12 +124,12 @@ describe("executeCompile", () => {
     tmp.cleanup();
   });
 
-  it("no flags: writes CLAUDE.md and skills", async () => {
+  it("no flags: writes skills only (CLAUDE.md deprecated)", async () => {
     seedEntry(tmp.projectDbPath, entry({ current_tier: "canonical" }));
     const result = await executeCompile(opts);
-    // CLAUDE.md written
-    expect(nodeFs.existsSync(tmp.claudeMdPath)).toBe(true);
-    expect(result.markdown.path).toBe(tmp.claudeMdPath);
+    // CLAUDE.md no longer written
+    expect(nodeFs.existsSync(tmp.claudeMdPath)).toBe(false);
+    expect(result.markdown.path).toBe("(deprecated)");
     // skill written
     expect(result.skills.written).toContain("rule-1");
     const skillFile = path.join(tmp.skillsDir, "rule-1", "SKILL.md");
@@ -159,20 +159,18 @@ describe("executeCompile", () => {
   it("--skills-only: writes skills but skips CLAUDE.md", async () => {
     seedEntry(tmp.projectDbPath, entry({ current_tier: "stable" }));
     const result = await executeCompile({ ...opts, skillsOnly: true });
-    expect(result.markdown.path).toBe("(skipped)");
+    expect(result.markdown.path).toBe("(deprecated)");
     expect(nodeFs.existsSync(tmp.claudeMdPath)).toBe(false);
     // stable entry should be written to skills
     expect(result.skills.written).toContain("rule-1");
   });
 
-  it("--target=codex writes CLAUDE.md, links AGENTS.md, and exposes compiled skills to Codex", async () => {
+  it("--target=codex keeps AGENTS.md link + skill exposure without writing CLAUDE.md", async () => {
     seedEntry(tmp.projectDbPath, entry({ current_tier: "canonical" }));
     const result = await executeCompile({ ...opts, target: "codex" });
-    expect(result.markdown.path).toBe(tmp.claudeMdPath);
-    expect(nodeFs.existsSync(tmp.claudeMdPath)).toBe(true);
-    expect(nodeFs.existsSync(tmp.agentsMdPath)).toBe(true);
-    expect(nodeFs.lstatSync(tmp.agentsMdPath).isSymbolicLink()).toBe(true);
-    expect(path.resolve(tmp.cwd, nodeFs.readlinkSync(tmp.agentsMdPath))).toBe(tmp.claudeMdPath);
+    expect(result.markdown.path).toBe("(deprecated)");
+    expect(nodeFs.existsSync(tmp.claudeMdPath)).toBe(false);
+    expect(nodeFs.existsSync(tmp.agentsMdPath)).toBe(false);
     const codexSkillsPath = path.join(tmp.cwd, ".codex", "skills");
     expect(nodeFs.lstatSync(codexSkillsPath).isSymbolicLink()).toBe(true);
     expect(path.resolve(tmp.cwd, ".codex", nodeFs.readlinkSync(codexSkillsPath))).toBe(
@@ -182,14 +180,13 @@ describe("executeCompile", () => {
     expect(nodeFs.existsSync(path.join(tmp.skillsDir, "rule-1", "SKILL.md"))).toBe(true);
   });
 
-  it("--target=both writes CLAUDE.md, links AGENTS.md, and writes Claude skills", async () => {
+  it("--target=both links AGENTS.md and writes Claude skills (no CLAUDE.md write)", async () => {
     seedEntry(tmp.projectDbPath, entry({ current_tier: "canonical" }));
     const result = await executeCompile({ ...opts, target: "both" });
-    expect(result.markdown.path).toBe(tmp.claudeMdPath);
+    expect(result.markdown.path).toBe("(deprecated)");
     expect(result.agentsMarkdown?.path).toBe(tmp.agentsMdPath);
-    expect(nodeFs.existsSync(tmp.claudeMdPath)).toBe(true);
-    expect(nodeFs.existsSync(tmp.agentsMdPath)).toBe(true);
-    expect(nodeFs.lstatSync(tmp.agentsMdPath).isSymbolicLink()).toBe(true);
+    expect(nodeFs.existsSync(tmp.claudeMdPath)).toBe(false);
+    expect(nodeFs.existsSync(tmp.agentsMdPath)).toBe(false);
     expect(result.skills.written).toContain("rule-1");
   });
 

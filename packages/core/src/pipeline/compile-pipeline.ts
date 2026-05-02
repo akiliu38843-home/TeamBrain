@@ -31,16 +31,11 @@ export interface CompilePipelineResult {
 export async function runCompile(deps: CompilePipelineDeps): Promise<CompilePipelineResult> {
   const entries = deps.store.getAll();
 
-  // 1. CLAUDE.md 出口
-  let mdPath = "(dry-run)";
-  let mdLineCount = 0;
-  if (!deps.dryRun) {
-    const info = deps.markdownCompiler.writeToFile(entries);
-    mdPath = info.filePath;
-    mdLineCount = info.blockLineCount;
-  }
+  // 1. CLAUDE.md 出口已弃用：规则不再写入单一文档，统一走用户级 nested skills 目录
+  const mdPath = "(deprecated)";
+  const mdLineCount = 0;
 
-  // 2. Skills 出口
+  // 2. Skills 出口（唯一发布出口）
   const artifacts = deps.skillCompiler.compile(entries);
   const written = deps.dryRun ? artifacts.map((a) => a.ruleId) : (await deps.skillCompiler.write(artifacts)).written;
 
@@ -54,7 +49,7 @@ export async function runCompile(deps: CompilePipelineDeps): Promise<CompilePipe
     action: "markdown_compiled",
     target: { id: mdPath },
     severity: "info",
-    userFacingValue: `CLAUDE.md: ${mdLineCount} lines, skills written: ${written.length}, removed: ${removed.length}`,
+    userFacingValue: `skills written: ${written.length}, removed: ${removed.length} (CLAUDE.md output deprecated)`,
     timestamp: new Date().toISOString(),
   });
 
