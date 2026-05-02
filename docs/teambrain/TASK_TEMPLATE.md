@@ -149,7 +149,7 @@ judge-summary.json  JSON summary derived from .judge/<run_id>/judge.json
 
 Raw required file: `.judge/<run_id>/judge.json`.
 
-`run_id` should be ISO timestamp plus short slug before commit, then may include the final short commit SHA after commit.
+`run_id` must stay stable for the run: use ISO timestamp plus short slug, and never append or replace it with a commit SHA. Record commit SHA only in `docs/teambrain/evidence/<run_id>/INDEX.md`.
 
 ### 8. Anti-mock checklist
 

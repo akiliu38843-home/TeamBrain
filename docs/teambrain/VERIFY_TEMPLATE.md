@@ -60,6 +60,7 @@ Missing any file above is `missing_evidence` and MUST make the harness fail, eve
 set -euo pipefail
 
 RECIPE_ID="${1:?recipe_id required}"
+TASK_TITLE="${2:-${RECIPE_ID}}"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)_${RECIPE_ID}"
 EVIDENCE_DIR=".judge/${RUN_ID}"
 ARCHIVE_DIR="docs/teambrain/evidence/${RUN_ID}"
@@ -85,6 +86,7 @@ cat > "${EVIDENCE_DIR}/judge.json" <<EOF
 {
   "recipe_id": "${RECIPE_ID}",
   "run_id": "${RUN_ID}",
+  "task_title": "${TASK_TITLE}",
   "exit_code": ${EXIT_CODE},
   "metrics": {
     "ts_error_count": ${ERROR_COUNT}
@@ -117,6 +119,7 @@ cat > "${ARCHIVE_DIR}/judge-summary.json" <<EOF
     "ts_error_count": ${ERROR_COUNT}
   },
   "raw_evidence_dir": "${EVIDENCE_DIR}",
+  "archive_dir": "${ARCHIVE_DIR}",
   "raw_judge_path": "${EVIDENCE_DIR}/judge.json",
   "failure_list_path": "${ARCHIVE_DIR}/failures.md"
 }
@@ -126,7 +129,9 @@ cat > "${ARCHIVE_DIR}/INDEX.md" <<EOF
 # Evidence ${RUN_ID}
 
 - recipe_id: ${RECIPE_ID}
+- task_title: ${TASK_TITLE}
 - raw_evidence_dir: \`${EVIDENCE_DIR}\` (local, gitignored)
+- commit_sha: record here only after commit, never in run_id
 - summary: \`${ARCHIVE_DIR}/judge-summary.json\`
 - transcript: \`${ARCHIVE_DIR}/transcript.md\`
 - stdout: \`${ARCHIVE_DIR}/stdout.txt\` (raw: \`${EVIDENCE_DIR}/stdout.txt\`)
@@ -147,7 +152,7 @@ if [ "${EXIT_CODE}" -ne 0 ]; then exit "${EXIT_CODE}"; fi
 # Separate LLM judge reads raw JSON only — does NOT rerun the tool
 claudefast -p "
 You are a third-party judge. Read ONLY the raw JSON and evidence files below.
-Do NOT rerun any commands. Output a JSON verdict: {pass: bool, reason: string}.
+Do NOT rerun any commands. Output JSON with recipe_id, run_id, conclusion, and notes.
 
 judge.json: $(cat "${EVIDENCE_DIR}/judge.json")
 stdout (first 100 lines): $(head -n 100 "${EVIDENCE_DIR}/stdout.txt")
@@ -189,10 +194,3 @@ judge_input: ".judge/{RUN_ID}/judge.json"
 7. **`verify_command` omitted** — every VERIFY entry needs a command.
 8. **PR proof only in `.judge/`** — archive required docs proof too.
 9. **Fabricated real-task evidence** — never imply completion without raw judge evidence.
-
----
-
-## Cross-reference
-
-- **TASK_TEMPLATE.md** — the `Success criteria` field MUST reference a `recipe_id` matching `^VERIFY-[A-Z]+-\d{3}$`. A task with a success criterion that does not point to a VERIFY recipe is incomplete.
-- **TRAP_FORMAT.md** — the `verify_command` field must point to a VERIFY recipe by `recipe_id` or provide the full shell command that feeds into a VERIFY harness. "Run the tests" is not acceptable.
