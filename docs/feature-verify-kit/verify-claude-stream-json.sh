@@ -10,7 +10,7 @@ SCHEMA='{"type":"object","properties":{"positioning":{"type":"string","minLength
 
 claude -h > "$OUT_DIR/claude-help.txt" 2>&1 || true
 
-claude -p --bypass --model haiku \
+claude -p --model haiku \
   --output-format stream-json \
   --include-hook-events \
   --include-partial-messages \
