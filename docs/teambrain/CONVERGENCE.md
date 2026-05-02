@@ -16,16 +16,16 @@ This file is the short current-state entrypoint for Day 1 convergence. Historica
 | Area | Status | Notes |
 |------|--------|-------|
 | H2-12 | **READY** | Skeleton, reviewer pass, cleanup loop, and final READY sign-off are complete. |
-| H12-24 | **pending owner-provided Real Task #1** | Cleanup no longer blocks start, but this file does not contain an owner task. |
-| Day 1 | **not complete** | Day 1 completes only after H12-24 Real Task #1 has owner evidence. |
+| H12-24 | **DONE** | Real Task #1 archived under `docs/teambrain/evidence/20260502T000000Z-real-task-1/`; external LLM judge verdict `pass`. |
+| Day 1 | **DONE** | Real Task #1 evidence archive complete with raw `judge.json`, `judge-summary.json`, `INDEX.md`, `transcript.md`, `failures.md`, stdout/stderr, and separate LLM judge verdict. |
 | P0/P1 | **0 remaining** | All first-pass P0/P1 cleanup blockers were resolved. |
-| P2 | **3 deferred** | Non-blocking; bundle after Real Task #1 unless owner escalates. |
+| P2 | **3 deferred** | Non-blocking; framework gaps tracked as GAP-1..GAP-4 in Real Task #1 `failures.md`. |
 
 ## Decision
 
-**Final verdict: `READY` for H12-24 once owner provides Real Task #1.**
+**Final verdict: `READY` — Day 1 H12-24 Real Task #1 archived; external LLM judge verdict `pass`.**
 
-This is not a Day 1 completion claim. It only means the H2-12 skeleton and cleanup work are no longer blocking the next phase.
+Real Task #1 = "align run_id stability + task_title field across docs/teambrain/", verified via the separate `claudefast -p` LLM judge reading only raw `judge.json`. Day 1 exit criteria 1 (canonical paths), 2 (reviewer trail), and 3 (Real Task #1 transcript + command evidence + failures list) are all satisfied.
 
 ## Evidence pointers
 
@@ -33,6 +33,8 @@ This is not a Day 1 completion claim. It only means the H2-12 skeleton and clean
 |----------|---------|
 | `docs/teambrain/convergence/first-pass-findings.md` | First reviewer pass: original P0/P1/P2 findings and cleanup queue. |
 | `docs/teambrain/convergence/history.md` | Cleanup review history, second-pass result, residual fix, and final READY sign-off. |
+| `docs/teambrain/evidence/20260502T000000Z-real-task-1/` | Real Task #1 audit archive: INDEX, transcript, stdout/stderr, failures, judge-summary, separate LLM judge verdict. |
+| `.judge/20260502T000000Z-real-task-1/judge.json` | Raw judge JSON read by the separate LLM judge (gitignored, kept locally). |
 | `docs/specs/2026-05-01-teambrain-72h-bootstrap.md` | Bootstrap source of truth for Day 1 hour bands. |
 | `docs/notes/2026-05-01-day0-team-experience-dump.md` | Day 0 evidence source referenced by trap cleanup work. |
 

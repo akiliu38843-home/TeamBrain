@@ -13,6 +13,12 @@ completion_allowed: false
 
 Do not mark Day 1 or Real Task #1 as `COMPLETED` from a placeholder alone.
 
+## Registered runs
+
+| run_id | Task | Verdict | Archive |
+|--------|------|---------|---------|
+| `20260502T000000Z-real-task-1` | Align run_id stability + task_title field across docs/teambrain/ | PASS (separate LLM judge) | `docs/teambrain/evidence/20260502T000000Z-real-task-1/` |
+
 ## Per-run layout
 
 Create one directory per task run:
