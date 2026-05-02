@@ -18,6 +18,7 @@ Do not mark Day 1 or Real Task #1 as `COMPLETED` from a placeholder alone.
 | run_id | Task | Verdict | Archive |
 |--------|------|---------|---------|
 | `20260502T000000Z-real-task-1` | Align run_id stability + task_title field across docs/teambrain/ | PASS (separate LLM judge) | `docs/teambrain/evidence/20260502T000000Z-real-task-1/` |
+| `20260502T000000Z-real-task-2` | Run scripts/verify/tbrain-verify.sh against Task #1 evidence; build self-bootstrap evidence archive (closes GAP-1..GAP-4) | PASS (separate LLM judge, file-path mode per AP-8) | `docs/teambrain/evidence/20260502T000000Z-real-task-2/` |
 
 ## Per-run layout
 
