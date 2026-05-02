@@ -70,6 +70,41 @@ wait
 
 主 agent 读这 8 份文本 → reduce 出 final conclusion，不要把 8 份原文整段塞回回复。
 
+### 如何知道并行 probe 已全部完成？
+
+派出 probe 后不要轮询 shell 状态——用 **Monitor 工具** 持续读取输出文件，等所有文件都写完再汇总。
+
+**固定做法**：
+
+```bash
+# 1. 派出 probe（同上），每个写入独立文件
+RUN_DIR=".fastprobe/$(date +%s)"
+mkdir -p "$RUN_DIR"
+for i in "${!PROMPTS[@]}"; do
+  claudefast -p "${PROMPTS[$i]}" > "$RUN_DIR/probe_${i}.txt" 2>&1 &
+done
+# 记录 pid 数量
+TOTAL=${#PROMPTS[@]}
+
+# 2. 用 Monitor 监听：每当有新文件写完就发一次通知；全部完成后退出
+# Monitor command:
+#   每秒扫描 RUN_DIR，统计已完成文件数（文件存在 + 非空），
+#   达到 TOTAL 时打印 DONE 并退出
+until [ "$(find "$RUN_DIR" -name 'probe_*.txt' -size +0c | wc -l)" -ge "$TOTAL" ]; do
+  echo "progress: $(find "$RUN_DIR" -name 'probe_*.txt' -size +0c | wc -l)/$TOTAL done"
+  sleep 2
+done
+echo "FASTPROBE DONE: all $TOTAL probes finished in $RUN_DIR"
+```
+
+在 Claude Code 内部，把上面的 `until` 循环作为 **Monitor** 的 `command`，这样：
+
+- 每隔 2 秒发一条 `progress: N/M done` 通知。
+- 全部写完时发 `FASTPROBE DONE` 通知，Monitor 退出。
+- 主 agent 收到 DONE 通知后才开始 Read + reduce，不会过早读到空文件。
+
+**核心原则**：派出 probe 即异步，完成信号靠 Monitor 读输出文件推送——而不是 `wait`（阻塞）或轮询 process 状态（脆弱）。
+
 ## Step 3 / Audit → stream-json args
 
 > "审计场景" → `!claudefast -p` 加 stream-json 参数。
