@@ -50,4 +50,7 @@ docs/postpr/.last-verify.out
 docs/fastprobe/.last-verify.out
 docs/project-tools/.last-verify.out
 docs/github-account/.last-verify.out
+docs/github-account/.last-judge.out
+docs/github-account/.last-judge.json
+docs/github-account/.last-judge-prompt.txt
 docs/gstack-bin/.last-verify.out

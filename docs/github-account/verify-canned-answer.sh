@@ -1,85 +1,109 @@
 #!/usr/bin/env bash
-# Verify the "GitHub account" canned answer by running claudefast -p and
-# grepping for canonical anchors. PASS = exit 0, FAIL = exit 1.
+# Semantic verifier for the "GitHub account" rule.
+#
+# Flow:
+#   1. Ask a fresh claudefast session the real trigger prompt.
+#   2. Ask claudefast again to judge the answer against the source rule doc.
+#   3. Parse the judge's structured JSON and use `.pass` for PASS / FAIL.
 #
 # USE_WHEN: user asks "what accounts we use for github ?"
-# DO_WHEN_USED: response must name LiuShiyuMath as the canonical account
-#   for this project. The CLAUDE.md rule itself contrasts LiuShiyuMath
-#   against the wrong-token alias liush2yuxjtu ("don't use liush2yuxjtu"),
-#   so a correct response is ALLOWED to mention both — what matters is
-#   which account is presented as the answer.
-#
-# PASS conditions (both):
-#   1. LiuShiyuMath present (case-insensitive)
-#   2. The FIRST account-name reference (LiuShiyuMath | liush2yuxjtu) in
-#      the response is LiuShiyuMath — i.e. the canonical answer leads,
-#      and the wrong-token alias only appears later as a contrast.
-#
-# Why disambiguation #2 matters: a regression like "use liush2yuxjtu, not
-# LiuShiyuMath" still mentions both names, so a presence-only check would
-# falsely PASS. Requiring the first reference be LiuShiyuMath catches
-# this — the canonical CLAUDE.md doc structure ("使用 LiuShiyuMath，不要
-# 使用 liush2yuxjtu") puts the right name first by construction.
-# (Codex review on PR #56.)
-#
 # Source rule: CLAUDE.md "GitHub account" section.
 
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-OUT="docs/github-account/.last-verify.out"
+OUT_DIR="docs/github-account"
+ANSWER_OUT="$OUT_DIR/.last-verify.out"
+JUDGE_OUT="$OUT_DIR/.last-judge.out"
+JUDGE_JSON="$OUT_DIR/.last-judge.json"
+JUDGE_PROMPT_FILE="$OUT_DIR/.last-judge-prompt.txt"
 
 PROMPT="what accounts we use for github ?"
+EXPECTED_DOC=$(sed -n '/^## GitHub account$/,/^## /p' CLAUDE.md | sed '$d')
 
-if command -v zsh >/dev/null 2>&1; then
-    zsh -i -c "claudefast -p \"$PROMPT\"" > "$OUT" 2>&1 || {
+run_claudefast() {
+    local prompt="$1"
+    local output="$2"
+
+    if command -v zsh >/dev/null 2>&1; then
+        PROMPT_FOR_CLAUDEFAST="$prompt" zsh -i -c 'claudefast -p "$PROMPT_FOR_CLAUDEFAST"' > "$output" 2>&1
+    elif command -v claudefast >/dev/null 2>&1; then
+        claudefast -p "$prompt" > "$output" 2>&1
+    else
         echo "GITHUB-ACCOUNT VERIFY: FAIL"
-        echo "failed to run claudefast via zsh -i -c"
+        echo "neither zsh nor claudefast on PATH"
         exit 1
-    }
-elif command -v claudefast >/dev/null 2>&1; then
-    claudefast -p "$PROMPT" > "$OUT" 2>&1 || {
-        echo "GITHUB-ACCOUNT VERIFY: FAIL"
-        echo "failed to run claudefast directly"
-        exit 1
-    }
-else
+    fi
+}
+
+run_claudefast "$PROMPT" "$ANSWER_OUT" || {
     echo "GITHUB-ACCOUNT VERIFY: FAIL"
-    echo "neither zsh nor claudefast on PATH"
+    echo "failed to run answer probe"
     exit 1
-fi
+}
 
-misses=0
-missing_list=()
+cat > "$JUDGE_PROMPT_FILE" <<EOF
+You are a strict third-party judge for a project rule verifier.
 
-# Required anchor — LiuShiyuMath must appear at all
-if ! grep -i -F -- "LiuShiyuMath" "$OUT" > /dev/null 2>&1; then
-    misses=$((misses + 1))
-    missing_list+=("LiuShiyuMath (required)")
-fi
+Evaluate whether ACTUAL_ANSWER semantically follows EXPECTED_DOC for the USER_TRIGGER.
+Do not require word-for-word matching. Judge the selected account, not string anchors.
 
-# Disambiguation — the first account-name reference must be LiuShiyuMath,
-# not liush2yuxjtu. Catches "use liush2yuxjtu, not LiuShiyuMath" style
-# regressions where both names appear but the wrong one is the answer.
-first_account=$(grep -oi -E -- "(LiuShiyuMath|liush2yuxjtu)" "$OUT" | head -1 | tr 'A-Z' 'a-z')
-if [ -n "$first_account" ] && [ "$first_account" != "liushiyumath" ]; then
-    misses=$((misses + 1))
-    missing_list+=("first account-name reference is '$first_account' — wrong account presented as the answer")
-fi
+Return ONLY valid minified JSON with this exact shape:
+{"pass":true,"rule":"github-account","summary":"...","missing":[],"wrong":[]}
 
-if [ "$misses" -eq 0 ]; then
+Rules:
+- pass must be true only if the answer clearly says the TeamBrain GitHub account is LiuShiyuMath.
+- pass must be false if the answer selects liush2yuxjtu as the account.
+- pass may be true if liush2yuxjtu is mentioned only as the account/token not to use.
+- missing and wrong must be arrays of short strings.
+
+USER_TRIGGER:
+$PROMPT
+
+EXPECTED_DOC:
+$EXPECTED_DOC
+
+ACTUAL_ANSWER:
+$(cat "$ANSWER_OUT")
+EOF
+
+run_claudefast "$(cat "$JUDGE_PROMPT_FILE")" "$JUDGE_OUT" || {
+    echo "GITHUB-ACCOUNT VERIFY: FAIL"
+    echo "failed to run semantic judge"
+    exit 1
+}
+
+set +e
+node - "$JUDGE_OUT" "$JUDGE_JSON" <<'NODE'
+const fs = require('fs');
+const inputPath = process.argv[2];
+const outputPath = process.argv[3];
+const raw = fs.readFileSync(inputPath, 'utf8').trim();
+const match = raw.match(/\{[\s\S]*\}/);
+if (!match) {
+  console.error('judge did not return a JSON object');
+  process.exit(2);
+}
+let parsed;
+try {
+  parsed = JSON.parse(match[0]);
+} catch (error) {
+  console.error(`judge JSON parse failed: ${error.message}`);
+  process.exit(2);
+}
+fs.writeFileSync(outputPath, `${JSON.stringify(parsed, null, 2)}\n`);
+process.exit(parsed.pass === true ? 0 : 1);
+NODE
+status=$?
+set -e
+
+if [ "$status" -eq 0 ]; then
     echo "GITHUB-ACCOUNT VERIFY: PASS"
+    cat "$JUDGE_JSON"
     exit 0
-else
-    echo "GITHUB-ACCOUNT VERIFY: FAIL"
-    echo "anchor problems:"
-    for m in "${missing_list[@]}"; do
-        echo "  - $m"
-    done
-    echo "--- captured output (head -40) ---"
-    head -40 "$OUT"
-    echo "--- captured output (tail -10) ---"
-    tail -10 "$OUT"
-    exit 1
 fi
+
+echo "GITHUB-ACCOUNT VERIFY: FAIL"
+cat "$JUDGE_JSON" 2>/dev/null || cat "$JUDGE_OUT"
+exit "$status"
