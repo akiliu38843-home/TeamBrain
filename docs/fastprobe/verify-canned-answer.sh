@@ -21,7 +21,13 @@ JUDGE_JSON="$OUT_DIR/.last-judge.json"
 JUDGE_PROMPT_FILE="$OUT_DIR/.last-judge-prompt.txt"
 
 PROMPT="what would happen if we say word 'FASTPROBE' ?"
-EXPECTED_DOC=$(cat docs/FASTPROBE.md)
+EXPECTED_DOC=$(
+    {
+        sed -n '/^## Project tools \/ FASTPROBE$/,/^## Bug report canned answer$/p' CLAUDE.md | sed '$d'
+        printf '\n--- docs/FASTPROBE.md ---\n'
+        cat docs/FASTPROBE.md
+    }
+)
 
 run_claudefast() {
     local prompt="$1"
@@ -47,8 +53,8 @@ run_claudefast "$PROMPT" "$ANSWER_OUT" || {
 cat > "$JUDGE_PROMPT_FILE" <<EOF
 You are a strict third-party judge for a project rule verifier.
 
-Evaluate whether ACTUAL_ANSWER semantically follows EXPECTED_DOC for the USER_TRIGGER.
-Do not require word-for-word matching. Judge whether the recipe is correct.
+Evaluate whether ACTUAL_ANSWER follows EXPECTED_DOC for the USER_TRIGGER.
+CLAUDE.md now requires semantic coverage of the three FASTPROBE steps, not word-for-word replay. Judge whether the recipe is correct and complete.
 
 Return ONLY valid minified JSON with this exact shape:
 {"pass":true,"rule":"fastprobe","summary":"...","missing":[],"wrong":[]}
