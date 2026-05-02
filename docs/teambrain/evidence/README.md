@@ -46,7 +46,22 @@ Use a stable `run_id`, preferably `YYYYMMDDTHHMMSSZ-<task-slug>`. Never append o
 | `stdout.txt` | Command stdout excerpt or checksum plus pointer to raw stdout. |
 | `stderr.txt` | Command stderr excerpt or checksum plus pointer to raw stderr. |
 | `failures.md` | Every observed failure and disposition; if none, say so with evidence path. |
-| `judge-summary.json` | Structured summary derived only from raw `.judge/<run_id>/judge.json`. |
+| `judge-summary.json` | Structured summary derived only from raw `.judge/<run_id>/judge.json`. Must include all `judge-summary.json` required fields below. |
+
+## `judge-summary.json` required fields
+
+Every field below is REQUIRED. A `judge-summary.json` missing any field, or with an empty value, fails the archive gate (`scripts/verify/tbrain-verify.sh` exits non-zero with `missing_evidence=true`).
+
+| Field | Type | Constraint |
+|---|---|---|
+| `run_id` | string | Stable; matches the per-run directory name. Never contains a commit SHA. |
+| `task_title` | string | Owner-facing task title; matches `task_title` in raw `judge.json`. |
+| `exit_code` | integer | Mirrors `exit_code` from raw `.judge/<run_id>/judge.json`. |
+| `metrics` | object | Mirrors `metrics` from raw `judge.json`; must be a JSON object even when empty (`{}` is valid only for non-real-task templates). |
+| `raw_evidence_dir` | string | Must be `.judge/<run_id>` exactly. |
+| `archive_dir` | string | Must be `docs/teambrain/evidence/<run_id>` exactly. Required so reviewers can hop from the summary to the committed archive without reconstructing the path. |
+| `raw_judge_path` | string | Must be `.judge/<run_id>/judge.json` exactly. |
+| `failure_list_path` | string | Must be `docs/teambrain/evidence/<run_id>/failures.md` exactly. |
 
 ## Minimal `judge-summary.json`
 
