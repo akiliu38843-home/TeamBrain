@@ -27,8 +27,8 @@
 | `commit_sha (ONBOARDING + USAGE_EXAMPLES)` | `452c428` |
 | `commit_sha (GAP closure map)` | `ed22f47` |
 | `commit_sha (verbal-rule closure)` | `bf8368e` |
-| `commit_sha (evidence archive)` | filled post-commit |
-| `commit_sha (CONVERGENCE Day 3 DONE)` | filled post-commit |
+| `commit_sha (evidence archive + CONVERGENCE Day 3 DONE)` | `de977b3` |
+| `commit_sha (external LLM judge verdict)` | `b2fcb1e` |
 | `raw_evidence_dir` | `.judge/20260502T000000Z-day3-release/` (local, gitignored) |
 | `archive_dir` | `docs/teambrain/evidence/20260502T000000Z-day3-release/` |
 
@@ -88,6 +88,10 @@ Issued by a separate `claudefast -p` invocation (file-path mode, AP-8 right-patt
 - `docs/teambrain/ONBOARDING.md`
 - `docs/teambrain/USAGE_EXAMPLES.md`
 
-Verdict captured in `.judge/20260502T000000Z-day3-release/judge-llm-stream.jsonl`. Final structured verdict mirrored to `judge-llm-verdict.json` in this archive.
+Verdict captured in `.judge/20260502T000000Z-day3-release/judge-llm-stream.jsonl`. Final structured verdict mirrored to `judge-llm-verdict.json` in this archive:
+
+```json
+{"recipe_id":"VERIFY-TBRAIN-003","run_id":"20260502T000000Z-day3-release","conclusion":"pass","notes":"All 8 pass conditions met. raw judge.json exit_code=0, missing_evidence=false, archive_missing=0, canonical_paths_missing=0. judge-summary.json has all 8 required keys. failures.md shows 0 observed failures and all 8 Day 3 exit criteria PASS. ONBOARDING.md (156 lines) and USAGE_EXAMPLES.md (159 lines) exist non-empty. run_id is stable with no commit SHA appended."}
+```
 
 `run_id` is stable and DOES NOT include any commit SHA. SHAs are recorded only here, per `evidence/README.md` and `TASK_TEMPLATE.md`.
