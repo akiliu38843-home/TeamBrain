@@ -5,12 +5,22 @@
 # USE_WHEN: user asks "what accounts we use for github ?"
 # DO_WHEN_USED: response must name LiuShiyuMath as the canonical account
 #   for this project. The CLAUDE.md rule itself contrasts LiuShiyuMath
-#   against the wrong-token alias liush2yuxjtu, so a correct response is
-#   ALLOWED to mention both — what matters is that LiuShiyuMath is named
-#   as the answer.
+#   against the wrong-token alias liush2yuxjtu ("don't use liush2yuxjtu"),
+#   so a correct response is ALLOWED to mention both — what matters is
+#   which account is presented as the answer.
 #
-# PASS conditions:
-#   - LiuShiyuMath present (case-insensitive)
+# PASS conditions (both):
+#   1. LiuShiyuMath present (case-insensitive)
+#   2. The FIRST account-name reference (LiuShiyuMath | liush2yuxjtu) in
+#      the response is LiuShiyuMath — i.e. the canonical answer leads,
+#      and the wrong-token alias only appears later as a contrast.
+#
+# Why disambiguation #2 matters: a regression like "use liush2yuxjtu, not
+# LiuShiyuMath" still mentions both names, so a presence-only check would
+# falsely PASS. Requiring the first reference be LiuShiyuMath catches
+# this — the canonical CLAUDE.md doc structure ("使用 LiuShiyuMath，不要
+# 使用 liush2yuxjtu") puts the right name first by construction.
+# (Codex review on PR #56.)
 #
 # Source rule: CLAUDE.md "GitHub account" section.
 
@@ -43,10 +53,19 @@ fi
 misses=0
 missing_list=()
 
-# Required anchor
+# Required anchor — LiuShiyuMath must appear at all
 if ! grep -i -F -- "LiuShiyuMath" "$OUT" > /dev/null 2>&1; then
     misses=$((misses + 1))
     missing_list+=("LiuShiyuMath (required)")
+fi
+
+# Disambiguation — the first account-name reference must be LiuShiyuMath,
+# not liush2yuxjtu. Catches "use liush2yuxjtu, not LiuShiyuMath" style
+# regressions where both names appear but the wrong one is the answer.
+first_account=$(grep -oi -E -- "(LiuShiyuMath|liush2yuxjtu)" "$OUT" | head -1 | tr 'A-Z' 'a-z')
+if [ -n "$first_account" ] && [ "$first_account" != "liushiyumath" ]; then
+    misses=$((misses + 1))
+    missing_list+=("first account-name reference is '$first_account' — wrong account presented as the answer")
 fi
 
 if [ "$misses" -eq 0 ]; then
