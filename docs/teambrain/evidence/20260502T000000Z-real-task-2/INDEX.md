@@ -81,7 +81,7 @@ This bootstrap loop closes GAP-1 (executable harness exists) and GAP-2 (archive 
 | 2 | TRAP-OPS-012 archive gate harness binding (GAP-2) | `83c54b6` |
 | 3 | AP-8 file-path-only judge rule (GAP-3) | `181ac5f` |
 | 4 | judge-summary.json required-fields enumeration (GAP-4) | `5819ab6` |
-| 5 | Real Task #2 evidence archive + CONVERGENCE H24-36/H36-60 DONE | recorded post-commit below |
+| 5 | Real Task #2 evidence archive + CONVERGENCE H24-36/H36-60 DONE | `8f0076e` |
 
 ## External LLM judge verdict
 
