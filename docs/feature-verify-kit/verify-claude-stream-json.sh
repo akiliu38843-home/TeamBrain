@@ -10,14 +10,19 @@ SCHEMA='{"type":"object","properties":{"positioning":{"type":"string","minLength
 
 claude -h > "$OUT_DIR/claude-help.txt" 2>&1 || true
 
-claude -p --model haiku \
+# Use claudefast wrapper (zsh shell function defined in ~/.zshrc) so this run
+# uses CLAUDE_CONFIG_DIR=$HOME/.claude-minimax — isolated from the user's main
+# ~/.claude/ config (which may have Stop hooks like laziness-self-report that
+# would hijack the JSON-schema response). README of this kit specifies
+# claudefast as the entrypoint; this honors that.
+zsh -i -c "claudefast -p --model haiku \
   --output-format stream-json \
   --include-hook-events \
   --include-partial-messages \
   --verbose \
   --permission-mode acceptEdits \
-  --json-schema "$SCHEMA" \
-  "$PROMPT" \
+  --json-schema $(printf '%q' "$SCHEMA") \
+  $(printf '%q' "$PROMPT")" \
   > "$OUT_DIR/claude-stream.jsonl" \
   2> "$OUT_DIR/claude-stream.stderr.log"
 
@@ -26,13 +31,22 @@ const fs=require("fs");
 const p=process.argv[1];
 const out=process.argv[2];
 const lines=fs.readFileSync(p,"utf8").split(/\n+/).filter(Boolean);
-let last="";
+// Prefer .structured_output (set when --json-schema is used); fall back to
+// parsing .result as JSON for older claude CLI versions.
+let obj=null;
 for(const line of lines){
-  try{const j=JSON.parse(line); if(typeof j.result==="string") last=j.result;}
-  catch{}
+  try{
+    const j=JSON.parse(line);
+    if(j && j.type==="result"){
+      if(j.structured_output && typeof j.structured_output==="object"){
+        obj=j.structured_output;
+      } else if(typeof j.result==="string"){
+        try{ obj=JSON.parse(j.result); }catch{}
+      }
+    }
+  }catch{}
 }
-if(!last) throw new Error("No result field found in stream-json");
-const obj=JSON.parse(last);
+if(!obj) throw new Error("No structured_output or parseable result found in stream-json");
 fs.writeFileSync(out, JSON.stringify(obj,null,2));
 ' "$OUT_DIR/claude-stream.jsonl" "$OUT_DIR/claude-features.json"
 
