@@ -80,16 +80,40 @@ const fs = require('fs');
 const inputPath = process.argv[2];
 const outputPath = process.argv[3];
 const raw = fs.readFileSync(inputPath, 'utf8').trim();
-const match = raw.match(/\{[\s\S]*\}/);
-if (!match) {
-  console.error('judge did not return a JSON object');
-  process.exit(2);
+
+function extractFirstJudgeJson(text) {
+  for (let start = text.indexOf('{'); start !== -1; start = text.indexOf('{', start + 1)) {
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (inString) {
+        if (escape) escape = false;
+        else if (ch === '\\') escape = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') inString = true;
+      else if (ch === '{') depth++;
+      else if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          try {
+            const parsed = JSON.parse(text.slice(start, i + 1));
+            if (parsed && Object.prototype.hasOwnProperty.call(parsed, 'pass')) return parsed;
+          } catch {}
+          break;
+        }
+      }
+    }
+  }
+  return null;
 }
-let parsed;
-try {
-  parsed = JSON.parse(match[0]);
-} catch (error) {
-  console.error(`judge JSON parse failed: ${error.message}`);
+
+const parsed = extractFirstJudgeJson(raw);
+if (!parsed) {
+  console.error('judge did not return a parseable JSON object with a pass field');
   process.exit(2);
 }
 fs.writeFileSync(outputPath, `${JSON.stringify(parsed, null, 2)}\n`);

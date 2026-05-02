@@ -7,7 +7,7 @@
    expected docs ──► claudefast judge ──► structured JSON ──► PASS / FAIL
 ```
 
-Every rule with a canned / triggered behavior has a `verify-canned-answer.sh`
+Every rule with a triggered behavior has a `verify-canned-answer.sh`
 under `docs/<rule>/`. The preferred verifier shape is semantic: one
 `claudefast -p` call produces the agent's answer for the rule trigger, then a
 second `claudefast -p` call judges that answer against the expected source
