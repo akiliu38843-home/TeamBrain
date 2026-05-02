@@ -8,21 +8,22 @@ mkdir -p "$OUT_DIR"
 PROMPT='Read the section "## Canonical Feature TL;DR" in docs/系统展示.md. That section contains 7 bullet lines, each starting with one of these key names followed by ": " and a verbatim Chinese sentence: positioning, metrics, market_gap, delivered_vs_planned, hooks, knowledge_delivery, self_evolution. Return ONLY a JSON object whose 7 keys are exactly those names and whose values are the EXACT verbatim sentences from that section, copied byte-for-byte (same punctuation, same quotes, same digits). Do not paraphrase. Do not summarize. Do not add or remove any character. Do not include the leading "key: " prefix in the value.'
 SCHEMA='{"type":"object","properties":{"positioning":{"type":"string","minLength":1},"metrics":{"type":"string","minLength":1},"market_gap":{"type":"string","minLength":1},"delivered_vs_planned":{"type":"string","minLength":1},"hooks":{"type":"string","minLength":1},"knowledge_delivery":{"type":"string","minLength":1},"self_evolution":{"type":"string","minLength":1}},"required":["positioning","metrics","market_gap","delivered_vs_planned","hooks","knowledge_delivery","self_evolution"],"additionalProperties":false}'
 
-claude -h > "$OUT_DIR/claude-help.txt" 2>&1 || true
+CLAUDEFAST_BIN="${CLAUDEFAST_BIN:-claudefast}"
+if ! command -v "$CLAUDEFAST_BIN" >/dev/null 2>&1; then
+  echo "FATAL: $CLAUDEFAST_BIN not found on PATH; set CLAUDEFAST_BIN=/path/to/claudefast" >&2
+  exit 127
+fi
 
-# Use claudefast wrapper (zsh shell function defined in ~/.zshrc) so this run
-# uses CLAUDE_CONFIG_DIR=$HOME/.claude-minimax — isolated from the user's main
-# ~/.claude/ config (which may have Stop hooks like laziness-self-report that
-# would hijack the JSON-schema response). README of this kit specifies
-# claudefast as the entrypoint; this honors that.
-zsh -i -c "claudefast -p --model haiku \
+"$CLAUDEFAST_BIN" -h > "$OUT_DIR/claudefast-help.txt" 2>&1 || true
+
+"$CLAUDEFAST_BIN" -p --model haiku \
   --output-format stream-json \
   --include-hook-events \
   --include-partial-messages \
   --verbose \
   --permission-mode acceptEdits \
-  --json-schema $(printf '%q' "$SCHEMA") \
-  $(printf '%q' "$PROMPT")" \
+  --json-schema "$SCHEMA" \
+  "$PROMPT" \
   > "$OUT_DIR/claude-stream.jsonl" \
   2> "$OUT_DIR/claude-stream.stderr.log"
 
