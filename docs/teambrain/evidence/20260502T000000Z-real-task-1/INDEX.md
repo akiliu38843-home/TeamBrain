@@ -65,7 +65,7 @@
 | Commit | Concern | SHA |
 |--------|---------|-----|
 | 1 | Precision diffs across 4 docs/teambrain/ files | `2309a9f` |
-| 2 | Evidence archive + CONVERGENCE H12-24 DONE | filled by post-commit step in this branch |
+| 2 | Evidence archive + CONVERGENCE H12-24 DONE | `7e7e31b` |
 
 ## External LLM judge verdict
 
