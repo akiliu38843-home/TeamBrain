@@ -195,7 +195,7 @@ fi
 last_user_text="$(extract_last_user_text_once || echo "")"
 response_language_prompt="based on this project rule, what language agent uses when talk with users and asked in english"
 if echo "$last_user_text" | grep -qi 'FASTPROBE' \
-  && echo "$last_user_text" | grep -qi 'PR' \
+  && echo "$last_user_text" | grep -Eqi '(^|[^[:alnum:]_])PR([^[:alnum:]_]|$)|pull request|合并请求' \
   && echo "$last_user_text" | grep -qiE 'conflict|resolve|冲突'; then
   if ! echo "$last_text" | grep -q "claudefast -h" || ! echo "$last_text" | grep -q "PR opened"; then
     jq -n \
