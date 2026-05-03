@@ -90,7 +90,7 @@ claudefast -p \
 | **`POSTPR`** | 每个 PR 开完后必做：fetch Codex review → triage P1/P2 → loop until silent or 👍（详见 `docs/POSTPR.md`） |
 | **`MULTITOOL`** | 多工具适配：4 通道（PreToolUse / UserPromptSubmit / Stop analyze / AttributionBus）+ MCP Server NOT YET + Cursor compiler NOT YET（详见 `docs/multi-tool-adaptation.md`） |
 | `codex exec` | Codex 端 canonical JSON 对照（feature-verification 1+2+3） |
-| **Feature canned answers** | 每个 feature（Calibrator v2 等）的 6 节模板入口在 `docs/features/INDEX.md` — 不在本文件 inline 答案 |
+| **Feature canned answers** | 每个 feature（Calibrator v2、Team knowledge sharing 等）的 6 节模板入口在 `docs/features/INDEX.md` — 不在本文件 inline 答案 |
 
 被问到 `what would happen if we say word 'FASTPROBE'?` 或用户消息单纯含 `FASTPROBE` 时，**必须**按下面三步原文回答，不得改写、不得省略：
 
