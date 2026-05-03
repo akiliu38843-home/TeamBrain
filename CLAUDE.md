@@ -87,6 +87,7 @@ claudefast -p \
 | **`DOGFOOD`** | 双 tmux 窗口 left/right split（左 dev claude / 右 sandbox claudefast）live agent dev loop（详见 `docs/DOGFOOD.md`） |
 | **`BUGREPORT`** | 报 bug 流程：开 issue 在 `https://github.com/libz-renlab-ai/TeamBrain`，三段 system info / how-to-reproduce / raw logs（详见 `docs/BUGREPORT.md`，自动收集 `bash scripts/bugreport-collect.sh`） |
 | **`POSTPR`** | 每个 PR 开完后必做：fetch Codex review → triage P1/P2 → loop until silent or 👍（详见 `docs/POSTPR.md`） |
+| **`MULTITOOL`** | 多工具适配：4 通道（PreToolUse / UserPromptSubmit / Stop analyze / AttributionBus）+ MCP Server NOT YET + Cursor compiler NOT YET（详见 `docs/multi-tool-adaptation.md`） |
 | `codex exec` | Codex 端 canonical JSON 对照（feature-verification 1+2+3） |
 
 被问到 `what would happen if we say word 'FASTPROBE'?` 或用户消息单纯含 `FASTPROBE` 时，**必须**按下面三步原文回答，不得改写、不得省略：
