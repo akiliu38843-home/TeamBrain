@@ -46,6 +46,10 @@ import {
   parseDogfoodReportArgs,
 } from "./commands/dogfood-report.js";
 import {
+  executeBugReport,
+  parseBugReportArgs,
+} from "./commands/bug-report.js";
+import {
   DashboardArgsError,
   launchDashboard,
   parseDashboardArgs,
@@ -206,7 +210,7 @@ async function main(): Promise<void> {
           );
           process.exit(1);
         }
-        process.stdout.write(executeDemoHook(opts));
+        process.stdout.write(executeDemoHook(opts).output);
         return;
       }
       process.stderr.write(`未知 demo 子命令: ${sub}\n`);
@@ -376,6 +380,23 @@ async function main(): Promise<void> {
       process.stdout.write(
         `📊 自举报告生成: ${r.outputPath}\n  ${r.totalEntries} 条知识 / ${r.totalEvents} 个事件 / ${r.archivedCount} 自动归档\n`,
       );
+      return;
+    }
+    case "bug-report": {
+      const opts = parseBugReportArgs(rest);
+      const result = await executeBugReport({
+        ...opts,
+        cwd: process.cwd(),
+        teamagentVersion: findPackageVersion(),
+      });
+      if (opts.stdout) {
+        process.stdout.write(result.markdown);
+      } else {
+        process.stdout.write(
+          `Bug report written: ${result.outputPath}\n` +
+            "Attach this file when reporting first-install or hook failures.\n",
+        );
+      }
       return;
     }
     case "dashboard": {
@@ -667,12 +688,15 @@ async function main(): Promise<void> {
           "                                   Recording Memory 导入、检索、注入、指标和 golden benchmark",
           "  teamagent dogfood-report [--output=path]",
           "                                   扫 events.jsonl + knowledge.jsonl + git log，自动生成自举报告",
+          "  teamagent bug-report [--out=path] [--stdout]",
+          "                                   生成可附到 issue 的诊断报告：系统信息 + hook 配置 + 原始日志（自动脱敏）",
           "  teamagent dashboard --watch [--open] [--port=8787] [--interval=2s]",
           "                                   启动实时 HTML dashboard：生成 docs/dashboard.html，周期刷新真实规则/事件数据并本地服务",
           "  teamagent dashboard --once",
           "                                   只生成一次 docs/dashboard.html，不启动服务器",
-          "  teamagent compile [--dry-run] [--skills-only] [--markdown-only] [--force] [--target=claude|codex|both]",
-          "                                   编译出口：CLAUDE.md (canonical+, 3000 token 预算) + Claude Agent Skills (stable+)；Codex 通过软链接读取",
+          "  teamagent compile [--dry-run] [--skills-only] [--markdown-only] [--force] [--legacy-claude-md] [--target=claude|codex|both]",
+          "                                   编译出口（默认）：用户级 nested rule store @ ~/.claude/teamagent/rules/ + Claude Agent Skills (stable+)；Codex 通过软链接读取 skills",
+          "                                   --legacy-claude-md: 旧行为，把规则写进项目 CLAUDE.md (issue #42 之前的默认；TEAMAGENT_LEGACY_CLAUDE_MD=1 等价)",
           "                                   --dry-run: 预览将写/删哪些文件，不实际写入",
           "                                   --skills-only / --markdown-only: 只写其中一路出口",
           "  teamagent config stop-mode <sync|async>  切换 Stop hook 运行模式（默认 sync）",
