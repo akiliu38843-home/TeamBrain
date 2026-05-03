@@ -18,9 +18,13 @@ Source index: [SYSTEM.md](../SYSTEM.md)
 
 当前 Phase 1 的 PreToolUse Hook 提供了有限的本地规则匹配（相当于简化版 `check_pitfall`），但 AI 无法在**思考过程中**主动查询知识库。MCP Server 计划在 Phase 2 上线。
 
-### Team Scope 未实现
+### Team Scope 未实现（Phase 4 而非 Phase 3）
 
-`DualLayerStore` 中 `scope.level=team` 会直接 throw error。团队知识共享（git tracked 的 `.teamagent/` 目录，审核门，冲突仲裁）计划在 Phase 3 实现。
+`DualLayerStore` 中 `scope.level=team` 会直接 throw error：`packages/adapters/src/storage/sqlite/dual-layer-store.ts:35` `throw new Error("team-scoped entries are not supported until Phase 4")`。
+
+读侧 `packages/cli/src/commands/review.ts:44-46` 用 `--scope=team` 时静默映射成 `personal`（v2 行为），所以 `teamagent review --scope=team` 不会报错但只显示 personal 规则；`packages/cli/src/bin-pre-tool-use.ts:112-140` PreToolUse 三路 `Promise.all` 中 team 路始终返回空集（因为没人能写入）。
+
+团队知识共享（git-tracked `.teamagent/rules/*.mdc`、审核门、PII redactor、冲突仲裁、SessionStart 自动同步、`teamagent export/import`、多解并列 `problem_cluster_id`+`variant_id`）计划在 **Phase 4** 实现，14 天 ship plan：`docs/superpowers/plans/2026-05-01-phase4-team-memory-plan.md`。Feature 现状速查：`docs/features/team-share.md`。
 
 ### Session Monitor 未实现
 
