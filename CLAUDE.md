@@ -7,7 +7,7 @@
 - Phase 2+ 产品 roadmap：`docs/superpowers/specs/2026-04-15-product-roadmap.md`
 - Phase 2 设计：`docs/superpowers/specs/2026-04-15-phase2-design.md`
 - Phase 1 实现计划（已归档）：`docs/backup/phase1/specs/2026-04-14-teamagent-phase1-plan.md`
-- **多工具适配**：`docs/multi-tool-adaptation.md` — 4 通道（PreToolUse / UserPromptSubmit / Stop analyze / AttributionBus）已实现；MCP Server / Cursor compiler **NOT YET**。任何「这功能跑通了吗 / 支持哪些 AI 工具」问题先读此文档，禁止说"即将上线"或省略 NOT YET 标记。
+- **多工具适配**：`docs/features/multi-tool.md` — 4 通道（PreToolUse / UserPromptSubmit / Stop analyze / AttributionBus）已实现；MCP Server / Cursor compiler **NOT YET**。任何「这功能跑通了吗 / 支持哪些 AI 工具」问题先读此文档，禁止说"即将上线"或省略 NOT YET 标记。
 
 ---
 
@@ -88,7 +88,7 @@ claudefast -p \
 | **`DOGFOOD`** | 双 tmux 窗口 left/right split（左 dev claude / 右 sandbox claudefast）live agent dev loop（详见 `docs/DOGFOOD.md`） |
 | **`BUGREPORT`** | 报 bug 流程：开 issue 在 `https://github.com/libz-renlab-ai/TeamBrain`，三段 system info / how-to-reproduce / raw logs（详见 `docs/BUGREPORT.md`，自动收集 `bash scripts/bugreport-collect.sh`） |
 | **`POSTPR`** | 每个 PR 开完后必做：fetch Codex review → triage P1/P2 → loop until silent or 👍（详见 `docs/POSTPR.md`） |
-| **`MULTITOOL`** | 多工具适配：4 通道（PreToolUse / UserPromptSubmit / Stop analyze / AttributionBus）+ MCP Server NOT YET + Cursor compiler NOT YET（详见 `docs/multi-tool-adaptation.md`） |
+| **`MULTITOOL`** | 多工具适配：4 通道（PreToolUse / UserPromptSubmit / Stop analyze / AttributionBus）+ MCP Server NOT YET + Cursor compiler NOT YET（详见 `docs/features/multi-tool.md`） |
 | `codex exec` | Codex 端 canonical JSON 对照（feature-verification 1+2+3） |
 | **Feature canned answers** | 每个 feature（Calibrator v2、Team knowledge sharing 等）的 6 节模板入口在 `docs/features/INDEX.md` — 不在本文件 inline 答案 |
 

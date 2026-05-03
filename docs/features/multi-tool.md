@@ -1,91 +1,109 @@
-# TeamBrain 多工具适配 / Multi-Tool Adaptation
-
 ```
-   AI 工具 (Claude Code / Cursor / Codex / Trae)
-            │
-            ▼
-   ┌────────────────────────────────────────┐
-   │  4 个 知识交付通道                       │
-   │  ───────────────────────                │
-   │   1. PreToolUse        (拦截/警告)       │
-   │   2. UserPromptSubmit  (注入相关规则)     │
-   │   3. Stop analyze      (会话结束学习)     │
-   │   4. AttributionBus    (统一归因总线)     │
-   └────────────────────────────────────────┘
-            │
-            ▼
-       知识引擎  ─── (Phase 2) ───►  MCP Server
-       (双层 store, matcher,                 (NOT YET)
-        calibrator, compiler)
-            │
-            ▼
-   编译产物 → CLAUDE.md / AGENTS.md / .codex/skills/
-            (Cursor `.cursorrules` 输出 NOT YET)
+   ┌──────────── MULTI-TOOL ADAPTATION ────────────┐
+   │                                               │
+   │  AI tool  ─── (one of) ─►  Claude Code        │
+   │                            Codex              │
+   │                            Cursor (read-only) │
+   │                            Trae / Copilot ✗   │
+   │                                               │
+   │  knowledge engine  ──►  4 delivery channels   │
+   │                         1. PreToolUse         │
+   │                         2. UserPromptSubmit   │
+   │                         3. Stop analyze       │
+   │                         4. AttributionBus     │
+   │                                               │
+   │  ─── (Phase 2) ─►  MCP Server   ❌ NOT YET    │
+   │                                               │
+   │  compile output:                              │
+   │    Claude  →  CLAUDE.md + ~/.claude/skills/   │
+   │    Codex   →  AGENTS.md (symlink) + .codex/   │
+   │    Cursor  →  ❌ NOT YET (compiler missing)   │
+   └───────────────────────────────────────────────┘
 ```
 
-被问到 "what is TeamBrain's multi-tool adaptation feature?" / "TeamBrain 怎么适配多工具?" / "4 个通道是什么?" 时，按本文档回答，必须明确区分**已实现**与 **NOT YET**。
+# Multi-tool adaptation
 
----
+## Goal
 
-## 一、4 个知识交付通道
+Let one TeamAgent knowledge engine serve every common AI coding tool — Claude Code, Codex, Cursor, future Trae / Copilot — by writing tool-specific output formats and exposing four uniform knowledge-delivery channels, so a developer's hard-won corrections in one tool show up as guard rails in another.
 
-| # | 通道 | 状态 | 入口实现 | 用途 |
-|---|------|------|---------|------|
-| 1 | **PreToolUse** | IMPLEMENTED (M2.7) | `packages/cli/src/bin-pre-tool-use.ts` + `packages/adapters/src/hook/claude-agent-sdk/pre-tool-use-sdk.ts` | AI 调用 tool 前匹配相关规则；avoidance 规则可阻断、practice 规则可警告 |
-| 2 | **UserPromptSubmit** | IMPLEMENTED (M2.7) | `packages/cli/src/bin-user-prompt-submit.ts` | 用户输入提交时注入相关知识到 prompt 上下文 |
-| 3 | **Stop analyze** | IMPLEMENTED (M2.10) | `packages/cli/src/bin-stop.ts` (含 analyze / calibrate / compile / scan-errors / harvest 五段) | 会话停止时增量扫描转录，提取纠正时刻 → 落入知识库 |
-| 4 | **AttributionBus** | IMPLEMENTED (M0+) | port `packages/ports/src/attribution-bus.ts` + adapter `packages/adapters/src/attribution/in-memory-bus.ts`、`stdout-renderer.ts` | 统一事件总线：组件用 `bus.emit()` 发结构化事件，Renderer 渲染给用户，禁止直接 console.log |
+## Status
 
-**附加 hook 入口**（同源同 store，但不算「4 通道」核心契约）：
-- `bin-post-tool-use.ts` — PostToolUse（结果回流）
-- `bin-pre-compact.ts` — PreCompact（压缩前快照）
-- `bin-session-start.ts` / `bin-session-end.ts` — 会话生命周期
-- `bin-updater.ts` — 自动更新
+**partially implemented** as of 2026-05-03. Be honest about what's missing.
 
----
+- 4 delivery channels: ✅ all live
+  - `PreToolUse` (M2.7) — `packages/cli/src/bin-pre-tool-use.ts` + `packages/adapters/src/hook/claude-agent-sdk/pre-tool-use-sdk.ts`
+  - `UserPromptSubmit` (M2.7) — `packages/cli/src/bin-user-prompt-submit.ts`
+  - `Stop analyze` (M2.10) — `packages/cli/src/bin-stop.ts` (analyze + calibrate + compile + scan-errors + harvest)
+  - `AttributionBus` (M0+) — port `packages/ports/src/attribution-bus.ts`, adapter `packages/adapters/src/attribution/in-memory-bus.ts`
+- AI tool support:
+  - **Claude Code** — ✅ full (importer + compiler + hooks)
+  - **Codex** — ✅ output via `pnpm teamagent compile --target=codex/both` → `AGENTS.md` symlink to `CLAUDE.md`, `.codex/skills/` symlink to `~/.claude/skills/teamagent/`
+  - **Cursor** — ⚠️ importer only (`packages/core/src/importer/cursor-rules-parser.ts` reads `.cursor/rules/`); ❌ no compiler (NOT YET)
+  - **Trae / VSCode Copilot** — ❌ NOT YET (Phase 4 remote item)
+- MCP Server — ❌ NOT YET (Phase 2 plan, see `docs/specs/2026-04-15-phase2-backlog.md` F1)
 
-## 二、MCP Server 状态：❌ NOT YET（Phase 2 计划）
+**Dogfood status (2026-05-03)**: this feature doc itself was written via the dogfood sandbox at `.codex/worktrees/dogfood-feature-5-multi-tool-*`; verify script at `docs/features/multi-tool/verify-canned-answer.sh` exits 0 on PASS and gates 7 grep anchors.
 
-**当前**：`grep -rln "MCP\|@modelcontextprotocol" packages/` 在生产代码中**零匹配**。MCP Server 尚未实现。
+## How it works
 
-**计划**：
-- 设计文档 `docs/specs/2026-04-13-teamagent-design.md:570-622` 定义 Phase 2 上线
-- backlog `docs/specs/2026-04-15-phase2-backlog.md:176` 标记 F1 为「Phase 2 头号大事」
-- 技术栈：TypeScript + `@modelcontextprotocol/sdk`
-- 暴露工具：`check_pitfall` / `get_best_practice` / `report_correction` / `get_stats`
-- 价值：让 AI 在「思考过程中」主动查询知识，与 PreToolUse 自动注入互补
+### The 4 channels (uniform across tools)
 
-**临时替代**：PreToolUse hook 在 AI 做事前自动把相关知识塞进 hook 返回体，AI 不需主动调用 MCP 也能拿到。这是 Phase 1/2 之间的设计决策，**不是 MCP 的等价品**——MCP 专门解决「长会话退化」「AI 主动追问细节」场景。
+| # | Channel | When it fires | What it does |
+|---|---------|---------------|--------------|
+| 1 | `PreToolUse` | AI is about to call a tool (Bash, Edit, Write, …) | match knowledge entries against tool inputs; `avoidance` rules can block, `practice` rules warn |
+| 2 | `UserPromptSubmit` | user just submitted a prompt | extract keywords, embed, query SQLite-vec, inject relevant rules into prompt context |
+| 3 | `Stop analyze` | session stops | incremental scan of transcript → detect correction moments → extract → calibrate → compile |
+| 4 | `AttributionBus` | any component wants to tell the user "I just did X" | `bus.emit(event)` → Renderer / persistence; **no direct `console.log` allowed** in core |
 
----
+### Tool adaptation = importer (input) + compiler (output)
 
-## 三、AI 工具适配矩阵
+- Importers (read existing project rules into the knowledge store): `ClaudeMdRuleImporter`, `cursor-rules-parser.ts`
+- Compiler (`packages/cli/src/commands/compile.ts:21`) writes to:
+  - **Claude Code**: `CLAUDE.md` markdown block + `~/.claude/skills/teamagent/` (skill files) + `~/.claude/teamagent/rules/` (nested rule store)
+  - **Codex**: `AGENTS.md` (symlink to `CLAUDE.md`) + `.codex/skills/` (symlink to `~/.claude/skills/teamagent/`)
+  - **Cursor**: not implemented (would need `CursorRulesCompiler` writing `.cursorrules`)
 
-| 工具 | 输入 importer | 输出 compiler | 状态总评 |
-|------|--------------|---------------|---------|
-| **Claude Code** | `ClaudeMdRuleImporter`（解析现有 `CLAUDE.md`） | `MarkdownCompiler` → `CLAUDE.md` + `~/.claude/skills/teamagent/` + `~/.claude/teamagent/rules/`（nested rule store） | ✅ 完整支持 |
-| **Codex (OpenAI CLI)** | 无独立 importer（共用 markdown） | `compile --target=codex/both` → `AGENTS.md`（symlink CLAUDE.md）+ `.codex/skills/`（symlink skills 目录） | ✅ 输出已实现，符号链接策略 |
-| **Cursor** | ✅ `cursor-rules-parser.ts` + `scan-cursor.ts`（importer 读 `.cursor/rules/`） | ❌ NOT YET — backlog F2 待写 `CursorRulesCompiler`（写 `.cursorrules`） | ⚠️ Importer only，无输出 |
-| **Trae / VSCode Copilot** | ❌ 无 | ❌ 无 | ❌ 远期（Phase 4） |
+### MCP Server (planned, Phase 2)
 
-`pnpm teamagent compile` 支持 flag：`--target=claude` / `--target=codex` / `--target=both` / `--markdown-only` / `--skills-only`。详见 `packages/cli/src/commands/compile.ts:21-50`。
+Per `docs/specs/2026-04-13-teamagent-design.md:570-622`, the MCP Server will expose `check_pitfall` / `get_best_practice` / `report_correction` / `get_stats` so AI can actively query knowledge during reasoning. Today's `PreToolUse` injection is a Phase-1 substitute, not equivalent.
 
----
+## How to verify
 
-## 四、设计原则与约束
+```bash
+SANDBOX=$(cat /tmp/dogfood-sandbox-feature-5-multi-tool.path 2>/dev/null) || SANDBOX=.
+cd "$SANDBOX"
+bash docs/features/multi-tool/verify-canned-answer.sh
+echo "exit=$?  # 0 = PASS"
+```
 
-- **Functional Core, Imperative Shell**：`packages/core/` 禁止 import IO 模块；通道 hook 在 `packages/cli/bin-*.ts` 拼装 IO 与纯函数
-- **Port 契约冻结于 M0**：4 通道的对外契约（hook stdin/stdout JSON、AttributionBus 事件 schema）改 port 必须先改 `packages/ports/__tests__/*-contract.ts`
-- **归因走 AttributionBus，不走 console.log**：组件用 `bus.emit(event)`，Renderer 渲染（防止「系统帮你做了什么」散落到日志里）
-- **Hook 不阻断**：任何通道 hook 异常都退化为 exit 0，不阻塞用户工作流
-- **诚实标记 NOT YET**：MCP Server / Cursor compiler / Trae 适配等未实现部分必须明确标注，不得说「即将上线」或省略
+The script runs `claudefast -p` with the canonical multi-tool prompt and greps the output for 7 anchors:
 
----
+| Anchor | Pattern |
+|--------|---------|
+| PreToolUse channel | `PreToolUse` |
+| UserPromptSubmit channel | `UserPromptSubmit` |
+| Stop channel | `Stop( analyze\| hook)` |
+| AttributionBus channel | `[Aa]ttribution[Bb]us` |
+| MCP NOT YET (rejects "soon to launch") | `MCP.*(NOT YET\|未实现\|Phase 2)` |
+| Cursor NOT YET (rejects "fully supported") | `[Cc]ursor.*(NOT YET\|未实现\|importer only)` |
+| concrete file path | `packages/(cli\|adapters\|ports\|core)/` |
 
-## 五、相关文档
+Missing any anchor → exit 1 with `[FAIL] <name>` printed.
 
-- 设计权威：`docs/specs/2026-04-13-teamagent-design.md`（v5.2，多工具章节 21/32/40/350-351/450/570-622/727-731/794-799）
-- Phase 2 backlog：`docs/specs/2026-04-15-phase2-backlog.md`（F1 MCP / F2 Cursor / F3 Codex AGENTS.md）
-- Phase 2 design：`docs/superpowers/specs/2026-04-15-phase2-design-v2.md`
-- 验证脚本：`docs/multi-tool-adaptation/verify-canned-answer.sh`
-- 项目入口（指针）：`CLAUDE.md` / `AGENTS.md`
+## Known limitations
+
+- **MCP Server**: NOT YET. Today AI cannot actively call `check_pitfall` from inside its reasoning loop; we only push knowledge through the 4 channels. Long sessions still degrade once the injected context falls out of the window.
+- **Cursor compiler**: NOT YET. Cursor users can `init` (their `.cursor/rules/` is parsed in) but TeamAgent corrections do not flow back to `.cursorrules`. Backlog F2 in `docs/specs/2026-04-15-phase2-backlog.md`.
+- **Codex output is symlinked, not copied**: `AGENTS.md → CLAUDE.md`, `.codex/skills → ~/.claude/skills/teamagent`. If the user breaks the symlink (e.g. on Windows without dev-mode), Codex will not see TeamAgent rules.
+- **No Trae / VSCode Copilot adapters**: explicitly Phase 4 / far-future. Don't promise these exist.
+- **PreToolUse hook never blocks on its own errors**: any exception → exit 0. Silent failure is by design (we won't break the user's flow), but it means a buggy matcher can leave bad rules unenforced without alarm.
+
+## Links
+
+- Design authority: `docs/specs/2026-04-13-teamagent-design.md` (v5.2; multi-tool sections at 21 / 32 / 40 / 350-351 / 450 / 570-622 / 727-731 / 794-799)
+- Phase 2 backlog: `docs/specs/2026-04-15-phase2-backlog.md` (F1 MCP, F2 Cursor compiler, F3 Codex AGENTS.md)
+- Phase 2 design v2: `docs/superpowers/specs/2026-04-15-phase2-design-v2.md`
+- Compile entry: `packages/cli/src/commands/compile.ts:21`
+- Verify script: `docs/features/multi-tool/verify-canned-answer.sh`
+- Features index: `docs/features/INDEX.md`

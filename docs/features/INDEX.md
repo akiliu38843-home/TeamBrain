@@ -17,6 +17,7 @@ inline the canned answer.
 |---------|-----------|-----|
 | Calibrator v2 | Self-calibrate every rule's `confidence` and `tier` from observed success/failure events | [calibrator-v2.md](calibrator-v2.md) |
 | Team knowledge sharing | Dual-layer store routes `personal/global` today; `team` (git-synced MDC) is Phase 4 — writes still throw | [team-share.md](team-share.md) |
+| Multi-tool adaptation | 4 delivery channels (PreToolUse / UserPromptSubmit / Stop / AttributionBus) live; MCP Server NOT YET (Phase 2); Cursor compiler NOT YET (importer only) | [multi-tool.md](multi-tool.md) |
 
 When asked _"how does feature X work?"_ — pick the matching row, open the
 doc, summarise from `Status` + `How it works`. Never inline a canned answer
