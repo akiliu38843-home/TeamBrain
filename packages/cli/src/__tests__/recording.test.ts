@@ -1,0 +1,201 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import {
+  estimateRecordingTokens,
+  executeRecording,
+  formatRecordingMemoryInjection,
+  loadRecordingMetrics,
+  parseRecordingArgs,
+  retrieveRecordingMemoriesForPrompt,
+  summarizeRecordingMetrics,
+} from "../commands/recording.js";
+
+function tmpdir(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), "teamagent-recording-test-"));
+}
+
+const now = () => new Date("2026-04-29T12:00:00.000Z");
+
+async function seedRecording(cwd: string, homeDir = tmpdir()) {
+  const filePath = path.join(cwd, "material.json");
+  fs.writeFileSync(filePath, JSON.stringify({
+    title: "Recording Memory import decision",
+    source: "docs/specs/2026-04-29-recording-memory-performance-verification.md",
+    transcript:
+      "Full transcript: Alice said importing existing meeting transcripts is useful. Bob said source references are required. Chen said do not dump the whole transcript into prompt context unless explicitly requested.",
+    uploadedBy: "teamagent",
+    useWhen: "Questions about recording memory import, source references, and prompt injection.",
+    summary:
+      "Recording Memory should import transcripts and summaries, cite source references, and keep default injected context small.",
+    visibility: "public",
+  }), "utf-8");
+  return executeRecording({
+    action: "import",
+    filePath,
+    cwd,
+    homeDir,
+    now,
+    idGen: () => "rec-import-decision",
+  });
+}
+
+describe("recording memory", () => {
+  it("renders stable JSON help for canonical hard-match verification", async () => {
+    const result = await executeRecording(parseRecordingArgs(["--help"]));
+    expect(result.kind).toBe("help");
+    if (result.kind === "help") {
+      expect(result.command).toBe("teamagent recording");
+      expect(result.subcommands.map((s) => s.name)).toEqual([
+        "import",
+        "search",
+        "show",
+        "inject",
+        "metrics",
+        "benchmark",
+      ]);
+    }
+  });
+
+  it("imports and searches source-cited recording memory", async () => {
+    const cwd = tmpdir();
+    const homeDir = tmpdir();
+    await seedRecording(cwd, homeDir);
+
+    const result = await executeRecording({
+      action: "search",
+      query: "where did we decide source references for recording memory import",
+      cwd,
+      homeDir,
+      now,
+    });
+
+    expect(result.kind).toBe("search");
+    if (result.kind === "search") {
+      expect(result.results[0]?.record.id).toBe("rec-import-decision");
+      expect(result.results[0]?.record.source).toContain("recording-memory-performance");
+      expect(result.results[0]?.record.transcript).toBeUndefined();
+    }
+  });
+
+  it("injects small default context with source reference and no full transcript", async () => {
+    const cwd = tmpdir();
+    const homeDir = tmpdir();
+    await seedRecording(cwd, homeDir);
+
+    const result = await executeRecording({
+      action: "inject",
+      query: "recording memory import source references",
+      cwd,
+      homeDir,
+      now,
+    });
+
+    expect(result.kind).toBe("inject");
+    if (result.kind === "inject") {
+      expect(result.text).toContain("TeamAgent Recording Memory");
+      expect(result.text).toContain("来源:");
+      expect(result.text).toContain("docs/specs/2026-04-29-recording-memory-performance-verification.md");
+      expect(result.text).not.toContain("Full transcript: Alice said");
+      expect(result.tokenCount).toBeLessThanOrEqual(800);
+      expect(result.fullTranscriptIncluded).toBe(false);
+    }
+  });
+
+  it("includes full transcript only after explicit expansion", async () => {
+    const cwd = tmpdir();
+    const homeDir = tmpdir();
+    await seedRecording(cwd, homeDir);
+
+    const show = await executeRecording({
+      action: "show",
+      id: "rec-import-decision",
+      expandTranscript: true,
+      cwd,
+      homeDir,
+      now,
+    });
+
+    expect(show.kind).toBe("show");
+    if (show.kind === "show") {
+      expect(show.record?.transcript).toContain("Full transcript: Alice said");
+    }
+  });
+
+  it("records injection metrics for ok and empty retrievals", async () => {
+    const cwd = tmpdir();
+    const homeDir = tmpdir();
+    await seedRecording(cwd, homeDir);
+
+    await executeRecording({ action: "inject", query: "recording memory import", cwd, homeDir, now });
+    await executeRecording({ action: "inject", query: "unrelated rust borrow checker", cwd, homeDir, now });
+
+    const summary = summarizeRecordingMetrics(loadRecordingMetrics(cwd));
+    expect(summary.injections).toBe(2);
+    expect(summary.empty).toBe(1);
+    expect(summary.failed).toBe(0);
+    expect(summary.p50LatencyMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("retrieves prompt injection text for UserPromptSubmit hook", async () => {
+    const cwd = tmpdir();
+    const homeDir = tmpdir();
+    await seedRecording(cwd, homeDir);
+
+    const result = await retrieveRecordingMemoriesForPrompt({
+      userMessage: "what did recording memory decide about source references",
+      cwd,
+      homeDir,
+      sessionSeenIds: new Set(),
+    });
+
+    expect(result.injectedIds).toEqual(["rec-import-decision"]);
+    expect(result.injectionText).toContain("来源:");
+    expect(result.injectionText).not.toContain("Full transcript: Alice said");
+  });
+
+  it("runs the golden prompt benchmark and writes raw evidence report", async () => {
+    const cwd = tmpdir();
+    const homeDir = tmpdir();
+    const reportPath = path.join(cwd, "evidence", "golden.md");
+
+    const result = await executeRecording({
+      action: "benchmark",
+      cwd,
+      homeDir,
+      now,
+      reportPath,
+    });
+
+    expect(result.kind).toBe("benchmark");
+    if (result.kind === "benchmark") {
+      expect(result.ok).toBe(true);
+      expect(result.passCount).toBeGreaterThanOrEqual(8);
+    }
+    expect(fs.readFileSync(reportPath, "utf-8")).toContain("Recording Memory Golden Prompt Benchmark");
+  });
+
+  it("keeps token estimation monotonic and formatter under default budget", () => {
+    expect(estimateRecordingTokens("abcd")).toBe(1);
+    expect(estimateRecordingTokens("a".repeat(100))).toBeGreaterThan(estimateRecordingTokens("a".repeat(20)));
+    const text = formatRecordingMemoryInjection([
+      {
+        score: 1,
+        whyRelevant: "matched summary",
+        record: {
+          id: "r",
+          title: "Long",
+          source: "source.md",
+          uploadedBy: "teamagent",
+          useWhen: "a".repeat(4_000),
+          summary: "b".repeat(4_000),
+          visibility: "public",
+          createdAt: now().toISOString(),
+          updatedAt: now().toISOString(),
+        },
+      },
+    ]);
+    expect(estimateRecordingTokens(text)).toBeLessThanOrEqual(820);
+  });
+});

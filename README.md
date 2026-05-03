@@ -39,6 +39,30 @@ teamagent init --target=both
 
 ---
 
+## 实时 dashboard
+
+想看真实规则和 Hook 事件的实时变化，直接在项目根目录启动：
+
+```bash
+pnpm teamagent dashboard --watch --open
+```
+
+它会先生成 `docs/dashboard.html`，再启动本地服务，默认地址是：
+
+```text
+http://127.0.0.1:8787/dashboard.html
+```
+
+实时模式每 2 秒重新读取 `.teamagent/knowledge.db`、`~/.teamagent/global.db`
+和 `~/.teamagent/events.db`，重生成 dashboard，并让浏览器自动刷新。常用选项：
+
+```bash
+pnpm teamagent dashboard --watch --port=0 --interval=5s  # 随机空闲端口，5 秒刷新
+pnpm teamagent dashboard --once                          # 只生成 docs/dashboard.html，不启动服务
+```
+
+---
+
 ## 自动更新（用户零操作）
 
 装完之后**完全不用管**。每次开 Claude Code 时 SessionStart hook 在后台静默：
@@ -67,6 +91,7 @@ teamagent update --enable               # 重新打开
 teamagent update --rollback             # 列所有备份 sha
 teamagent update --rollback <sha>       # 手动回到任一备份版本
 teamagent update --logs                 # 看 ~/.teamagent/update.log 末尾 50 行
+teamagent bug-report                    # 生成系统信息 + hook 配置 + 原始日志的脱敏报告
 ```
 
 **环境变量**：
@@ -242,6 +267,9 @@ teamagent demo hook Bash command='...'  # 离线模拟 PreToolUse 看会拦谁
 **装完 hook 不工作？** 必须**完全退出并重开** Claude Code（不是刷新页面）。
 
 **sqlite-vec 加载失败？** 跑 `teamagent doctor --fix`。
+
+**首装后看到 UserPromptSubmit hook error？** 跑 `teamagent bug-report`，把生成的
+`~/.teamagent/bug-reports/teamagent-bug-report-*.md` 附到 issue；报告会包含系统信息、hook 命令、TeamAgent 原始日志，并自动脱敏常见 token。
 
 **插件命令报错？** `install-plugins` 调用 `claude plugin` CLI。确认 `claude --version` 能跑、机器能访问 GitHub。
 
