@@ -19,6 +19,12 @@ transcript_path=$(echo "$input" | jq -r '.transcript_path // empty')
 session_id=$(echo "$input" | jq -r '.session_id // "unknown"')
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
+if [[ -z "$transcript_path" || ! -f "$transcript_path" ]]; then
+  if [[ -n "${CLAUDE_TRANSCRIPT:-}" && -f "${CLAUDE_TRANSCRIPT}" ]]; then
+    transcript_path="${CLAUDE_TRANSCRIPT}"
+  fi
+fi
+
 # Logging must never break hook enforcement. Use an explicit override when
 # provided; otherwise keep logs project-local instead of under user-global $HOME.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
