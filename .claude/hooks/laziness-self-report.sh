@@ -130,23 +130,52 @@ extract_payload_text() {
 
 extract_transcript_text_once() {
   [[ -n "$transcript_path" && -f "$transcript_path" ]] || return 0
-  tail -n 200 "$transcript_path" 2>/dev/null | jq -cr '
-    select(.type == "assistant")
-    | select((.message.content // []) | any(.type == "text"))
-    | (.message.content // [])
-    | map(select(.type == "text") | .text)
-    | join("\n")
-  ' 2>/dev/null | tail -n 1
+  tail -n 200 "$transcript_path" 2>/dev/null | jq -sr '
+    def text_content:
+      if type == "string" then .
+      elif type == "array" then
+        map(if type == "string" then .
+            elif type == "object" and .type == "text" then (.text // "")
+            else "" end) | join("\n")
+      else "" end;
+    [ .[]
+      | select(.type == "assistant")
+      | (.message.content // [])
+      | text_content
+      | select(length > 0)
+    ] | last // ""
+  ' 2>/dev/null
 }
 
 extract_last_user_text_once() {
   [[ -n "$transcript_path" && -f "$transcript_path" ]] || return 0
-  tail -n 200 "$transcript_path" 2>/dev/null | jq -cr '
-    select(.type == "user")
-    | (.message.content // [])
-    | map(if .type == "text" then .text else "" end)
-    | join("\n")
-  ' 2>/dev/null | tail -n 1
+  tail -n 200 "$transcript_path" 2>/dev/null | jq -sr '
+    def text_content:
+      if type == "string" then .
+      elif type == "array" then
+        map(if type == "string" then .
+            elif type == "object" and .type == "text" then (.text // "")
+            else "" end) | join("\n")
+      elif type == "object" and (.content? | type) == "string" then .content
+      elif type == "object" and (.content? | type) == "array" then
+        (.content | map(if type == "string" then .
+                        elif type == "object" and .type == "text" then (.text // "")
+                        else "" end) | join("\n"))
+      else "" end;
+    [ .[]
+      | if .type == "user" and (.isMeta // false | not) then
+          (.message.content // empty) as $content
+          | if ($content | type) == "array" and any($content[]; .type == "tool_result") then
+              empty
+            else
+              $content | text_content
+            end
+        elif .type == "queue-operation" and .operation == "enqueue" then
+          (.content // "") | text_content
+        else empty end
+      | select(length > 0)
+    ] | last // ""
+  ' 2>/dev/null
 }
 
 last_text="$(extract_payload_text || echo "")"
@@ -164,6 +193,7 @@ if [[ -z "$last_text" ]]; then
 fi
 
 last_user_text="$(extract_last_user_text_once || echo "")"
+response_language_prompt="based on this project rule, what language agent uses when talk with users and asked in english"
 if echo "$last_user_text" | grep -qi 'FASTPROBE' \
   && echo "$last_user_text" | grep -qi 'PR' \
   && echo "$last_user_text" | grep -qiE 'conflict|resolve|冲突'; then
@@ -199,9 +229,9 @@ if echo "$last_user_text" | grep -qiE 'what we shall do after each PR|what to do
 fi
 
 # The response-language rule has a mechanical verifier that requires the exact
-# user-visible answer to be Chinese-only. This extremely narrow sentinel keeps
-# the laziness guard from appending its English self-report to that one answer.
-if [[ "$last_text" == "中文。" ]]; then
+# user-visible answer to be Chinese-only. Gate this bypass to that exact prompt
+# so unrelated turns cannot skip the laziness guard by returning the same text.
+if [[ "$last_user_text" == "$response_language_prompt" && "$last_text" == "中文。" ]]; then
   jq -cn \
     --arg ts "$ts" --arg sid "$session_id" \
     '{ts:$ts, session_id:$sid, report_present:false, any_lazy:false, action:"approve_response_language_sentinel"}' \
