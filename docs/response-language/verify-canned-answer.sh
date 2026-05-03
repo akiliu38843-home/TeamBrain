@@ -19,7 +19,16 @@ run_claudefast() {
     local output="$2"
 
     if command -v claudefast >/dev/null 2>&1; then
-        claudefast -p "$prompt" > "$output" 2>&1
+        local raw
+        local err
+        raw="$(mktemp /tmp/response-language-verify-stdout.XXXXXX)"
+        err="$(mktemp /tmp/response-language-verify-stderr.XXXXXX)"
+        claudefast -p "$prompt" > "$raw" 2> "$err" || {
+            cat "$err" >> "$raw"
+            mv "$raw" "$output"
+            return 1
+        }
+        mv "$raw" "$output"
     elif command -v zsh >/dev/null 2>&1; then
         local raw
         local err

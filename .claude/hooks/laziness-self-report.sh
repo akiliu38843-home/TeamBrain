@@ -155,7 +155,7 @@ extract_transcript_text_once() {
 
 extract_last_user_text_once() {
   [[ -n "$transcript_path" && -f "$transcript_path" ]] || return 0
-  tail -n 200 "$transcript_path" 2>/dev/null | jq -sr '
+  jq -sr '
     def text_content:
       if type == "string" then .
       elif type == "array" then
@@ -181,7 +181,7 @@ extract_last_user_text_once() {
         else empty end
       | select(length > 0)
     ] | last // ""
-  ' 2>/dev/null
+  ' "$transcript_path" 2>/dev/null
 }
 
 last_text="$(extract_payload_text || echo "")"
