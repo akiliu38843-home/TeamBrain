@@ -57,5 +57,13 @@ if LC_ALL=C grep -q '[A-Za-z]' "$ANSWER_OUT"; then
     exit 1
 fi
 
+normalized_answer=$(tr -d '\r' < "$ANSWER_OUT" | sed '/^[[:space:]]*$/d')
+if [ "$normalized_answer" != "中文。" ]; then
+    echo "RESPONSE-LANGUAGE VERIFY: FAIL"
+    echo "answer must be exactly: 中文。"
+    cat "$ANSWER_OUT"
+    exit 1
+fi
+
 echo "RESPONSE-LANGUAGE VERIFY: PASS"
 cat "$ANSWER_OUT"

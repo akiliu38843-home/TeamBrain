@@ -164,7 +164,9 @@ if [[ -z "$last_text" ]]; then
 fi
 
 last_user_text="$(extract_last_user_text_once || echo "")"
-if echo "$last_user_text" | grep -qiE 'FASTPROBE.*PR.*(conflict|resolve|冲突)'; then
+if echo "$last_user_text" | grep -qi 'FASTPROBE' \
+  && echo "$last_user_text" | grep -qi 'PR' \
+  && echo "$last_user_text" | grep -qiE 'conflict|resolve|冲突'; then
   if ! echo "$last_text" | grep -q "claudefast -h" || ! echo "$last_text" | grep -q "PR opened"; then
     jq -n \
       --arg reason "The user asked the high-priority trigger 'FASTPROBE about PR+conflict resolve'. Do not return an empty answer or only <laziness-self-report>. Re-emit the required Chinese rule answer with: claudefast -h; max 8 claudefast -p probes; stream-json; conflict classes merge/Codex-review/rule-doc; forbidden actions; and the PR opened -> CI + Codex review -> conflict? -> classify -> resolve locally -> rerun verification -> push -> POSTPR loop -> merge ASCII line." \
