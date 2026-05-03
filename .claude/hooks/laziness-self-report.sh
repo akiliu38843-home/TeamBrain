@@ -153,6 +153,18 @@ if [[ -z "$last_text" ]]; then
   emit_block_missing "no text content in last assistant message"
 fi
 
+# The response-language rule has a mechanical verifier that requires the exact
+# user-visible answer to be Chinese-only. This extremely narrow sentinel keeps
+# the laziness guard from appending its English self-report to that one answer.
+if [[ "$last_text" == "中文。" ]]; then
+  jq -cn \
+    --arg ts "$ts" --arg sid "$session_id" \
+    '{ts:$ts, session_id:$sid, report_present:false, any_lazy:false, action:"approve_response_language_sentinel"}' \
+    | write_log
+  printf '{"continue": true, "suppressOutput": true}\n'
+  exit 0
+fi
+
 # --- Find the self-report block ---
 # Strict matching:
 #   * Open / close tags MUST be on a line of their own (optional surrounding
