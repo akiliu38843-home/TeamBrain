@@ -25,7 +25,7 @@ the indexes below to choose what to read first.
 ### Product and Positioning
 
 1. [系统展示.md](系统展示.md) for the user-facing product story.
-2. [superpowers/specs/2026-04-22-product-roadmap-v3.md](superpowers/specs/2026-04-22-product-roadmap-v3.md) for the latest roadmap.
+2. [backup/phase2-superseded/2026-04-22-product-roadmap-v3.md](backup/phase2-superseded/2026-04-22-product-roadmap-v3.md) for the (archived) Phase 2 roadmap.
 3. [archive/conflict-governance/2026-04-21-team-memory-direction.legacy.md](archive/conflict-governance/2026-04-21-team-memory-direction.legacy.md) for the (archived) team-memory direction memo, superseded by [specs/2026-04-30-experience-governance-redesign.md](specs/2026-04-30-experience-governance-redesign.md).
 
 ### Architecture and Mechanics
