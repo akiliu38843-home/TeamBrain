@@ -15,6 +15,8 @@ the indexes below to choose what to read first.
 | Verify or test a feature/fix, including PR review gates | [feature-verification.md](feature-verification.md) |
 | Live-preview / dogfood agent edits in two tmux panes | [DOGFOOD.md](DOGFOOD.md) |
 | Report a bug — system info + repro + raw logs to GitHub | [BUGREPORT.md](BUGREPORT.md) |
+| Look up per-feature canned answers (auto-capture, real-time intercept, calibrator, team-share, multi-tool) | [features/INDEX.md](features/INDEX.md) |
+| Author / extend a feature canned answer (6-section template, status enum, line budget) | [features/CONVENTIONS.md](features/CONVENTIONS.md) |
 | Check PR #14 status | [pr-14-status.md](pr-14-status.md) |
 | Find foundational specs | [specs/README.md](specs/README.md) |
 | Find later milestone specs and plans | [superpowers/README.md](superpowers/README.md) |
