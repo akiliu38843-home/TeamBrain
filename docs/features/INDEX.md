@@ -16,6 +16,7 @@ inline the canned answer.
 | Feature | One-liner | Doc |
 |---------|-----------|-----|
 | Calibrator v2 | Self-calibrate every rule's `confidence` and `tier` from observed success/failure events | [calibrator-v2.md](calibrator-v2.md) |
+| Team knowledge sharing | Dual-layer store routes `personal/global` today; `team` (git-synced MDC) is Phase 4 — writes still throw | [team-share.md](team-share.md) |
 
 When asked _"how does feature X work?"_ — pick the matching row, open the
 doc, summarise from `Status` + `How it works`. Never inline a canned answer
