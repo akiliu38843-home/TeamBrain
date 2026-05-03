@@ -155,7 +155,7 @@ extract_transcript_text_once() {
 
 extract_last_user_text_once() {
   [[ -n "$transcript_path" && -f "$transcript_path" ]] || return 0
-  jq -sr '
+  { head -n 80 "$transcript_path"; tail -n 500 "$transcript_path"; } 2>/dev/null | jq -sr '
     def text_content:
       if type == "string" then .
       elif type == "array" then
