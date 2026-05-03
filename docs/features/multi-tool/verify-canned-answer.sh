@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Verify the multi-tool-adaptation canned answer through claudefast.
-# PASS = all 6 grep anchors hit + at least one packages/ file path mentioned.
-# Exit 0 on PASS, 1 on FAIL.
+# PASS = all 7 grep anchors hit. Exit 0 on PASS, 1 on FAIL.
 
 set -u
 
@@ -23,12 +22,20 @@ check() {
   fi
 }
 
+# Anchors 1-4: 4 channels
 check "PreToolUse channel"        "PreToolUse"
 check "UserPromptSubmit channel"  "UserPromptSubmit"
 check "Stop analyze channel"      "Stop( analyze| hook| 钩子)?"
 check "AttributionBus channel"    "[Aa]ttribution([- ]?[Bb]us)?"
-check "MCP NOT YET"               "MCP.*(NOT YET|未实现|not implemented|尚未|Phase 2)"
+# Anchor 5: MCP must be mentioned AND a NOT-YET marker must be present.
+# We grep for them independently rather than co-occurring on one line — markdown
+# layouts often put "### MCP Server" on one line and "❌ NOT YET" on the next.
+check "MCP mentioned"             "(MCP|mcp)"
+check "NOT YET marker"            "(NOT YET|未实现|not implemented|尚未|Phase 2)"
+# Anchor 6: Cursor labeled NOT YET / importer-only / 不支持 — same line OK because
+# the doc puts cursor + status in the same row.
 check "Cursor NOT YET"            "[Cc]ursor.*(NOT YET|未实现|importer only|no compiler|尚未|不支持)"
+# Anchor 7: at least one packages/ file path
 check "packages/ file path"       "packages/(cli|adapters|ports|core)/"
 
 if [ "$PASS" -eq 1 ]; then
