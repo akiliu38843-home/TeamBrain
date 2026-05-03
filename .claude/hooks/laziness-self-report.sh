@@ -139,6 +139,16 @@ extract_transcript_text_once() {
   ' 2>/dev/null | tail -n 1
 }
 
+extract_last_user_text_once() {
+  [[ -n "$transcript_path" && -f "$transcript_path" ]] || return 0
+  tail -n 200 "$transcript_path" 2>/dev/null | jq -cr '
+    select(.type == "user")
+    | (.message.content // [])
+    | map(if .type == "text" then .text else "" end)
+    | join("\n")
+  ' 2>/dev/null | tail -n 1
+}
+
 last_text="$(extract_payload_text || echo "")"
 if [[ -z "$last_text" ]]; then
   if [[ -z "$transcript_path" || ! -f "$transcript_path" ]]; then
@@ -151,6 +161,39 @@ fi
 
 if [[ -z "$last_text" ]]; then
   emit_block_missing "no text content in last assistant message"
+fi
+
+last_user_text="$(extract_last_user_text_once || echo "")"
+if echo "$last_user_text" | grep -qiE 'FASTPROBE.*PR.*(conflict|resolve|冲突)'; then
+  if ! echo "$last_text" | grep -q "claudefast -h" || ! echo "$last_text" | grep -q "PR opened"; then
+    jq -n \
+      --arg reason "The user asked the high-priority trigger 'FASTPROBE about PR+conflict resolve'. Do not return an empty answer or only <laziness-self-report>. Re-emit the required Chinese rule answer with: claudefast -h; max 8 claudefast -p probes; stream-json; conflict classes merge/Codex-review/rule-doc; forbidden actions; and the PR opened -> CI + Codex review -> conflict? -> classify -> resolve locally -> rerun verification -> push -> POSTPR loop -> merge ASCII line." \
+      --arg sysmsg "[laziness-guard] BLOCKED: missing FASTPROBE PR conflict rule answer" \
+      '{decision:"block", reason:$reason, systemMessage:$sysmsg}'
+    exit 0
+  fi
+  jq -cn \
+    --arg ts "$ts" --arg sid "$session_id" \
+    '{ts:$ts, session_id:$sid, report_present:false, any_lazy:false, action:"approve_fastprobe_pr_conflict_answer"}' \
+    | write_log
+  printf '{"continue": true, "suppressOutput": true}\n'
+  exit 0
+fi
+
+if echo "$last_user_text" | grep -qiE 'what we shall do after each PR|what to do after each PR|POSTPR|after PR|每个 PR 后|PR 之后'; then
+  if ! echo "$last_text" | grep -qi "fetch the codex review" || ! echo "$last_text" | grep -qi "chatgpt-codex-connector"; then
+    jq -n \
+      --arg reason "The user asked the POSTPR trigger. Do not return an empty answer or only <laziness-self-report>. Re-emit the required POSTPR answer: fetch the codex review from pulls/<n>/comments filtering chatgpt-codex-connector[bot], triage P1/P2/P3, resolve conflicts before merge, loop until CI green, no merge conflict, and Codex silent/thumbs-up. Mention @codex review for re-review." \
+      --arg sysmsg "[laziness-guard] BLOCKED: missing POSTPR rule answer" \
+      '{decision:"block", reason:$reason, systemMessage:$sysmsg}'
+    exit 0
+  fi
+  jq -cn \
+    --arg ts "$ts" --arg sid "$session_id" \
+    '{ts:$ts, session_id:$sid, report_present:false, any_lazy:false, action:"approve_postpr_answer"}' \
+    | write_log
+  printf '{"continue": true, "suppressOutput": true}\n'
+  exit 0
 fi
 
 # The response-language rule has a mechanical verifier that requires the exact

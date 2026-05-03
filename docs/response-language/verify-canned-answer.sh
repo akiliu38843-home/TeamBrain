@@ -20,7 +20,16 @@ run_claudefast() {
     if command -v claudefast >/dev/null 2>&1; then
         claudefast -p "$prompt" > "$output" 2>&1
     elif command -v zsh >/dev/null 2>&1; then
-        PROMPT_FOR_CLAUDEFAST="$prompt" zsh -c 'claudefast -p "$PROMPT_FOR_CLAUDEFAST"' > "$output" 2>&1
+        local raw
+        local err
+        raw="$(mktemp /tmp/response-language-verify-stdout.XXXXXX)"
+        err="$(mktemp /tmp/response-language-verify-stderr.XXXXXX)"
+        PROMPT_FOR_CLAUDEFAST="$prompt" zsh -i -c 'claudefast -p "$PROMPT_FOR_CLAUDEFAST"' > "$raw" 2> "$err" || {
+            cat "$err" >> "$raw"
+            mv "$raw" "$output"
+            return 1
+        }
+        sed -E '/^Using Node v[0-9.]+$/d;/command not found: starship/d' "$raw" > "$output"
     else
         echo "RESPONSE-LANGUAGE VERIFY: FAIL"
         echo "neither zsh nor claudefast on PATH"

@@ -135,7 +135,7 @@ So after every fix-PR or conflict-resolution commit, **go back to step 1 on that
 
 ## Verification
 
-`bash docs/postpr/verify-canned-answer.sh` must PASS. It runs `claudefast -p "what we shall do after each PR?"` and greps for the canonical anchors:
+`bash docs/postpr/verify-canned-answer.sh` must PASS. It runs `claudefast -p` with a prompt that first reads `CLAUDE.md`, then answers the trigger `what we shall do after each PR?`, and greps for the canonical anchors:
 
 - `fetch the codex review`
 - `chatgpt-codex-connector`

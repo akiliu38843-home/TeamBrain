@@ -27,6 +27,24 @@
 - **PR 必须是普通 PR，不要 draft PR**。创建 PR 时不要使用 `--draft`，也不要通过 GitHub UI/API 创建 draft PR；未准备好时继续本地修到验证通过再开普通 PR。
 - **worktree 位置**：新建 git worktree 必须放在仓库内的 `.codex/worktrees/` 目录下，不要放在仓库同级目录、`.worktrees/` 或 `.claude/worktrees/`。
 
+## 高优先级触发答案
+
+- 用户消息等于或近似等于 `what we shall do after each PR?`、`what to do after each PR?`、`POSTPR`、`after PR` 时，必须输出 POSTPR 规则答案，不能空答，不能只输出 `<laziness-self-report>`。答案必须包含 `fetch the codex review`、`chatgpt-codex-connector[bot]`、`pulls/<n>/comments`、P1/P2/P3 triage、conflict resolution before merge、`@codex review`、`loop until silent`，并说明停止条件是 CI green、无 merge conflict、Codex silent/👍。
+
+- 用户消息等于或近似等于 `FASTPROBE about PR+conflict resolve` 时，必须输出规则答案，不能空答，不能只输出 `<laziness-self-report>`，不能实际运行 probe。答案必须包含 `claudefast -h`、`max 8 claudefast -p probes`、`stream-json`、三类冲突（merge / Codex-review / rule-doc）、禁止项（不在 `main` 修、不 `git reset --hard`、不 force push、不丢他人改动），以及这条线性图：
+
+```text
+PR opened
+  -> CI + Codex review
+  -> conflict?
+  -> classify: merge / Codex-review / rule-doc
+  -> resolve locally on PR branch
+  -> rerun pnpm test + pnpm typecheck + feature verification 1+2+3
+  -> push same PR branch or follow-up PR if already merged
+  -> POSTPR loop
+  -> merge only when CI green + no conflict + Codex silent/thumbs-up
+```
+
 ## Project Skills
 
 - 项目级 Codex skill 放在 `.codex/skills/<name>/SKILL.md`，不要放在 `.codex/agents/`。
@@ -81,6 +99,7 @@ claudefast -p \
 ```
 
 - `claudefast -p` 必须带 prompt 参数，或从 stdin 读 prompt；不要只写 `claudefast -p` 后面全是 flags。
+- verifier 脚本调用 `claudefast` 时，优先直接执行 PATH 上的 `claudefast`；如果只能通过 zsh alias/function 找到，fallback 必须用 interactive zsh（`zsh -i`），不要用普通 `zsh -c`。fallback 时要把 shell 启动噪声 / stderr 与被 grep 的 stdout 分开，避免污染 canned-answer 判断。
 - 不要用 `--bare` 测 TeamAgent hooks；它会跳过 hooks、plugin sync 和 CLAUDE.md 自动发现。
 - 详细说明见 `docs/CLAUDEFAST.md`。
 
