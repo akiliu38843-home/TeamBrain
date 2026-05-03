@@ -43,9 +43,9 @@ run_claudefast "$PROMPT" "$ANSWER_OUT" || {
     exit 1
 }
 
-if ! LC_ALL=en_US.UTF-8 grep -q '[一-龥]' "$ANSWER_OUT"; then
+if ! grep -q '中文。' "$ANSWER_OUT"; then
     echo "RESPONSE-LANGUAGE VERIFY: FAIL"
-    echo "answer contains no Chinese characters"
+    echo "answer does not contain the required Chinese sentinel"
     cat "$ANSWER_OUT"
     exit 1
 fi
