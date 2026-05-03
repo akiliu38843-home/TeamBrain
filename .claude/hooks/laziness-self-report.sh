@@ -165,7 +165,7 @@ extract_last_user_text_once() {
     [ .[]
       | if .type == "user" and (.isMeta // false | not) then
           (.message.content // empty) as $content
-          | if ($content | type) == "array" and any($content[]; .type == "tool_result") then
+          | if ($content | type) == "array" and any($content[]; type == "object" and .type == "tool_result") then
               empty
             else
               $content | text_content
