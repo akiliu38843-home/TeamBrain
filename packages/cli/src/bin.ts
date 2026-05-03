@@ -58,6 +58,11 @@ import {
   parseCompileArgs,
   renderCompileResult,
 } from "./commands/compile.js";
+import {
+  executeDocsPropagate,
+  parseDocsPropagateArgs,
+  renderDocsPropagationResult,
+} from "./commands/docs-propagate.js";
 import { executeConfig } from "./commands/config.js";
 import {
   executeDoctor,
@@ -398,6 +403,13 @@ async function main(): Promise<void> {
       process.stdout.write(renderCompileResult(result, opts.dryRun));
       return;
     }
+    case "docs-propagate": {
+      const opts = parseDocsPropagateArgs(rest);
+      const result = await executeDocsPropagate(opts);
+      process.stdout.write(renderDocsPropagationResult(result));
+      if (!result.ok) process.exit(1);
+      return;
+    }
     case "config": {
       const sub = rest[0];
       const val = rest[1];
@@ -597,11 +609,11 @@ async function main(): Promise<void> {
           "  teamagent uninstall-user-hook    移除用户级 SessionStart hook 注册",
           "  teamagent analyze [--session=<id|path>] [--verbose] [--commit]",
           "                                   分析 Claude Code 会话日志，识别纠正时刻+成功信号",
-          "                                   --commit: 通过 LLM 提取成知识条目并写入知识库 + 重编译 CLAUDE.md",
+          "                                   --commit: 通过 LLM 提取成知识条目并写入知识库 + 更新 Skills + 调度 docs propagation",
           "  teamagent review [N] [--scope=personal|team|global]",
           "                                   列出最近 N 条知识（默认 10），供人工复核",
           "  teamagent init [--dry-run] [--skip-import] [--skip-hook] [--install-plugins]",
-          "                                   一键安装到当前项目：建目录 + 注入元原则 + 导入已有规则 + 注册 Hook + 编译 CLAUDE.md",
+          "                                   一键安装到当前项目：建目录 + 注入元原则 + 导入已有规则 + 注册 Hook + 导出 Skills",
           "                                   --install-plugins: 同时注册团队标配插件（opt-in，改写用户全局 settings）",
           "  teamagent doctor [--fix] [--json]",
           "                                   诊断安装环境（Node版本/Claude Code/sqlite-vec/Hook/CLAUDE.md）",
@@ -637,9 +649,11 @@ async function main(): Promise<void> {
           "  teamagent dashboard --once",
           "                                   只生成一次 docs/dashboard.html，不启动服务器",
           "  teamagent compile [--dry-run] [--skills-only] [--markdown-only] [--force]",
-          "                                   编译双出口：CLAUDE.md (canonical+, 3000 token 预算) + Agent Skills (stable+)",
+          "                                   编译 Agent Skills (stable+)；CLAUDE.md 规则块输出已禁用",
           "                                   --dry-run: 预览将写/删哪些文件，不实际写入",
-          "                                   --skills-only / --markdown-only: 只写其中一路出口",
+          "                                   --skills-only / --markdown-only: legacy flags",
+          "  teamagent docs-propagate --rule-id=<id>",
+          "                                   将新规则自然传播到 docs/ 并用 cheap runner 验证",
           "  teamagent config stop-mode <sync|async>  切换 Stop hook 运行模式（默认 sync）",
           "  teamagent config show                    查看当前配置",
           "  teamagent scan-errors [--mode=efficient|full] [--since=<duration|ISO>] [--min-freq=N] [--dry-run] [--quiet]",

@@ -117,12 +117,12 @@ describe("executeCompile", () => {
     tmp.cleanup();
   });
 
-  it("no flags: writes CLAUDE.md and skills", async () => {
+  it("no flags: writes skills and leaves CLAUDE.md untouched", async () => {
     seedEntry(tmp.projectDbPath, entry({ current_tier: "canonical" }));
     const result = await executeCompile(opts);
-    // CLAUDE.md written
-    expect(nodeFs.existsSync(tmp.claudeMdPath)).toBe(true);
-    expect(result.markdown.path).toBe(tmp.claudeMdPath);
+    expect(result.markdown.path).toBe("(skipped)");
+    expect(result.markdown.blockLineCount).toBe(0);
+    expect(nodeFs.existsSync(tmp.claudeMdPath)).toBe(false);
     // skill written
     expect(result.skills.written).toContain("rule-1");
     const skillFile = path.join(tmp.skillsDir, "rule-1", "SKILL.md");
@@ -137,13 +137,15 @@ describe("executeCompile", () => {
     const skillFile = path.join(tmp.skillsDir, "rule-1", "SKILL.md");
     expect(nodeFs.existsSync(skillFile)).toBe(false);
     // But result reflects what would have been done
+    expect(result.markdown.path).toBe("(skipped)");
     expect(result.skills.written).toContain("rule-1");
   });
 
-  it("--markdown-only: writes CLAUDE.md but no skills", async () => {
+  it("--markdown-only: legacy no-op; does not write CLAUDE.md or skills", async () => {
     seedEntry(tmp.projectDbPath, entry({ current_tier: "stable" }));
     const result = await executeCompile({ ...opts, markdownOnly: true });
-    // CLAUDE.md written (even though stable is not canonical+, the store has the entry)
+    expect(result.markdown.path).toBe("(skipped)");
+    expect(nodeFs.existsSync(tmp.claudeMdPath)).toBe(false);
     expect(result.skills.written).toHaveLength(0);
     const skillFile = path.join(tmp.skillsDir, "rule-1", "SKILL.md");
     expect(nodeFs.existsSync(skillFile)).toBe(false);
@@ -168,20 +170,21 @@ describe("executeCompile", () => {
 describe("renderCompileResult", () => {
   it("dry-run mode shows dry-run tag", () => {
     const out = renderCompileResult(
-      { markdown: { path: "(dry-run)", blockLineCount: 0 }, skills: { written: ["a", "b"], removed: [] } },
+      { markdown: { path: "(skipped)", blockLineCount: 0 }, skills: { written: ["a", "b"], removed: [] } },
       true,
     );
     expect(out).toContain("dry-run");
     expect(out).toContain("2");
+    expect(out).toContain("disabled");
   });
 
-  it("normal mode shows paths and counts", () => {
+  it("normal mode shows skills and disabled CLAUDE.md output", () => {
     const out = renderCompileResult(
-      { markdown: { path: "/foo/CLAUDE.md", blockLineCount: 42 }, skills: { written: ["r1"], removed: ["r2"] } },
+      { markdown: { path: "(skipped)", blockLineCount: 0 }, skills: { written: ["r1"], removed: ["r2"] } },
       false,
     );
     expect(out).toContain("CLAUDE.md");
-    expect(out).toContain("42");
+    expect(out).toContain("disabled");
     expect(out).toContain("r1");
     expect(out).toContain("r2");
   });

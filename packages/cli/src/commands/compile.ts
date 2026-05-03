@@ -3,7 +3,6 @@ import path from "node:path";
 import fs from "node:fs";
 import {
   DualLayerStore,
-  MarkdownCompiler,
   makeSkillCompiler,
 } from "@teamagent/adapters";
 import { runCompile, type CompilePipelineResult } from "@teamagent/core";
@@ -12,13 +11,13 @@ import type { KnowledgeEntry } from "@teamagent/types";
 
 export interface CompileOptions {
   dryRun?: boolean;
-  /** 只写 CLAUDE.md，跳过 skills 出口 */
+  /** Legacy flag: CLAUDE.md block output is disabled, so this writes nothing. */
   markdownOnly?: boolean;
-  /** 只写 skills，跳过 CLAUDE.md */
+  /** Legacy-compatible no-op for the removed CLAUDE.md output. */
   skillsOnly?: boolean;
   /** 强制重写（当前实现：默认就是幂等重写，此 flag 预留） */
   force?: boolean;
-  /** 编译元原则模式：只输出 source='preset' 的条目 */
+  /** Legacy markdown option; Skills output ignores it. */
   presetOnly?: boolean;
   // 路径注入，供测试使用
   cwd?: string;
@@ -57,18 +56,6 @@ function makeNoopSkillCompiler(): SkillCompiler {
   };
 }
 
-/** 不做任何写操作的 MarkdownCompiler stub（用于 --skills-only 模式）。 */
-function makeNoopMarkdownCompiler() {
-  return {
-    compile(_entries: KnowledgeEntry[]): string {
-      return "";
-    },
-    writeToFile(_entries: KnowledgeEntry[]) {
-      return { filePath: "(skipped)", blockLineCount: 0, blockStartLine: 0 };
-    },
-  };
-}
-
 export async function executeCompile(opts: CompileOptions = {}): Promise<CompilePipelineResult> {
   const paths = resolvePaths(opts);
 
@@ -80,13 +67,6 @@ export async function executeCompile(opts: CompileOptions = {}): Promise<Compile
     userGlobalDbPath: paths.userGlobalDbPath,
   });
 
-  const markdownCompiler = opts.skillsOnly
-    ? makeNoopMarkdownCompiler()
-    : new MarkdownCompiler(
-        paths.claudeMdPath,
-        opts.presetOnly ? { compileOptions: { presetOnly: true } } : undefined,
-      );
-
   const skillCompiler = opts.markdownOnly
     ? makeNoopSkillCompiler()
     : makeSkillCompiler({ skillsDir: paths.skillsDir });
@@ -94,7 +74,6 @@ export async function executeCompile(opts: CompileOptions = {}): Promise<Compile
   try {
     const result = await runCompile({
       store,
-      markdownCompiler,
       skillCompiler,
       dryRun: opts.dryRun,
     });
@@ -126,7 +105,7 @@ export function renderCompileResult(
   lines.push("");
 
   if (result.markdown.path === "(skipped)") {
-    lines.push("  CLAUDE.md    (skipped)");
+    lines.push("  CLAUDE.md    (disabled; no generated rule block)");
   } else if (result.markdown.path === "(dry-run)") {
     lines.push("  CLAUDE.md    (dry-run, 未写入)");
   } else {
@@ -160,6 +139,8 @@ export function renderCompileResult(
     }
   }
 
+  lines.push("");
+  lines.push("  Docs propagation is handled by `teamagent docs-propagate` when new rules are added.");
   lines.push("");
   return lines.join("\n");
 }

@@ -117,10 +117,11 @@ describe("executeAnalyze", () => {
       complete: async () => response,
     });
 
-    it("extracts corrections via LLM and writes to store + CLAUDE.md", async () => {
+    it("extracts corrections via LLM, writes to store, exports Skills, and schedules docs propagation", async () => {
       const projectDbPath = path.join(tmp.dir, "knowledge.db");
       const userGlobalDbPath = path.join(tmp.dir, "global.db");
       const claudeMdPath = path.join(tmp.dir, "CLAUDE.md");
+      const scheduled: string[][] = [];
 
       const llm = stubLLM(
         "```json\n" +
@@ -149,6 +150,9 @@ describe("executeAnalyze", () => {
         idGen: () => "pers-test-0001",
         now: () => new Date("2026-04-14T12:00:00Z"),
         skipCalibrate: true,
+        docsPropagationScheduler: (ids) => {
+          scheduled.push(ids);
+        },
       });
 
       expect(out).toContain("--commit 模式");
@@ -164,10 +168,11 @@ describe("executeAnalyze", () => {
       expect(all[0]!.id).toBe("pers-test-0001");
       expect(all[0]!.wrong_pattern).toBe("axios");
 
-      // CLAUDE.md 写入
-      const md = nodeFs.readFileSync(claudeMdPath, "utf-8");
-      expect(md).toContain("TEAMAGENT:START");
-      expect(md).toContain("fetch");
+      expect(nodeFs.existsSync(claudeMdPath)).toBe(false);
+      const skillPath = path.join(tmp.dir, ".claude", "skills", "teamagent", "pers-test-0001", "SKILL.md");
+      expect(nodeFs.existsSync(skillPath)).toBe(true);
+      expect(nodeFs.readFileSync(skillPath, "utf-8")).toContain("fetch");
+      expect(scheduled).toEqual([["pers-test-0001"]]);
     });
 
     it("LLM returning null → skipped, nothing written", async () => {

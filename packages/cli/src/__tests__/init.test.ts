@@ -99,10 +99,11 @@ describe("executeInit", () => {
     projectStore.close();
     expect(personalCount).toBe(2);
 
-    // CLAUDE.md has TEAMAGENT block
+    // CLAUDE.md remains human-maintained; init no longer writes a TEAMAGENT block.
     const md = nodeFs.readFileSync(path.join(tmp.cwd, "CLAUDE.md"), "utf-8");
-    expect(md).toContain("TEAMAGENT:START");
-    expect(md).toContain("TEAMAGENT:END");
+    expect(md).not.toContain("TEAMAGENT:START");
+    expect(md).not.toContain("TEAMAGENT:END");
+    expect(r.steps.find((s) => s.step === "compile-skills")?.status).toBe("ok");
 
     expect(r.summary.presetAdded).toBe(8);
     expect(r.summary.importedRules).toBe(2);
@@ -136,6 +137,16 @@ describe("executeInit", () => {
     expect(structureStep.status).toBe("ok");
     expect(structureStep.detail).toContain("无规则");
     expect(r.summary.importedRules).toBe(0);
+  });
+
+  it("pre-check accepts missing CLAUDE.md", async () => {
+    const r = await executeInit({
+      ...commonOpts(),
+      llmClient: stubLLM(OK_LLM_RESPONSE),
+    });
+    expect(r.ok).toBe(true);
+    expect(r.steps.find((s) => s.step === "pre-check")?.status).toBe("ok");
+    expect(nodeFs.existsSync(path.join(tmp.cwd, "CLAUDE.md"))).toBe(false);
   });
 
   it("reads .cursorrules and imports from it", async () => {
@@ -273,7 +284,7 @@ describe("executeInit", () => {
     expect(nodeFs.existsSync(logPath)).toBe(true);
     const content = nodeFs.readFileSync(logPath, "utf-8").trim();
     expect(content).toContain("pre-check");
-    expect(content).toContain("compile-claude-md");
+    expect(content).toContain("compile-skills");
   });
 });
 
@@ -440,7 +451,7 @@ describe("renderInitResult — new UX", () => {
         { step: "load-presets", status: "ok" as const, detail: "加载 12 条元原则" },
         { step: "import-rules", status: "ok" as const, detail: "导入 5 条" },
         { step: "install-hook", status: "ok" as const, detail: "已写入" },
-        { step: "compile-claude-md", status: "ok" as const, detail: "写入 3 条" },
+        { step: "compile-skills", status: "ok" as const, detail: "导出 3 条" },
       ],
       summary: { stack: "typescript", presetAdded: 12, seedAdded: 0, importedRules: 5, totalActiveEntries: 17 },
     };
@@ -455,7 +466,7 @@ describe("renderInitResult — new UX", () => {
       ok: false,
       dryRun: false,
       steps: [
-        { step: "pre-check", status: "failed" as const, detail: "CLAUDE.md 文件无写入权限，请运行: chmod 644 CLAUDE.md" },
+        { step: "pre-check", status: "failed" as const, detail: "CLAUDE.md 文件不可读，请检查权限" },
       ],
       summary: { stack: "", presetAdded: 0, seedAdded: 0, importedRules: 0, totalActiveEntries: 0 },
     };

@@ -14,6 +14,7 @@ the indexes below to choose what to read first.
 | Launch the real-time dashboard | Run `pnpm teamagent dashboard --watch --open` |
 | Verify or test a feature/fix, including PR review gates | [feature-verification.md](feature-verification.md) |
 | Check PR #14 status | [pr-14-status.md](pr-14-status.md) |
+| Understand project knowledge propagation | [knowledge/INDEX.md](knowledge/INDEX.md) |
 | Find foundational specs | [specs/README.md](specs/README.md) |
 | Find later milestone specs and plans | [superpowers/README.md](superpowers/README.md) |
 | Review historical Phase 1 and superseded docs | [backup/README.md](backup/README.md) |
@@ -57,6 +58,7 @@ the indexes below to choose what to read first.
 | `.gstack/projects/` | Approved `/office-hours` design docs that downstream gstack review skills can discover automatically. |
 | `notes/` | Small decision records. |
 | `feature-verification.md` | Feature/fix verification gate and evidence requirements. |
+| `knowledge/` | Project knowledge index and docs propagation notes. |
 | `pr-14-status.md` | PR #14 local status index for restricted verification sessions. |
 | `research/` | Research notes that informed roadmap decisions. |
 | `dogfood/` | Current dogfood reports. |

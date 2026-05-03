@@ -208,8 +208,8 @@ describe("executeCalibrate", () => {
     expect(cal.status_after).toBe("archived");
   });
 
-  it("recompiles CLAUDE.md when adjustments occur", async () => {
-    seedEntry(tmp.projectDbPath, entry({ id: "rule-a", confidence: 0.7 }));
+  it("exports Skills when adjustments occur and leaves CLAUDE.md absent", async () => {
+    seedEntry(tmp.projectDbPath, entry({ id: "rule-a", confidence: 0.7, current_tier: "stable", max_tier_ever: "stable" }));
     nodeFs.mkdirSync(path.dirname(tmp.eventsDbPath), { recursive: true });
     const log = new SqliteEventLog(openDb(tmp.eventsDbPath));
     log.append(evt({ id: "p1", kind: "hook-pre.blocked", knowledge_id: "rule-a" }));
@@ -220,8 +220,9 @@ describe("executeCalibrate", () => {
       legacy: true,
       now: () => new Date("2026-04-15T02:00:00Z"),
     });
-    const md = nodeFs.readFileSync(tmp.claudeMdPath, "utf-8");
-    expect(md).toContain("TEAMAGENT:START");
+    expect(nodeFs.existsSync(tmp.claudeMdPath)).toBe(false);
+    const skillMd = path.join(tmp.home, ".claude", "skills", "teamagent", "rule-a", "SKILL.md");
+    expect(nodeFs.readFileSync(skillMd, "utf-8")).toContain("rule-a");
   });
 
   it("missing events DB → no error, no adjustments", async () => {

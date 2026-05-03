@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import {
   DualLayerStore,
   SqliteKnowledgeStore,
-  MarkdownCompiler,
+  makeSkillCompiler,
   ClaudeCodeLLMClient,
   openDb,
   ClaudePluginInstaller,
@@ -20,6 +20,7 @@ import {
   extractRuleBullets,
   extractCursorRules,
   structureRuleTextsBatch,
+  runCompile,
   DEFAULT_IMPORT_CONFIDENCE,
   type FilePresence,
 } from "@teamagent/core";
@@ -91,6 +92,7 @@ function resolvePaths(opts: InitOptions) {
     userGlobalDbPath:
       opts.userGlobalDbPath ?? path.join(home, ".teamagent", "global.db"),
     claudeMdPath: opts.claudeMdPath ?? path.join(cwd, "CLAUDE.md"),
+    skillsDir: path.join(home, ".claude", "skills", "teamagent"),
     installLogPath: path.join(home, ".teamagent", ".install-log"),
   };
 }
@@ -153,7 +155,7 @@ export async function executeInit(opts: InitOptions = {}): Promise<InitResult> {
     steps.push(await doInstallPlugins(dryRun, opts.pluginInstaller));
   }
 
-  const compileStep = doCompileClaudeMd(paths, dryRun, now);
+  const compileStep = await doCompileSkills(paths, dryRun);
   steps.push(compileStep);
 
   // 末尾预热向量模型（首装首次触发；测试/离线/已 cached 时跳过）
@@ -236,9 +238,9 @@ function runPreChecks(paths: ReturnType<typeof resolvePaths>): InitStepResult {
   }
   if (fs.existsSync(paths.claudeMdPath)) {
     try {
-      fs.accessSync(paths.claudeMdPath, fs.constants.R_OK | fs.constants.W_OK);
+      fs.accessSync(paths.claudeMdPath, fs.constants.R_OK);
     } catch {
-      return failStep("pre-check", "CLAUDE.md 文件无写入权限，请运行: chmod 644 CLAUDE.md");
+      return failStep("pre-check", "CLAUDE.md 文件不可读，请检查权限");
     }
   }
   return okStep("pre-check", "所有前置检查通过");
@@ -557,15 +559,14 @@ function doInstallHook(
   }
 }
 
-function doCompileClaudeMd(
+async function doCompileSkills(
   paths: ReturnType<typeof resolvePaths>,
   dryRun: boolean,
-  now: () => Date,
-): InitStepResult {
+): Promise<InitStepResult> {
   if (dryRun) {
     return okStep(
-      "compile-claude-md",
-      `(dry-run) 会把活跃条目合并编译到 ${paths.claudeMdPath}`,
+      "compile-skills",
+      `(dry-run) 会把 stable+ 条目导出到 ${paths.skillsDir}`,
     );
   }
   try {
@@ -575,16 +576,18 @@ function doCompileClaudeMd(
       projectDbPath: paths.projectDbPath,
       userGlobalDbPath: paths.userGlobalDbPath,
     });
-    const all = store.findActive();
+    const all = store.getAll();
+    await runCompile({
+      store,
+      skillCompiler: makeSkillCompiler({ skillsDir: paths.skillsDir }),
+    });
     store.close();
-    const compiler = new MarkdownCompiler(paths.claudeMdPath, () => now().toISOString());
-    const info = compiler.writeToFile(all);
     return okStep(
-      "compile-claude-md",
-      `已编译 ${all.length} 条 → ${info.filePath}`,
+      "compile-skills",
+      `已导出 ${all.length} 条候选规则到 Skills；CLAUDE.md 规则块输出已禁用`,
     );
   } catch (err) {
-    return failStep("compile-claude-md", String(err).slice(0, 200));
+    return failStep("compile-skills", String(err).slice(0, 200));
   }
 }
 
@@ -690,7 +693,7 @@ export function renderInitResult(result: InitResult): string {
     { icon: "📦", label: "初始化知识库", stepKeys: ["pre-check", "create-dirs", "load-preset", "load-seed", "scan-rules", "structure-rules"] },
     { icon: "🔗", label: "注册 Hook", stepKeys: ["install-hook"] },
     { icon: "🔌", label: "安装团队标配插件", stepKeys: ["install-plugins"] },
-    { icon: "📄", label: "编译 CLAUDE.md", stepKeys: ["compile-claude-md"] },
+    { icon: "📄", label: "导出 Skills", stepKeys: ["compile-skills"] },
   ];
 
   for (const group of stepGroups) {
@@ -745,7 +748,7 @@ function stepLabel(step: string): string {
     "structure-rules": "导入规则",
     "install-hook": "Hook 注册",
     "install-plugins": "Plugin 安装",
-    "compile-claude-md": "CLAUDE.md",
+    "compile-skills": "Skills",
   };
   return map[step] ?? step;
 }
@@ -757,8 +760,8 @@ function friendlyError(raw: string): string {
   if (raw.includes("sqlite-vec") || raw.includes("extension")) {
     return "sqlite-vec 扩展加载失败。运行 teamagent doctor 诊断";
   }
-  if (raw.includes("CLAUDE.md") && (raw.includes("EACCES") || raw.includes("不可读写"))) {
-    return "CLAUDE.md 文件无写入权限，请运行: chmod 644 CLAUDE.md";
+  if (raw.includes("CLAUDE.md") && (raw.includes("EACCES") || raw.includes("不可读"))) {
+    return "CLAUDE.md 文件不可读，请检查权限";
   }
   // For pre-check failures that already have friendly messages, pass through
   if (raw.length < 120) return raw;
