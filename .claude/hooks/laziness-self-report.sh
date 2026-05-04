@@ -196,7 +196,7 @@ last_user_text="$(extract_last_user_text_once || echo "")"
 response_language_prompt="based on this project rule, what language agent uses when talk with users and asked in english"
 work_intent_pattern='(^|[^[:alnum:]_])(run|execute|start|launch|invoke|update|edit|change|modify|fix|implement|write|commit|push|docs?|scripts?|examples?)([^[:alnum:]_]|$)|跑|执行|开始|启动|更新|修改|修复|文档|脚本'
 fastprobe_answer_intent=false
-if echo "$last_user_text" | grep -Eqi '(^|[^[:alnum:]_])(what|explain|list|show|answer)([^[:alnum:]_]).*FASTPROBE|FASTPROBE[[:space:]]+about|PR[[:space:]]+conflict[[:space:]]+resolve[[:space:]]+with[[:space:]]+FASTPROBE'; then
+if echo "$last_user_text" | grep -Eqi '(^|[^[:alnum:]_])(what|explain|list|show|answer)([^[:alnum:]_]).*FASTPROBE|FASTPROBE[[:space:]]+about|PR[[:space:]]+conflict[[:space:]]+resolve[[:space:]]+with[[:space:]]+FASTPROBE|FASTPROBE.*(PR|pull request|合并请求).*(conflict|resolve|冲突).*(怎么|如何|处理|\?)'; then
   fastprobe_answer_intent=true
 fi
 work_intent=false
