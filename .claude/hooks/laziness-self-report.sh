@@ -169,7 +169,7 @@ extract_last_user_text_once() {
                         else "" end) | join("\n"))
       else "" end;
     [ .[]
-      | if .type == "user" and (.isMeta // false | not) then
+      | if .type == "user" and (.isMeta // false | not) and (.isSynthetic // false | not) then
           (.message.content // empty) as $content
           | if ($content | type) == "array" and any($content[]; type == "object" and .type == "tool_result") then
               empty
