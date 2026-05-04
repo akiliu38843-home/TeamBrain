@@ -181,7 +181,7 @@ extract_last_user_text_once() {
         else empty end
       | select(length > 0)
     ] | last // ""
-  ' "$transcript_path" 2>/dev/null
+  ' 2>/dev/null
 }
 
 last_text="$(extract_payload_text || echo "")"
