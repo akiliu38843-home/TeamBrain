@@ -171,11 +171,7 @@ extract_last_user_text_once() {
     [ .[]
       | if .type == "user" and (.isMeta // false | not) and (.isSynthetic // false | not) then
           (.message.content // empty) as $content
-          | if ($content | type) == "array" and any($content[]; type == "object" and .type == "tool_result") then
-              empty
-            else
-              $content | text_content
-            end
+          | $content | text_content
         elif .type == "queue-operation" and .operation == "enqueue" then
           (.content // "") | text_content
         else empty end
