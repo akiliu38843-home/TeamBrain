@@ -121,7 +121,7 @@ extract_payload_text() {
       elif type == "array" then
         map(if type == "string" then .
             elif type == "object" and .type == "text" then (.text // "")
-            else "" end) | join("\n")
+            else "" end) | map(select(length > 0)) | join("\n")
       elif type == "object" then
         if (.content? | type) == "array" then
           (.content | map(select(.type == "text") | .text) | join("\n"))
@@ -142,7 +142,7 @@ extract_transcript_text_once() {
       elif type == "array" then
         map(if type == "string" then .
             elif type == "object" and .type == "text" then (.text // "")
-            else "" end) | join("\n")
+            else "" end) | map(select(length > 0)) | join("\n")
       else "" end;
     [ .[]
       | select(.type == "assistant")
@@ -155,29 +155,27 @@ extract_transcript_text_once() {
 
 extract_last_user_text_once() {
   [[ -n "$transcript_path" && -f "$transcript_path" ]] || return 0
-  { head -n 80 "$transcript_path"; tail -n 500 "$transcript_path"; } 2>/dev/null | jq -sr '
+  jq -r '
     def text_content:
       if type == "string" then .
       elif type == "array" then
         map(if type == "string" then .
             elif type == "object" and .type == "text" then (.text // "")
-            else "" end) | join("\n")
+            else "" end) | map(select(length > 0)) | join("\n")
       elif type == "object" and (.content? | type) == "string" then .content
       elif type == "object" and (.content? | type) == "array" then
         (.content | map(if type == "string" then .
                         elif type == "object" and .type == "text" then (.text // "")
-                        else "" end) | join("\n"))
+                        else "" end) | map(select(length > 0)) | join("\n"))
       else "" end;
-    [ .[]
-      | if .type == "user" and (.isMeta // false | not) and (.isSynthetic // false | not) then
-          (.message.content // empty) as $content
-          | $content | text_content
-        elif .type == "queue-operation" and .operation == "enqueue" then
-          (.content // "") | text_content
-        else empty end
-      | select(length > 0)
-    ] | last // ""
-  ' 2>/dev/null
+    if .type == "user" and (.isMeta // false | not) and (.isSynthetic // false | not) then
+      (.message.content // empty) as $content
+      | $content | text_content
+    elif .type == "queue-operation" and .operation == "enqueue" then
+      (.content // "") | text_content
+    else empty end
+    | select(length > 0)
+  ' "$transcript_path" 2>/dev/null | tail -n 1
 }
 
 last_text="$(extract_payload_text || echo "")"
