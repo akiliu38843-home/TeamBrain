@@ -17,7 +17,7 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 OUT="docs/postpr/.last-verify.out"
-PROMPT="Read file CLAUDE.md then answer the POSTPR trigger: what we shall do after each PR?"
+PROMPT="what we shall do after each PR?"
 
 run_probe() {
     local prompt="$1"
@@ -45,15 +45,6 @@ run_probe "$PROMPT" || {
     echo "failed to run answer probe"
     exit 1
 }
-
-if ! grep -i -F -- "fetch the codex review" "$OUT" > /dev/null 2>&1; then
-    PROMPT="Read file docs/POSTPR.md and CLAUDE.md, then answer the POSTPR trigger with the required headings and commands: what we shall do after each PR?"
-    run_probe "$PROMPT" || {
-        echo "POSTPR VERIFY: FAIL"
-        echo "failed to run fallback answer probe"
-        exit 1
-    }
-fi
 
 # Fixed-string anchors (case-insensitive)
 fixed_anchors=(
