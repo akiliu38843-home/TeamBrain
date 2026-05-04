@@ -155,7 +155,7 @@ extract_transcript_text_once() {
 
 extract_last_user_text_once() {
   [[ -n "$transcript_path" && -f "$transcript_path" ]] || return 0
-  tail -n "${CLAUDE_TRIGGER_TRANSCRIPT_TAIL_LINES:-2000}" "$transcript_path" 2>/dev/null | jq -r '
+  tail -n "${CLAUDE_TRIGGER_TRANSCRIPT_TAIL_LINES:-2000}" "$transcript_path" 2>/dev/null | jq -c '
     def text_content:
       if type == "string" then .
       elif type == "array" then
@@ -175,7 +175,7 @@ extract_last_user_text_once() {
       (.content // "") | text_content
     else empty end
     | select(length > 0)
-  ' 2>/dev/null | tail -n 1
+  ' 2>/dev/null | tail -n 1 | jq -r . 2>/dev/null
 }
 
 last_text="$(extract_payload_text || echo "")"
