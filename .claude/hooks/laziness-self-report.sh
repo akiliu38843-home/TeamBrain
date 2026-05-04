@@ -155,7 +155,7 @@ extract_transcript_text_once() {
 
 extract_last_user_text_once() {
   [[ -n "$transcript_path" && -f "$transcript_path" ]] || return 0
-  jq -r '
+  tail -n "${CLAUDE_TRIGGER_TRANSCRIPT_TAIL_LINES:-2000}" "$transcript_path" 2>/dev/null | jq -r '
     def text_content:
       if type == "string" then .
       elif type == "array" then
@@ -175,7 +175,7 @@ extract_last_user_text_once() {
       (.content // "") | text_content
     else empty end
     | select(length > 0)
-  ' "$transcript_path" 2>/dev/null | tail -n 1
+  ' 2>/dev/null | tail -n 1
 }
 
 last_text="$(extract_payload_text || echo "")"
@@ -213,7 +213,7 @@ if echo "$last_user_text" | grep -qi 'FASTPROBE' \
   exit 0
 fi
 
-if echo "$last_user_text" | grep -qiE '(^|[^[:alnum:]_])POSTPR([^[:alnum:]_]|$)|what (we )?(shall|should) do after each PR|what do we do after (each )?PR|what to do after each PR|what should we do after (each )?PR|每个[[:space:]]*PR[[:space:]]*后(做什么|要做什么)?|PR[[:space:]]*之后(要做什么|做什么)'; then
+if echo "$last_user_text" | grep -qiE '(^|[^[:alnum:]_])POSTPR([^[:alnum:]_]|$)|^[[:space:]]*after PR[[:space:]?.!]*$|what (we )?(shall|should) do after each PR|what do we do after (each )?PR|what to do after each PR|what should we do after (each )?PR|每个[[:space:]]*PR[[:space:]]*后(做什么|要做什么)?|PR[[:space:]]*之后(要做什么|做什么)'; then
   if ! echo "$last_text" | grep -qi "fetch the codex review" || ! echo "$last_text" | grep -qi "chatgpt-codex-connector"; then
     jq -n \
       --arg reason "The user asked the POSTPR trigger. Do not return an empty answer or only <laziness-self-report>. Re-emit the required POSTPR answer: fetch the codex review from pulls/<n>/comments filtering chatgpt-codex-connector[bot], triage P1/P2/P3, resolve conflicts before merge, loop until CI green, no merge conflict, and Codex silent/thumbs-up. Mention @codex review for re-review." \
