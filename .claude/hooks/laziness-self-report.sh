@@ -194,10 +194,20 @@ fi
 
 last_user_text="$(extract_last_user_text_once || echo "")"
 response_language_prompt="based on this project rule, what language agent uses when talk with users and asked in english"
+work_intent_pattern='(^|[^[:alnum:]_])(run|execute|start|launch|invoke|update|edit|change|modify|fix|implement|write|commit|push|docs?|scripts?|examples?)([^[:alnum:]_]|$)|跑|执行|开始|启动|更新|修改|修复|文档|脚本'
+fastprobe_answer_intent=false
+if echo "$last_user_text" | grep -Eqi '(^|[^[:alnum:]_])(what|explain|list|show|answer)([^[:alnum:]_]).*FASTPROBE|FASTPROBE[[:space:]]+about|PR[[:space:]]+conflict[[:space:]]+resolve[[:space:]]+with[[:space:]]+FASTPROBE'; then
+  fastprobe_answer_intent=true
+fi
+work_intent=false
+if echo "$last_user_text" | grep -Eqi "$work_intent_pattern"; then
+  work_intent=true
+fi
 if echo "$last_user_text" | grep -qi 'FASTPROBE' \
   && echo "$last_user_text" | grep -Eqi '(^|[^[:alnum:]_])PR([^[:alnum:]_]|$)|pull request|合并请求' \
   && echo "$last_user_text" | grep -qiE 'conflict|resolve|冲突' \
-  && ! echo "$last_user_text" | grep -Eqi '(^|[^[:alnum:]_])(run|execute|start|launch|invoke)([^[:alnum:]_]|$)|跑|执行|开始|启动'; then
+  && [[ "$fastprobe_answer_intent" == "true" ]] \
+  && [[ "$work_intent" != "true" ]]; then
   if ! echo "$last_text" | grep -q "claudefast -h" || ! echo "$last_text" | grep -q "PR opened"; then
     jq -n \
       --arg reason "The user asked the high-priority trigger 'FASTPROBE about PR+conflict resolve'. Do not return an empty answer or only <laziness-self-report>. Re-emit the required Chinese rule answer with: claudefast -h; max 8 claudefast -p probes; stream-json; conflict classes merge/Codex-review/rule-doc; forbidden actions; and the PR opened -> CI + Codex review -> conflict? -> classify -> resolve locally -> rerun verification -> push -> POSTPR loop -> merge ASCII line." \
@@ -213,7 +223,11 @@ if echo "$last_user_text" | grep -qi 'FASTPROBE' \
   exit 0
 fi
 
-if echo "$last_user_text" | grep -qiE '(^|[^[:alnum:]_])POSTPR([^[:alnum:]_]|$)|^[[:space:]]*after PR[[:space:]?.!]*$|what (we )?(shall|should) do after each PR|what do we do after (each )?PR|what to do after each PR|what should we do after (each )?PR|每个[[:space:]]*PR[[:space:]]*后(做什么|要做什么)?|PR[[:space:]]*之后(要做什么|做什么)'; then
+postpr_answer_intent=false
+if echo "$last_user_text" | grep -qiE '^[[:space:]]*(POSTPR|POSTPR now|after PR)[[:space:]?.!]*$|(^|[^[:alnum:]_])(what|explain|list|show|answer)([^[:alnum:]_]).*POSTPR|what (we )?(shall|should) do after each PR|what do we do after (each )?PR|what to do after each PR|what should we do after (each )?PR|每个[[:space:]]*PR[[:space:]]*后(做什么|要做什么)?|PR[[:space:]]*之后(要做什么|做什么)'; then
+  postpr_answer_intent=true
+fi
+if [[ "$postpr_answer_intent" == "true" && "$work_intent" != "true" ]]; then
   if ! echo "$last_text" | grep -qi "fetch the codex review" || ! echo "$last_text" | grep -qi "chatgpt-codex-connector"; then
     jq -n \
       --arg reason "The user asked the POSTPR trigger. Do not return an empty answer or only <laziness-self-report>. Re-emit the required POSTPR answer: fetch the codex review from pulls/<n>/comments filtering chatgpt-codex-connector[bot], triage P1/P2/P3, resolve conflicts before merge, loop until CI green, no merge conflict, and Codex silent/thumbs-up. Mention @codex review for re-review." \
