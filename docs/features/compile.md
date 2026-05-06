@@ -65,9 +65,18 @@ Entry point: `packages/cli/src/bin.ts:612` → `packages/cli/src/commands/compil
    (`compile-pipeline.ts:40`: `if (deps.writeMarkdown && deps.markdownCompiler && !deps.dryRun)`).
 4. `skillCompiler` (`makeSkillCompiler`) writes one `SKILL.md` per qualifying
    entry — `status === 'active'` and `current_tier ∈ {stable, canonical, enforced}`.
-5. Cleanup: rule IDs that demoted below `stable` get their skill dir unlinked.
+5. Cleanup of demoted-rule skill dirs is wired through `compile.skill_should_remove`
+   bus events (`SkillCompiler.cleanup` adapter unlinks `<skillsDir>/<ruleId>/`),
+   but those events are emitted by `calibration-pipeline-v2` during tier
+   transitions (typically inside the Stop hook), NOT inside `executeCompile`.
+   `executeCompile` (`compile.ts:130-136`) does not pass `skillEvents` into
+   `runCompile`, so a manual `pnpm teamagent compile` run does not unlink any
+   directories on its own — it only writes Skills for currently-qualifying rules.
+   Stale skill dirs from previous demotions are pruned the next time the Stop
+   hook runs the calibrator and re-fires the cleanup events.
 6. `renderCompileResult` prints `CLAUDE.md (disabled; no generated rule block)` +
-   `Skills written: N 条`.
+   `Skills written: N 条` (and `Skills removed: N 条` only when the calling code
+   actually fed in skill-removal events, which the manual CLI path does not).
 
 ### Legacy invocation (`--legacy-claude-md` or `TEAMAGENT_LEGACY_CLAUDE_MD=1`)
 
