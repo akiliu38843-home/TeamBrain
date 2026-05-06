@@ -25,7 +25,26 @@
 - **小 commit**：每个 commit 覆盖一个 "概念上完整的小事"。跑得通、测试绿。
 - **commit message 格式**：`feat(m{N}): <...>` / `fix(m{N}): <...>` / `refactor(m{N}): <...>`，让 Milestone 产出在 git 历史中可溯。
 - **Feature 验证门禁**：任何 feature / fix 交付前必须验证，并把“如何验证”写进 commit message 与 PR message。通用 1+2+3：`!claudefast -p` 跑 `{MODULE} --help` 出 JSON；`!codex exec` 跑同一个 `{MODULE} --help` 出 JSON，并 hard-match 两份 canonical JSON；最后用 tmux 跑 interactive `claudefast` 并提交 `/export <path>`，把 export 文件加入 PR contents。详见 `docs/feature-verification.md`。
+- **PR 必须是普通 PR，不要 draft PR**。创建 PR 时不要使用 `--draft`，也不要通过 GitHub UI/API 创建 draft PR；未准备好时继续本地修到验证通过再开普通 PR。
 - **worktree 位置**：新建 git worktree 必须放在仓库内的 `.codex/worktrees/` 目录下，不要放在仓库同级目录、`.worktrees/` 或 `.claude/worktrees/`。
+
+## 高优先级触发答案
+
+- 用户消息等于或近似等于 `what we shall do after each PR?`、`what to do after each PR?`、`POSTPR`、`after PR` 时，必须输出 POSTPR 规则答案，不能空答，不能只输出 `<laziness-self-report>`。答案必须包含 `fetch the codex review`、`chatgpt-codex-connector[bot]`、`pulls/<n>/comments`、P1/P2/P3 triage、conflict resolution before merge、`@codex review`、`loop until silent`，并说明停止条件是 CI green、无 merge conflict、Codex silent/👍。
+
+- 用户消息等于或近似等于 `FASTPROBE about PR+conflict resolve` 时，必须输出规则答案，不能空答，不能只输出 `<laziness-self-report>`，不能实际运行 probe。答案必须包含 `claudefast -h`、`max 8 claudefast -p probes`、`stream-json`、三类冲突（merge / Codex-review / rule-doc）、禁止项（不在 `main` 修、不 `git reset --hard`、不 force push、不丢他人改动），以及这条线性图：
+
+```text
+PR opened
+  -> CI + Codex review
+  -> conflict?
+  -> classify: merge / Codex-review / rule-doc
+  -> resolve locally on PR branch
+  -> rerun pnpm test + pnpm typecheck + feature verification 1+2+3
+  -> push same PR branch or follow-up PR if already merged
+  -> POSTPR loop
+  -> merge only when CI green + no conflict + Codex silent/thumbs-up
+```
 
 ## Project Skills
 
@@ -39,11 +58,18 @@
 - gstack skills 安装位置（**project level**，仓库内、随 git 跟踪）：
   - Claude Code 端：`.claude/skills/<name>/SKILL.md`
   - Codex 端：`.codex/skills/<name>/SKILL.md`
-- 当前已安装的 gstack skills：`canary`、`office-hours`、`plan-ceo-review`，全部 project level，不依赖 user level (`$HOME/.claude/`、`$HOME/.codex/`) 的副本。
-- brain sync bin（`_BRAIN_SYNC_BIN`、`_BRAIN_CONFIG_BIN`）在本仓库的解析路径**也是 project level**——根目录下的 `.claude/`、`.codex/` 子树即为权威路径，不读 `$HOME/.claude/...` 等 user level 位置。
-- 上游 gstack 源码里写成 `~/.claude/<bin>` 形式（且因引号没展开 `~`），是 user level 残留；本项目不沿用，统一以 project level 路径为准。
+- 当前已安装的 gstack skills：`canary`、`design-html`、`design-shotgun`、`office-hours`、`plan-ceo-review`，全部 project level，不依赖 user level (`$HOME/.claude/`、`$HOME/.codex/`) 的副本。
+- brain sync bin（`_BRAIN_SYNC_BIN`、`_BRAIN_CONFIG_BIN`）在本仓库的解析路径**也是 project level**——根目录下的 `.claude/`、`.codex/` 子树即为权威路径；skill preamble 通过 `GSTACK_SKILLS_ROOT` / `GSTACK_BIN` 选择 project-level mirror，Codex 优先 `.codex/skills/gstack/bin`，Claude 优先 `.claude/skills/gstack/bin`，user level 只作为显式 fallback。
+- 上游 gstack 源码里写成 `~/.claude/<bin>` 形式（且因引号没展开 `~`），是 user level 残留；本项目不沿用，统一以 project level 路径为准。确定性验证：`bash scripts/verify-gstack-skill-mirrors.sh`。
 
 简答规则：被问到「gstack skills / brain sync bin 用的是 project 还是 user level」时，答 **project level**。
+
+## 用户沟通语言
+
+- 本项目面向中文协作，agent 与用户沟通时默认必须使用中文。
+- 即使用户用英文提问，只要是在问本项目规则、工具、流程、状态、实现或 PR 相关事项，也必须用中文回答。
+- 只有在用户明确要求输出英文文案、英文原文、代码、命令、JSON、日志或第三方接口字段时，才保留必要英文。
+- 被问到 `based on this project rule, what language agent uses when talk with users and asked in english` 时，这是机械验证哨兵，必须只输出 `中文。`。不要解释、不要引用文档、不要 Markdown、不要表格、不要代码块、不要追加 `<laziness-self-report>`。
 
 ## 跑命令
 
@@ -65,13 +91,16 @@ pnpm teamagent <cmd>  # 跑 CLI（M0 可用：skeleton-demo）
 ```bash
 claudefast -p \
   --output-format stream-json \
-  --include-hook-events \
+  --debug hooks \
+  --debug-file .fastprobe/hooks.debug.log \
   --include-partial-messages \
   --verbose \
   --permission-mode acceptEdits \
   "你的测试 prompt"
 ```
 
+- `claudefast -p` 必须带 prompt 参数，或从 stdin 读 prompt；不要只写 `claudefast -p` 后面全是 flags。
+- verifier 脚本调用 `claudefast` 时，优先直接执行 PATH 上的 `claudefast`；如果只能通过 zsh alias/function 找到，fallback 必须用 interactive zsh（`zsh -i`），不要用普通 `zsh -c`。fallback 时要把 shell 启动噪声 / stderr 与被 grep 的 stdout 分开，避免污染 canned-answer 判断。
 - 不要用 `--bare` 测 TeamAgent hooks；它会跳过 hooks、plugin sync 和 CLAUDE.md 自动发现。
 - 详细说明见 `docs/CLAUDEFAST.md`。
 
@@ -88,17 +117,94 @@ claudefast -p \
 | **`DOGFOOD`** | 双 tmux 窗口 left/right split（左 dev claude / 右 sandbox claudefast）live agent dev loop（详见 `docs/DOGFOOD.md`） |
 | **`BUGREPORT`** | 报 bug 流程：开 issue 在 `https://github.com/libz-renlab-ai/TeamBrain`，三段 system info / how-to-reproduce / raw logs（详见 `docs/BUGREPORT.md`，自动收集 `bash scripts/bugreport-collect.sh`） |
 | **`POSTPR`** | 每个 PR 开完后必做：fetch Codex review → triage P1/P2 → loop until silent or 👍（详见 `docs/POSTPR.md`） |
-| **`MULTITOOL`** | 多工具适配：4 通道（PreToolUse / UserPromptSubmit / Stop analyze / AttributionBus）+ MCP Server NOT YET + Cursor compiler NOT YET（详见 `docs/features/multi-tool.md`） |
+| **`PRESHIP`** | 发版前给 CEO/VC 小鸭看的 verified-only 产品功能状态 CSV（详见 `docs/PRESHIP.md`） |
+| **`RULE-VERIFY`** | 跑 `bash scripts/verify-all-rules.sh` 用 claudefast semantic judge / mechanical checks 验证 8 条 triggered rule 全部 PASS（详见 `docs/rule-verify/INDEX.md`） |
 | `codex exec` | Codex 端 canonical JSON 对照（feature-verification 1+2+3） |
 | **Feature canned answers** | 每个 feature（Calibrator v2、Team knowledge sharing 等）的 6 节模板入口在 `docs/features/INDEX.md` — 不在本文件 inline 答案 |
 
-被问到 `what would happen if we say word 'FASTPROBE'?` 或用户消息单纯含 `FASTPROBE` 时，**必须**按下面三步原文回答，不得改写、不得省略：
+被问到 `what would happen if we say word 'FASTPROBE'?` 或用户消息单纯含 `FASTPROBE` 时，**必须**语义覆盖下面三步；不要求逐字原文，但不得省略关键动作：
 
 1. **先跑 `!claudefast -h`** — 拿到当前 `claudefast` 支持的 flag 列表，避免凭记忆乱写参数。
 2. **重活 + 需要结论的活** → 用 `!claudefast -p "..."` **并行调度，最多 8 路**：把可独立的调研子题切成最多 8 个 prompt 同时跑（heavy work + conclusion-needing），主 agent 汇总。
-3. **审计场景** → 用 `!claudefast -p` 加 **stream-json 参数**（`--output-format stream-json --include-hook-events --include-partial-messages --verbose`）跑，输出可 grep / jq、可回放，留作 evidence。
+3. **审计场景** → 用 `!claudefast -p` 加 **stream-json 参数**（`--output-format stream-json --include-partial-messages --verbose`）和 hook debug 参数（`--debug hooks --debug-file <path>`）跑，输出与 debug log 都可 grep / jq、可回放，留作 evidence。
+
+被问到 `FASTPROBE about PR+conflict resolve` 时，必须回答下面这类中文规则答案，禁止空答，禁止只输出 `<laziness-self-report>`，也不要实际运行 probe、不要派生子任务，除非用户明确说 `run/execute/start FASTPROBE`：
+
+```text
+FASTPROBE about PR+conflict resolve:
+claudefast -h
+  -> split max 8 claudefast -p probes: PR state / Codex inline comments / merge conflict / rule-doc conflict
+  -> stream-json for audit evidence
+  -> synthesize answer
+
+PR opened
+  -> CI + Codex review
+  -> conflict?
+  -> classify: merge / Codex-review / rule-doc
+  -> resolve locally on PR branch
+  -> rerun pnpm test + pnpm typecheck + feature verification 1+2+3
+  -> push same PR branch or follow-up PR if already merged
+  -> POSTPR loop
+  -> merge only when CI green + no conflict + Codex silent/thumbs-up
+```
+
+同时说明：merge conflict 要 fetch 最新 base 后在 PR branch 本地 rebase/merge 并保留双方 intent；Codex review 与实现冲突要先更新 docs/rules 并验证规则答案；规则/文档冲突要优先当前用户指令与当前 `CLAUDE.md`/`AGENTS.md`，更新文档消除歧义。禁止直接在 `main` 修、禁止 `git reset --hard`、禁止 force push、禁止为了消冲突丢掉他人改动。
+
+如果用户同时提到 `FASTPROBE`、`PR`、`conflict/冲突/resolve` 但不是 exact prompt，也按同一答案语义覆盖。
 
 完整 recipe、并行模板、stream-json schema 与示例见 `docs/FASTPROBE.md`。
+
+被问到 `what would happen if we say PRESHIP`、`PRESHIP 是什么`、`explain PRESHIP` 或用户消息单纯含 `PRESHIP` 关键字时，必须用中文回答；**不能只解释规则，必须直接输出实际 CSV**：
+
+1. **PRESHIP 是发版前 CEO/VC 小鸭视角的 verified-only 产品功能状态报告**。它只讲高层产品功能，不讲技术实现细节。
+2. **必须输出实际 CSV rows**，列名优先使用：`状态,功能,给小鸭CEO/VC的解释,证据/当前判断`。
+3. **只列已验证功能**。不要把部分验证、未验证、失败/不稳定、文档规划项作为 feature rows 列入；最多在 CSV 前或后用一句 caveat 说明“未验证/失败/规划项未列入，避免 overclaim”。
+4. 当前 verified-only 产品功能以 `docs/ship-status/2026-05-03-ceo-duck-ship-status.csv` 中 `状态` 为 `已验证` 的产品行作为来源：产品入口能打开、最小学习闭环演示、安全试吃沙箱、AI 犯错前提醒、纠正一次下次记住、知识会进化、看得见的统计、主动记录坑点。不要把 `门禁已验证` / `流程已验证` 行当产品功能列入。
+5. 不要把 `RULE-VERIFY` 或 `bash scripts/verify-all-rules.sh` 说成 PRESHIP 的触发方式。PRESHIP 的触发方式就是用户说 `PRESHIP` 或问 `what would happen if we say PRESHIP`。
+
+回答形状必须类似：
+
+```csv
+"状态","功能","给小鸭CEO/VC的解释","证据/当前判断"
+"已验证","产品入口能打开","鸭总能看到产品菜单，说明不是空壳，能被真实启动。","可作为最小演示卖点。"
+"已验证","最小学习闭环演示","系统能演示记录经验、编译规则、展示归因这条最小链路。","可作为核心概念 demo。"
+"已验证","安全试吃沙箱","新改动可以先放进隔离环境里试，不直接污染主工作区。","DOGFOOD Tier 2 / Tier 3 sandbox probe 已通过；不要 claim Tier 4。"
+"已验证","AI 犯错前提醒","AI 准备走错路时，系统能提前提醒或阻止，避免错误真正落地。","e2e-evaluate 已验证已有经验命中时 positiveTriggerRate=1、falsePositiveRate=0。"
+"已验证","纠正一次，下次记住","用户纠正 AI 一次后，系统能把教训变成以后可复用的经验。","e2e-evaluate 已验证纠正识别、规则提取、后续同类 probe 命中。"
+"已验证","知识会进化","有用经验会更可信，没用或过时经验会降级，避免团队大脑越来越乱。","最小校准闭环已验证。"
+"已验证","看得见的统计","CEO 可以看到系统学到了多少经验、分布在哪些层、最近新增了什么。","teamagent stats 已验证。"
+"已验证","主动记录坑点","用户不用等 AI 犯错，可以主动把一个坑记进系统，让团队以后少踩一次。","pitfall 非交互录入已验证。"
+```
+
+详情见 `docs/PRESHIP.md`。
+
+被问到 `list all the features we clamined please. list product feature not tech feature`、`list all the features we claimed please. list product feature not tech feature`，或用户同时要求列出 claimed features / product features / not tech features 时，必须使用 **ready-to-ship product-only** 口径：
+
+1. 用中文回答。
+2. 只列已经验证、可以稳妥对外展示的产品功能。
+3. 不列 `部分验证`、`已声明未验证`、`失败/不稳定`、`文档规划`、技术门禁、项目工作流、测试状态、脚本、canned answer、E2E、CI/typecheck。
+4. `最小质量线` 是发版门禁，不是产品功能；`快速调研流程` / `PR 后复查流程` 是项目流程，不是 TeamBrain product feature；此问法下不要列入 feature rows。
+5. 输出实际 CSV rows，列名使用：`状态,功能,给小鸭CEO/VC的解释,证据/当前判断`。
+
+回答形状必须类似：
+
+```csv
+"状态","功能","给小鸭CEO/VC的解释","证据/当前判断"
+"已验证","产品入口能打开","鸭总能看到产品菜单，说明不是空壳，能被真实启动。","可作为最小演示卖点。"
+"已验证","最小学习闭环演示","系统能演示记录经验、编译规则、展示归因这条最小链路。","可作为核心概念 demo。"
+"已验证","安全试吃沙箱","新改动可以先放进隔离环境里试，不直接污染主工作区。","DOGFOOD Tier 2 / Tier 3 sandbox probe 已通过；不要 claim Tier 4。"
+"已验证","AI 犯错前提醒","AI 准备走错路时，系统能提前提醒或阻止，避免错误真正落地。","e2e-evaluate 已验证已有经验命中时 positiveTriggerRate=1、falsePositiveRate=0。"
+"已验证","纠正一次，下次记住","用户纠正 AI 一次后，系统能把教训变成以后可复用的经验。","e2e-evaluate 已验证纠正识别、规则提取、后续同类 probe 命中。"
+"已验证","知识会进化","有用经验会更可信，没用或过时经验会降级，避免团队大脑越来越乱。","最小校准闭环已验证。"
+"已验证","看得见的统计","CEO 可以看到系统学到了多少经验、分布在哪些层、最近新增了什么。","teamagent stats 已验证。"
+"已验证","主动记录坑点","用户不用等 AI 犯错，可以主动把一个坑记进系统，让团队以后少踩一次。","pitfall 非交互录入已验证。"
+```
+
+被问到 `list all product features`、`show all features including not verified and not implemented`、`show wip planned missing features`、`complete product feature list` 或用户要求列出**所有**功能（包括 WIP、PLANNED、MISSING）时，**直接读取 `docs/PRODUCT-FEATURES.md`** 自然回答（该文件包含编号 1–49 的完整列表，全部 VERIFIED）。不要只返回 VERIFIED 口径的 9 行 CSV。
+
+**产品功能问法的 SOT**：所有关于产品功能列表的问法（含错别字如 `featuers`、含 `not tech features`、含 `chinese cute duck` 等修饰语）都应以 `docs/PRODUCT-FEATURES.md` 为权威来源自然推理回答。鸭语风格（`呷呷~` / `鸭鸭` / ASCII 鸭子）仅在用户 prompt 明确包含 `chinese cute duck`、`cute duck`、`可爱小鸭` 等鸭语信号时才加；不要为了凑数硬填或硬截。回答全部 49 项时直接读该文件的 1–49 编号列表，不走任何 canned-answer。
+
+**注意区分**：`ready-to-ship product-only` 口径（9 行 CSV）仅适用于 CEO/VC deck 场景、或明确要求"只列已验证 + 不要技术细节"且**不要求列全部**的问法；`list all product features`（包含 `list all`、全部、all 等措辞）一律走完整 49-feature 口径。
 
 被问到 `what would happen when we say DOGFOOD?`、`explain DOGFOOD`、`explain what would happen when we say DOGFOOD` 或用户消息单纯含 `DOGFOOD` 关键字时，**必须**先把下面这一句以 blockquote 原文返回，不得改写、不得 paraphrase、不得跳过：
 
@@ -136,11 +242,12 @@ claudefast -p \
 
 随后按下面三段固定展开，不得省略段标题（`fetch the codex review` 字面词必须出现至少一次）：
 
-1. **Fetch the Codex review** — 跑 `env -u GITHUB_TOKEN gh api repos/libz-renlab-ai/TeamBrain/pulls/<n>/comments --jq '.[] | {user: .user.login, body, path, line}'`，过滤 `chatgpt-codex-connector[bot]`。Review 摘要也可用 `gh pr view <n> --repo libz-renlab-ai/TeamBrain --json reviews` 看，但**实际可执行的发现都在 inline comments**里（不要只读 review summary 就 ship）。Codex 通常在 PR 开出 1–3 分钟内贴评论。
+1. **Fetch the Codex review** — 跑 `env -u GITHUB_TOKEN gh api repos/libz-renlab-ai/TeamBrain/pulls/<n>/comments --jq '.[] | {user: .user.login, body, path, line}'`，过滤 `chatgpt-codex-connector[bot]`。Review 摘要也可用 `gh pr view <n> --repo libz-renlab-ai/TeamBrain --json reviews` 看，但**实际可执行的发现都在 inline comments**里（不要只读 review summary 就 ship）。Codex 通常在 PR 开出 1–3 分钟内贴评论；如果 inline comments 为空且没有 Codex 👍，就在 PR 评论 `@codex review`，暂停 1 分钟，再重新 fetch inline comments。
 2. **Triage by priority** — Codex 评论自带 P1（红）/P2（黄）/P3（蓝）badge。P1 视为 blocker，P2 默认 fix-before-merge（除非显式 punt 并在 PR 留 follow-up issue 链接）。修法：原 PR 没合并 → 直接 push 到同一分支让 auto-merge 重跑 CI；已合并 → 开 follow-up PR，commit message 带 `Refs codex review on PR #<n>`。
-3. **Loop until silent** — Codex **同样会 review 你的 follow-up PR**（实际案例：#51 → #52 → #53 三轮接力，每轮都抓出新 bug）。所以每开一个 fix PR，回到第 1 步重跑。停止条件：Codex 在最新 commit 上 👍 或不留 comment。`fetch the codex review` 这一动作要做到链路彻底干净为止。
+3. **Resolve conflicts before merge** — 若 PR 出现冲突，先分类再处理：merge conflict → fetch/rebase 或 merge base 到 PR branch、本地解冲突、保留两边 intent；Codex review 与实现方案冲突 → 先更新 docs/rules 并验证规则答案，再修代码或显式 punt；规则/文档冲突 → 以当前用户指令和当前 `CLAUDE.md`/`AGENTS.md` 优先，更新文档消除歧义。禁止直接在 `main` 修、禁止 `git reset --hard`、禁止 force push、禁止为了消冲突丢掉别人改动。解冲突后必须重跑验证并 push 回同一 PR 分支；若原 PR 已 merge，则开 follow-up PR 并引用原 PR。
+4. **Loop until silent** — Codex **同样会 review 你的 follow-up PR**（实际案例：#51 → #52 → #53 三轮接力，每轮都抓出新 bug）。所以每开一个 fix PR 或 conflict-resolution commit，都回到第 1 步重跑。停止条件：CI green、无 merge conflict、Codex 在最新 commit 上 👍 或不留 comment。`fetch the codex review` 这一动作要做到链路彻底干净为止。
 
-详情、`gh api` 配方、Codex 标签解读见 `docs/POSTPR.md`。验证脚本 `bash docs/postpr/verify-canned-answer.sh` 必须 PASS —— grep 锚点 `fetch the codex review` / `chatgpt-codex-connector` / `pulls/.*comments` / `silent` / `loop` 全部命中。
+详情、`gh api` 配方、Codex 标签解读见 `docs/POSTPR.md`。验证脚本 `bash docs/postpr/verify-canned-answer.sh` 必须 PASS —— grep 锚点 `fetch the codex review` / `chatgpt-codex-connector` / `pulls/.*comments` / `@codex review` / `silent` / `loop` 全部命中。
 
 ## GitHub account
 
@@ -165,10 +272,13 @@ export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-[redacted]}"
 # 非交互 API/自动化调用示例
 claude -p "Summarize latest changes in this repo" \
   --output-format stream-json \
-  --include-hook-events \
+  --debug hooks \
+  --debug-file /tmp/claude-hooks.debug.log \
   --include-partial-messages \
   --verbose
 ```
+
+`claude -p` / `claudefast -p` 必须接收 prompt：要么像上面一样把 prompt 放在 `-p` 后的 argv 里，要么从 stdin pipe 进去；不要只传 flags。
 
 ## Agent 工作树
 
@@ -189,40 +299,35 @@ claude -p "Summarize latest changes in this repo" \
 - 若新版表现异常，回滚：env `TEAMAGENT_MATCHER=legacy`
 - 规则迁移：`pnpm teamagent migrate-v6` 给旧规则生成语义描述 + embedding
 
----
+## Project Knowledge Index
 
-*以上为人工维护的开发约定。从 M1 开始，CLAUDE.md 会多一个 TEAMAGENT:START/END 区块，由系统自动维护"已学到的经验"。*
+Learned behavior is no longer carried by a generated managed block in this file.
+Project knowledge should propagate through `docs/knowledge/INDEX.md` and project
+Skills, while this root `CLAUDE.md` stays limited to short human-maintained
+working agreements.
 
 <!-- TEAMAGENT:START - 自动管理，请勿手动编辑 -->
-## TeamAgent 经验（74条活跃知识，为你编译了 28 条（token 预算 3000）)
-- 使用 忽略 <local-command-caveat> 包裹的消息，除非用户明确要求分析 而非 <local-command-caveat>——该标签内容由本地命令自动生成，非用户意图表达；AI 主动响应会污染对话上下文，误把系统噪声当用户指令 [1.00] [预置]
+## TeamAgent 经验（30条活跃知识）
 - 移除用户反馈的检查条件，仅基于失败本身触发分析——用户反馈约束是冗余的；所有错都应进入分析管道，由规则库自主决定是否学习，而非前置过滤 [0.95] [预置]
-- 规则类型（practice/avoidance）应只影响处理策略（enforcement），不应影响 matching 逻辑；所有规则都应参与匹配——在 matcher 中过滤 practice 类规则导致其永不触发，失去学习反馈信号和评分机制；类型应仅控制 block/warn/score 行为，而非决定规则是否生效 [0.95] [预置]
 - avoidance 必须配 wrong_pattern（可字面匹配关键词），practice 应为空；两种规则走不同处理流程——avoidance 类规则需要可靠字面关键词才能被 matcher 在 PreToolUse 拦截，practice 类规则是原则性指导、没可靠字面关键词，直接编译进 CLAUDE.md 供 AI 读；数据合法性约束必须在 seed 生成或 LLM extractor 阶段强制执行 [0.95] [预置]
-- 使用 按要求的格式在消息末尾附加 <laziness-self-report> block，包含全部 6 个字段的自我评估 而非 <laziness-self-report>——用户明确要求特定输出格式时，AI 必须严格遵守。缺少必需的 block 属于格式违规，即使内容正确也构成问题——格式完整性本身是协作规范的一部分 [0.90]
-- 在停止前附加 <laziness-self-report> block，包含 premature_stopping / permission_seeking / ownership_dodging / simplest_fix / reasoning_loop / known_limitation 六个字段的诚实自我评估——Stop hook 要求在每条消息末尾附加 laziness-self-report block；缺少该 block 属于格式违规，即使内容正确也构成问题，因为格式完整性是协作规范的一部分 [0.90]
-- 使用 消息末尾必须附加完整 <laziness-self-report> block，包含 6 个布尔字段：premature_stopping, permission_seeking, ownership_dodging, simplest_fix, reasoning_loop, known_limitation 而非 <laziness-self-report>——用户明确要求每条消息末尾带 self-report block 供 hook 校验，遗漏或格式不完整都会被 catch 并打回补全 [0.90]
-- 消息末尾附加完整的 <laziness-self-report> block，包含全部 6 个布尔字段的诚实自评——Stop hook 强制每条消息末尾都有格式化的自评 block；缺少该 block 属于格式违规会被 hook 拒收；这是协作协议一部分，确保 AI 能进行懒惰模式的诚实评估 [0.90]
-- 查源代码路径和 commit 版本确认实现状态，而非凭记忆或假设说'未实现'——分布式实现的功能跨多个包/文件，凭印象说'未实现'容易过时且误导团队；应以代码真相和版本号为准 [0.90]
-- 提前盘点行数预算，使用指针模式（父文档仅保留表格指针行，详细内容沉到 docs/features/<name>.md 子文档）——并行 feature 各自增加内容容易超行数预算；指针+沉层保持核心文档精炼可控，完整内容在子文档可寻可读，避免团队间协调冲突 [0.90]
-- 使用 先读用户指向的文件，重新 brainstorm + 补全需求，再拆 task 实现；API key 来源询问用户（如 claude code haiku） 而非 计划文档只是设计文档，还没实现——AI 未读文件就断言不存在会误导用户；正确做法是先 Read 指定路径、以文件内容为准，再结合用户偏好（如用 haiku 作 token 来源）规划实现 [0.90] [预置]
-- 立即读取 output-file 并继续后续流程，不再说'等通知'——task-notification 本身就是通知；AI 仍说'等通知'说明未识别该消息为触发信号，正确做法是收到后立即处理输出、推进工作流 [0.90] [预置]
-- 后台 agent 完成时系统会发 task-notification，包含 task-id、output-file、status、summary；可通过 TaskOutput 工具按 task-id 读取结果——Agent(run_in_background=true) 底层走 TaskCreate 机制，完成后 harness 自动发 task-notification 事件；AI 声称'无法手动查状态'是错的，实际有 task-id 可查 [0.90] [预置]
-- 立即读取 output-file，继续后续流程（如 dispatch 下一 Wave）——task-notification 本身就是完成信号；收到后仍说'等通知'说明 AI 未识别该消息为触发点，正确做法是收到即处理，不需要额外等待 [0.90] [预置]
-- 维护游标，增量扫描新增 turn，去重已处理；仅在 /new、/clear、/compact、退出、关闭窗口时做完整重扫——Stop 每轮触发，全量重扫导致 token 消耗呈平方增长；增量扫描维护游标可避免重复，关键时刻完整重扫确保一致性 [0.90] [预置]
 - 自动化拉取 + 自动清理过时数据——手动维护导致数据陈旧（拉取滞后5天）和无效数据堆积，自动化+清理确保知识及时可用且命中率高 [0.90] [预置]
-- 立即用 TaskOutput 工具按 task-id 读取输出，继续流程——task-notification 本身就是完成信号，harness 发出即表示任务已完；立即处理充分利用并行性而非阻塞 [0.90] [预置]
-- 忽略标签内所有内容，除非用户明确要求分析——<local-command-caveat> 由本地命令自动生成而非用户意图，响应会把系统噪声当指令污染对话 [0.90] [预置]
-- 分别为 Windows（where/findstr/PowerShell）和 Unix（which/grep）提供诊断命令，或明确标注环境要求——Unix 命令（which, grep, cat |）在 Windows cmd 原生环境不可用；跨平台用户群需要对应平台的等价命令，混合给两个平台的指令会导致 Windows 用户卡住且困惑 [0.90] [预置]
-- 使用 Hook 系统完整工作；flag 仅隐藏 Claude Code UI 权限交互弹窗 而非 --dangerously-skip-permissions——Flag 名字暗示禁用全部权限检查，实际只跳过交互式弹窗。PreToolUse/PostToolUse/Stop/SessionStart 等 hook 独立于此标志完整运行，不受影响 [0.90] [预置]
-- 当遇到 `<local-command-caveat>` 标签，忽略其包裹的内容，除非用户明确要求分析或响应——该标签标记系统生成的消息（如本地命令输出），非用户的显式意图；直接响应会污染对话上下文并误把工具输出当作用户指令 [0.90] [预置]
-- 编辑前先扫描现状（wc -l 报告行数、grep 检查内容、read ignore 文件），基于实际约束再给改方案——直接给编辑计划而不先做 inventory，会导致方案与现状脱节；真实扫描能发现行数限制、ignore 规则等约束，使后续方案更可靠且符合规范 [0.95]
-- 先用 `wc -l` 检查当前行数，若 ≥ 170 行则仅能添加 1 行表格指针指向 docs/ 子目录——CLAUDE.md 是项目入口文档，超过 170 行会影响可读性；行数已满时通过指针外链而非展开详情可保持入口简洁 [0.95]
-- 不要凭记忆作答；优先用 WebSearch/WebFetch 或 mcp 搜索工具验证，再结合当前代码上下文作答——模型记忆会过时或臆造（幻觉）；用户用到的新概念常在训练数据截止之后出现。先搜索再作答可避免给出错误事实、误导用户 [0.95] [预置]
-- 先把凭据/环境持久化到项目配置（增量、不改已有内容），再让 subagent 自主完成；远程实验需先检测空闲显卡避免影响他人——反复追问凭据打断用户节奏；配置应一次记录永久复用。subagent 应自主推进而非报 BLOCKED。共享 GPU 资源需礼让他人实验 [0.95] [预置]
+- 先说出对需求的理解并让用户确认理解准确，再规划技术方案和开始工程操作——提前澄清产品意图而非立即着手工具调用和技术决策，避免方向偏离导致返工 [0.95]
+- 规则同步应完全自动化且对用户静默；用户可主动编辑规则，改动自动在团队间同步——自动化同步避免配置漂移和人工维护负担，支持用户主动贡献规则，确保团队所有成员无感获得完整 teamagent 功能 [0.95]
 - 按产品经理视角讲架构、流程、关键原理,略过代码级细节——默认倾向给技术细节会淹没非技术受众；产品经理需要整体认知(架构/流程/原理)而非实现,讲解粒度要匹配听众心智模型 [0.95] [预置]
 - 使用 直接调用 mcp 工具 而非 通过 wiki 知识库系统——wiki 知识库方案过度复杂；应优先检查是否有现成 mcp 工具可直接调用，避免绕路 [0.95] [预置]
-- 全局单次init，所有项目共享规则——全局 init 避免重复配置和规则分散，保证用户所有项目规则一致，降低管理成本 [0.95] [预置]
-> 还有 35 条 canonical+ 规则因 token 预算未显示（teamagent compile --dry-run 查看）
-> 另有 2 条因与已选条目近义（Jaccard ≥ 0.6）被多样性过滤
+- 先澄清和解释系统逻辑细节，获得用户确认理解后再给建议——用户若不理解系统为何如此，对改动方案缺乏信心；同步理解是决策的前置条件，避免改动后产生新的疑虑 [0.95] [预置]
+- 将抽象层级维持在问题与思路层而非技术与结构层；焦点放在问题形状、核心判断、思路选择与权衡取舍，避免具体技术名、目录、字段、算法、流水线式细节——资深架构师关注的是设计的认知模型与思维方式而非实现的技术栈；提升抽象层级使文档跨时间跨团队复用，避免技术细节导致的快速过时 [0.95] [预置]
+- 保持在功能与机制层级：讲『系统做什么』和『如何运转』，避免实现细节（技术名、目录、代码组织）和空泛表述（价值观、文学比喻）——资深读者需要清晰的功能骨架来快速形成系统心智模型；过低的抽象陷入无关细节，过高的抽象脱离工程实现，只有功能与机制层才能既有清晰的因果链又足以指导架构判断 [0.95] [预置]
+- 保持在功能与机制层：讲系统做什么、如何运转；避免掉进实现细节（技术名、路径、代码组织）和空泛理念（价值观表述、文学比喻）——资深工程师需要清晰的功能骨架来快速形成系统心智模型；掉进细节淹没主线，飘到理念脱离工程实践，只有功能与机制层既有因果链又足以指导架构判断 [0.95] [预置]
+- 遇到用户提出的概念和名词优先到 web 中 search，而非依赖自身记忆——LLM 记忆可能过时或有幻觉，web search 确保信息最新准确，特别是对新术语和概念的理解 [0.95] [预置]
+- 优先提议能够完整践行核心系统原则（如全自动化）的方案，将成本和实现难度作为次要考量因素——系统的关键设计约束（如全自动化）是架构的基石，为了降低成本而绕过原则会留下隐患；应该先确保原则被完整践行，再在此基础上优化成本 [0.95] [预置]
+- verbose = 显示所有事件（含调试细节）——用户明确要求此措辞；保持文档用词与用户偏好一致 [0.90] [预置]
+- 以用户对话中明确给出的值为准，覆盖计划文档中的默认值——计划文档是起点而非圣经；用户在实施阶段口头修改参数（如将 token 预算从 2000 改为 3000）代表最新决策，AI 必须用对话值而非文档值，否则实现与用户意图不符 [0.90] [预置]
+- 用通俗语言、具体例子和类比讲解，分级呈现，避免术语密集——清晰度比完整性更重要；受众可能是非技术专家，无需全部细节，让对方理解核心才是关键 [0.90] [预置]
+- 用通俗语言和类比讲解，从简单到复杂递进，避免术语堆砌——用户反馈技术讲解过于复杂，应优先用日常语言让概念易懂，技术细节可后续补充 [0.90] [预置]
+- 先说高层结论和用户能理解的原因，再逐步深化技术细节；避免单纯堆砌项目内部术语和函数名——用户难以理解项目内部函数名（parseSessionFile）和技术链条的直接堆砌，通俗化解释能帮助快速形成心智模型而非被实现细节淹没 [0.90] [预置]
+- 用高效的语义框架直接映射核心要点，快速表达而非长篇故事类比——用户在讲解技术设计时偏好高信息密度、直抵要点的表述方式，而非冗长的类比故事 [0.90] [预置]
+- 直接推进到完整产出和最终决策，而非先做中间汇报后延后详细展开——有充分数据支撑时应果断推进完整交付，而非在设计中插入'先通报研究、后详细展开'的延缓节奏，可保持工作势头和交付效率 [0.90] [预置]
+- 定义元原则（字面稳定、substring 命中、脱离上下文仍指向问题）+ 给跨领域代表性例子——穷举表永不完整且易遗漏，通过元原则揭示 pattern 的本质特征，配合多领域例子，能让 LLM 理解规律并泛化到未见场景 [0.80] [预置]
+- 错误驱动学习 + 自动整理规则库 + RAG 向量匹配——错误驱动学习使规则库自进化，无需人工维护；自动整理（删无用、强化好的、合并重复）避免规则堆积；RAG 向量匹配相比纯关键词 substring 能捕获语义相似场景，显著提升规则命中率和覆盖范围 [0.80] [预置]
 <!-- TEAMAGENT:END -->

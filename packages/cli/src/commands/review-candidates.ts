@@ -7,22 +7,33 @@ import {
   SqliteCandidateQueue,
   SqliteEventLog,
   openDb,
-  createRuleCompiler,
   makeSkillCompiler,
 } from "@teamagent/adapters";
-import { runCalibrationPipeline, defaultCalibrator, runCompile } from "@teamagent/core";
+import {
+  detectSensitiveText,
+  runCalibrationPipeline,
+  defaultCalibrator,
+  runCompile,
+} from "@teamagent/core";
 import type { PersistedEvent } from "@teamagent/types";
+import { scheduleDocsPropagation } from "./docs-propagate.js";
 
 export interface ReviewCandidatesOptions {
   limit?: number;
+  approveScope?: "personal" | "team" | "global";
   homeDir?: string;
   cwd?: string;
   candidatesDbPath?: string;
   projectDbPath?: string;
   userGlobalDbPath?: string;
   eventsDbPath?: string;
+  skillsDir?: string;
+  /** @deprecated 新规则路径不再写 CLAUDE.md；保留字段仅为兼容旧调用方。 */
   claudeMdPath?: string;
   now?: () => Date;
+  docsPropagationScheduler?: (ruleIds: string[]) => void | Promise<void>;
+  input?: NodeJS.ReadableStream;
+  output?: NodeJS.WritableStream;
 }
 
 export async function executeReviewCandidates(
@@ -38,9 +49,10 @@ export async function executeReviewCandidates(
     opts.userGlobalDbPath ?? path.join(home, ".teamagent", "global.db");
   const eventsDbPath =
     opts.eventsDbPath ?? path.join(home, ".teamagent", "events.db");
-  const claudeMdPath = opts.claudeMdPath ?? path.join(cwd, "CLAUDE.md");
-  const userRulesDir = path.join(home, ".claude", "teamagent", "rules");
+  const skillsDir = opts.skillsDir ?? path.join(home, ".claude", "skills", "teamagent");
   const now = opts.now ?? (() => new Date());
+  const output = opts.output ?? process.stdout;
+  const approveScope = opts.approveScope;
 
   const emitEvent = (evt: Omit<PersistedEvent, "schema_version">): void => {
     if (!fs.existsSync(eventsDbPath)) return;
@@ -77,59 +89,78 @@ export async function executeReviewCandidates(
   const projectStore = store.getProjectStore();
 
   const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
+    input: opts.input ?? process.stdin,
+    output,
   });
 
   const ask = (prompt: string): Promise<string> =>
     new Promise((resolve) => rl.question(prompt, resolve));
 
-  process.stdout.write(`📋 候选规则审核 — 共 ${pending.length} 条待审\n`);
-  process.stdout.write("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+  output.write(`📋 候选规则审核 — 共 ${pending.length} 条待审\n`);
+  output.write("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
   let approved = 0;
   let rejected = 0;
   let skipped = 0;
+  const approvedRuleIds: string[] = [];
 
   for (let i = 0; i < pending.length; i++) {
     const candidate = pending[i]!;
     const e = candidate.entry;
 
-    process.stdout.write(`\n[${i + 1}/${pending.length}] category=${e.category}  tags=[${e.tags.join(", ")}]\n`);
-    process.stdout.write(`  trigger:  ${e.trigger}\n`);
-    if (e.wrong_pattern) process.stdout.write(`  wrong:    ${e.wrong_pattern}\n`);
-    process.stdout.write(`  correct:  ${e.correct_pattern}\n`);
-    process.stdout.write(`  reason:   ${e.reasoning}\n`);
-    process.stdout.write(`  来源信号: ${candidate.sourceSignals}\n`);
-    process.stdout.write(`  confidence: ${e.confidence.toFixed(2)}\n`);
-    process.stdout.write("\n  [a]pprove  [r]eject  [s]kip  [q]uit\n");
+    output.write(`\n[${i + 1}/${pending.length}] category=${e.category}  tags=[${e.tags.join(", ")}]\n`);
+    output.write(`  trigger:  ${e.trigger}\n`);
+    if (e.wrong_pattern) output.write(`  wrong:    ${e.wrong_pattern}\n`);
+    output.write(`  correct:  ${e.correct_pattern}\n`);
+    output.write(`  reason:   ${e.reasoning}\n`);
+    output.write(`  来源信号: ${candidate.sourceSignals}\n`);
+    output.write(`  confidence: ${e.confidence.toFixed(2)}\n`);
+    output.write("\n  [a]pprove  [r]eject  [s]kip  [q]uit\n");
 
     const answer = (await ask("> ")).trim().toLowerCase();
 
     if (answer === "q") {
-      process.stdout.write("\n退出审核，剩余条目保留在队列中。\n");
+      output.write("\n退出审核，剩余条目保留在队列中。\n");
       break;
     }
 
     if (answer === "a") {
       try {
-        projectStore.add(e);
+        const approvedEntry = approveScope
+          ? { ...e, scope: { ...e.scope, level: approveScope } }
+          : e;
+        if (approvedEntry.scope.level === "team") {
+          const findings = detectSensitiveText([
+            approvedEntry.trigger,
+            approvedEntry.wrong_pattern,
+            approvedEntry.correct_pattern,
+            approvedEntry.reasoning,
+            approvedEntry.tags.join("\n"),
+          ].join("\n"));
+          if (findings.length > 0) {
+            const kinds = [...new Set(findings.map((f) => f.kind))].join(", ");
+            output.write(`⚠ 隐私守门拦截: team 候选含敏感信息 (${kinds})，未写入知识库\n`);
+            continue;
+          }
+        }
+        store.add(approvedEntry);
         queue.updateStatus(candidate.id, "approved");
         approved++;
-        process.stdout.write(`✓ 已写入知识库 (id: ${e.id})\n`);
+        approvedRuleIds.push(approvedEntry.id);
+        output.write(`✓ 已写入知识库 (id: ${approvedEntry.id}, scope: ${approvedEntry.scope.level})\n`);
         emitEvent({
           id: `ev-cand-approved-${now().getTime()}-${candidate.id.slice(-6)}`,
           kind: "error.candidate.approved",
-          knowledge_id: e.id,
+          knowledge_id: approvedEntry.id,
           timestamp: now().toISOString(),
         });
       } catch (err) {
-        process.stdout.write(`⚠ 写入失败: ${String(err).slice(0, 100)}\n`);
+        output.write(`⚠ 写入失败: ${String(err).slice(0, 100)}\n`);
       }
     } else if (answer === "r") {
       queue.updateStatus(candidate.id, "rejected");
       rejected++;
-      process.stdout.write("✗ 已拒绝\n");
+      output.write("✗ 已拒绝\n");
       emitEvent({
         id: `ev-cand-rejected-${now().getTime()}-${candidate.id.slice(-6)}`,
         kind: "error.candidate.rejected",
@@ -138,14 +169,14 @@ export async function executeReviewCandidates(
     } else {
       queue.updateStatus(candidate.id, "skipped");
       skipped++;
-      process.stdout.write("→ 已跳过（下次审核可见）\n");
+      output.write("→ 已跳过（下次审核可见）\n");
     }
   }
 
   rl.close();
 
   if (approved > 0) {
-    process.stdout.write("\n重新校准 + 编译 CLAUDE.md…\n");
+    output.write("\n重新校准 + 更新 Skills + 调度 docs propagation…\n");
     try {
       await runCalibrationPipeline({
         calibrator: defaultCalibrator,
@@ -153,19 +184,18 @@ export async function executeReviewCandidates(
         events: [],
         now,
       });
-      const mdCompiler = createRuleCompiler({
-        claudeMdPath,
-        rulesDir: userRulesDir,
-        now: () => now().toISOString(),
-      });
       await runCompile({
         store,
-        markdownCompiler: mdCompiler,
-        skillCompiler: makeSkillCompiler(),
+        skillCompiler: makeSkillCompiler({ skillsDir }),
       });
-      process.stdout.write("✓ CLAUDE.md 已更新\n");
+      if (opts.docsPropagationScheduler) {
+        await opts.docsPropagationScheduler(approvedRuleIds);
+      } else {
+        scheduleDocsPropagation(approvedRuleIds, { cwd });
+      }
+      output.write("✓ Skills 已更新；docs propagation 已调度\n");
     } catch (err) {
-      process.stdout.write(`⚠ 校准/编译失败: ${String(err).slice(0, 100)}\n`);
+      output.write(`⚠ 校准/导出失败: ${String(err).slice(0, 100)}\n`);
     }
   }
 
@@ -186,6 +216,16 @@ export function parseReviewCandidatesArgs(argv: string[]): ReviewCandidatesOptio
       opts.limit = parseInt(argv[++i]!, 10);
     } else if (a.startsWith("--limit=")) {
       opts.limit = parseInt(a.slice("--limit=".length), 10);
+    } else if (a === "--approve-scope" && argv[i + 1]) {
+      const scope = argv[++i]!;
+      if (scope === "personal" || scope === "team" || scope === "global") {
+        opts.approveScope = scope;
+      }
+    } else if (a.startsWith("--approve-scope=")) {
+      const scope = a.slice("--approve-scope=".length);
+      if (scope === "personal" || scope === "team" || scope === "global") {
+        opts.approveScope = scope;
+      }
     }
   }
   return opts;

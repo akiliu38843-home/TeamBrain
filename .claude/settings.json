@@ -7,8 +7,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/laziness-self-report.sh\"",
-            "timeout": 10
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/teamagent-stop.sh\"",
+            "timeout": 60
           }
         ]
       }

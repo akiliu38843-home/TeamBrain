@@ -4,6 +4,41 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runSkeletonDemo } from "./commands/skeleton-demo.js";
 import {
+  runM5Infect,
+  parseM5InfectArgs,
+  renderM5InfectResult,
+} from "./commands/m5-infect.js";
+import {
+  runM5Bootstrap,
+  parseM5BootstrapArgs,
+  renderM5BootstrapResult,
+} from "./commands/m5-bootstrap.js";
+import {
+  runM5Share,
+  parseM5ShareArgs,
+  renderM5ShareResult,
+} from "./commands/m5-share.js";
+import {
+  runM5Sync,
+  parseM5SyncArgs,
+  renderM5SyncResult,
+} from "./commands/m5-sync.js";
+import {
+  runM5Delete,
+  parseM5DeleteArgs,
+  renderM5DeleteResult,
+} from "./commands/m5-delete.js";
+import {
+  runM5Status,
+  parseM5StatusArgs,
+  renderM5StatusResult,
+} from "./commands/m5-status.js";
+import {
+  runM5Publish,
+  parseM5PublishArgs,
+  renderM5PublishResult,
+} from "./commands/m5-publish.js";
+import {
   executePitfall,
   runPitfallInteractive,
   parsePitfallArgs,
@@ -61,6 +96,16 @@ import {
   parseCompileArgs,
   renderCompileResult,
 } from "./commands/compile.js";
+import {
+  executeCompileCursor,
+  parseCompileCursorArgs,
+  renderCompileCursorResult,
+} from "./commands/compile-cursor.js";
+import {
+  executeDocsPropagate,
+  parseDocsPropagateArgs,
+  renderDocsPropagationResult,
+} from "./commands/docs-propagate.js";
 import { executeConfig } from "./commands/config.js";
 import {
   executeDoctor,
@@ -77,6 +122,17 @@ import {
   executeReviewCandidates,
   parseReviewCandidatesArgs,
 } from "./commands/review-candidates.js";
+import {
+  executeTeamExport,
+  executeTeamImport,
+  parseTeamExportArgs,
+  parseTeamImportArgs,
+} from "./commands/team-transfer.js";
+import {
+  executeGitSyncPush,
+  executeGitSyncPull,
+  parseGitSyncArgs,
+} from "./commands/git-sync.js";
 import { executePrCycle, parsePrCycleArgs } from "./commands/pr-cycle.js";
 import {
   executePairAccept,
@@ -155,6 +211,60 @@ async function main(): Promise<void> {
     case "skeleton-demo": {
       const output = await runSkeletonDemo();
       if (output) process.stdout.write(output + "\n");
+      return;
+    }
+    case "m5-infect": {
+      const opts = parseM5InfectArgs(rest);
+      const result = await runM5Infect(opts);
+      process.stdout.write(renderM5InfectResult(result) + "\n");
+      return;
+    }
+    case "m5-bootstrap": {
+      const opts = parseM5BootstrapArgs(rest);
+      const result = await runM5Bootstrap(opts);
+      const { output, exitCode } = renderM5BootstrapResult(result);
+      process.stdout.write(output + "\n");
+      if (exitCode !== 0) process.exit(exitCode);
+      return;
+    }
+    case "m5-share": {
+      const opts = parseM5ShareArgs(rest);
+      if (!opts.text) {
+        process.stderr.write(
+          "[m5-share] 必须提供 --text \"<规则文本>\"\n"
+        );
+        process.exit(1);
+      }
+      const result = await runM5Share(opts);
+      process.stdout.write(renderM5ShareResult(result) + "\n");
+      return;
+    }
+    case "m5-sync": {
+      const opts = parseM5SyncArgs(rest);
+      const result = await runM5Sync(opts);
+      process.stdout.write(renderM5SyncResult(result) + "\n");
+      return;
+    }
+    case "m5-delete": {
+      const opts = parseM5DeleteArgs(rest);
+      if (!opts.ruleId) {
+        process.stderr.write("[m5-delete] 必须提供 --rule-id <id>\n");
+        process.exit(1);
+      }
+      const result = await runM5Delete(opts);
+      process.stdout.write(renderM5DeleteResult(result) + "\n");
+      return;
+    }
+    case "m5-status": {
+      const opts = parseM5StatusArgs(rest);
+      const result = await runM5Status(opts);
+      process.stdout.write(renderM5StatusResult(result) + "\n");
+      return;
+    }
+    case "m5-publish": {
+      const opts = parseM5PublishArgs(rest);
+      const result = await runM5Publish(opts);
+      process.stdout.write(renderM5PublishResult(result) + "\n");
       return;
     }
     case "pitfall": {
@@ -290,6 +400,30 @@ async function main(): Promise<void> {
       return;
     }
     case "init": {
+      if (rest.includes("--help") || rest.includes("-h")) {
+        process.stdout.write(
+          "Usage: teamagent init [--dry-run] [--skip-import] [--skip-hook] [--install-plugins]\n" +
+          "                      [--target=claude|codex|both]\n" +
+          "\n" +
+          "Options:\n" +
+          "  --dry-run            Preview what init would do without making changes\n" +
+          "  --skip-import        Skip LLM-based rule import step\n" +
+          "  --skip-hook          Skip hook registration\n" +
+          "  --skip-warmup        Skip embedding model warmup\n" +
+          "  --install-plugins    Also install team plugins (superpowers/caveman/sales)\n" +
+          "  --target=TARGET      claude (default), codex, or both\n" +
+          "\n" +
+          "Scaffolds TeamAgent config in the current project:\n" +
+          "  - Creates .teamagent/ directory and initializes knowledge DB\n" +
+          "  - Injects meta-principles into global store\n" +
+          "  - Imports rules from CLAUDE.md / AGENTS.md / .cursorrules\n" +
+          "  - Registers Claude Code hook (PreToolUse)\n" +
+          "  - Exports compiled Skills\n" +
+          "\n" +
+          "Run teamagent doctor after init to verify the installation.\n",
+        );
+        return;
+      }
       const opts = parseInitArgs(rest);
       const result = await executeInit(opts);
       process.stdout.write(renderInitResult(result));
@@ -375,6 +509,22 @@ async function main(): Promise<void> {
       return;
     }
     case "dogfood-report": {
+      if (rest.includes("--help") || rest.includes("-h")) {
+        process.stdout.write(
+          "Usage: teamagent dogfood-report [--output=path]\n" +
+          "\n" +
+          "Options:\n" +
+          "  --output=PATH    Write report to PATH (default: docs/dogfood/自举报告.md)\n" +
+          "\n" +
+          "Scans events.db + knowledge.db + git log to generate a self-bootstrapping\n" +
+          "dogfood report. Shows knowledge stats, hook interventions, top fired rules,\n" +
+          "and confidence changes across all sandbox tiers.\n" +
+          "\n" +
+          "Tier isolation: operates on current sandbox state without crossing tier\n" +
+          "boundaries. Use --output to redirect to a different path.\n",
+        );
+        return;
+      }
       const opts = parseDogfoodReportArgs(rest);
       const r = await executeDogfoodReport(opts);
       process.stdout.write(
@@ -383,6 +533,22 @@ async function main(): Promise<void> {
       return;
     }
     case "bug-report": {
+      if (rest.includes("--help") || rest.includes("-h")) {
+        process.stdout.write(
+          "Usage: teamagent bug-report [--out=path] [--stdout]\n" +
+          "\n" +
+          "Options:\n" +
+          "  --out=PATH       Write report to PATH (default: ~/.teamagent/bug-reports/...md)\n" +
+          "  --stdout         Print report to stdout instead of writing to file\n" +
+          "\n" +
+          "Generates a diagnostic bug report with system info, tool versions,\n" +
+          "hook config, and raw logs. Attach to GitHub issues when reporting\n" +
+          "first-install or hook failures. Secrets are auto-redacted.\n" +
+          "\n" +
+          "Includes: system info, how-to-reproduce steps, raw logs (auto-redacted).\n",
+        );
+        return;
+      }
       const opts = parseBugReportArgs(rest);
       const result = await executeBugReport({
         ...opts,
@@ -400,6 +566,22 @@ async function main(): Promise<void> {
       return;
     }
     case "dashboard": {
+      if (rest.includes("--help") || rest.includes("-h")) {
+        process.stdout.write(
+          "Usage: teamagent dashboard [--watch|--once] [--host=127.0.0.1] [--port=8787] [--interval=2s] [--open]\n" +
+          "\n" +
+          "Options:\n" +
+          "  --watch          Start HTTP server; regenerate dashboard on interval (default)\n" +
+          "  --once           Generate docs/dashboard.html once and exit\n" +
+          "  --open           Open browser after server starts\n" +
+          "  --host=HOST      Bind host (default 127.0.0.1)\n" +
+          "  --port=PORT      Port (default 8787)\n" +
+          "  --interval=DUR   Refresh interval, e.g. 2s, 500ms (default 2s)\n" +
+          "\n" +
+          "Dashboard shows VERIFIED / PLANNED feature status and live rule/event stats.\n",
+        );
+        return;
+      }
       try {
         const opts = parseDashboardArgs(rest);
         const result = await launchDashboard(opts);
@@ -431,6 +613,19 @@ async function main(): Promise<void> {
       const opts = parseCompileArgs(rest);
       const result = await executeCompile(opts);
       process.stdout.write(renderCompileResult(result, opts.dryRun));
+      return;
+    }
+    case "compile-cursor": {
+      const opts = parseCompileCursorArgs(rest);
+      const result = await executeCompileCursor(opts);
+      process.stdout.write(renderCompileCursorResult(result));
+      return;
+    }
+    case "docs-propagate": {
+      const opts = parseDocsPropagateArgs(rest);
+      const result = await executeDocsPropagate(opts);
+      process.stdout.write(renderDocsPropagationResult(result));
+      if (!result.ok) process.exit(1);
       return;
     }
     case "config": {
@@ -480,7 +675,7 @@ async function main(): Promise<void> {
       process.stdout.write(`Phase 1 → v2 迁移:\n`);
       process.stdout.write(`  读取条目: ${r.readEntries}\n`);
       process.stdout.write(`    personal: ${r.byScope.personal}\n`);
-      process.stdout.write(`    team → personal: ${r.byScope.team}\n`);
+      process.stdout.write(`    team: ${r.byScope.team}\n`);
       process.stdout.write(`    global: ${r.byScope.global}\n`);
       if (dryRun) {
         process.stdout.write(`\n(dry-run 模式，未写入 SQLite)\n`);
@@ -506,7 +701,55 @@ async function main(): Promise<void> {
       if (output) process.stdout.write(output);
       return;
     }
+    case "team-export": {
+      const result = executeTeamExport(parseTeamExportArgs(rest));
+      process.stdout.write(result.output);
+      if (!result.ok) process.exit(1);
+      return;
+    }
+    case "team-import": {
+      const result = executeTeamImport(parseTeamImportArgs(rest));
+      process.stdout.write(result.output);
+      if (!result.ok) process.exit(1);
+      return;
+    }
+    case "sync": {
+      let syncArgs;
+      try {
+        syncArgs = parseGitSyncArgs(rest);
+      } catch (err) {
+        process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
+        process.exit(1);
+        return;
+      }
+      const syncOpts = { ...syncArgs, cwd: syncArgs.cwd ?? process.cwd() };
+      const syncResult =
+        syncArgs.subcommand === "push"
+          ? executeGitSyncPush(syncOpts)
+          : executeGitSyncPull(syncOpts);
+      process.stdout.write(syncResult.output + "\n");
+      if (!syncResult.ok) process.exit(1);
+      return;
+    }
     case "pr-cycle": {
+      if (rest.includes("--help") || rest.includes("-h")) {
+        process.stdout.write(
+          "Usage: teamagent pr-cycle [--pr=N] [--wait-ms=300000] [--dry-run]\n" +
+          "\n" +
+          "Options:\n" +
+          "  --pr=N           Target existing PR number instead of creating one\n" +
+          "  --no-create      Skip PR creation; locate current branch PR\n" +
+          "  --wait-ms=N      Wait N ms before checking review (default 300000)\n" +
+          "  --dry-run        Preview commands without running them\n" +
+          "  --base=BRANCH    Base branch for new PR\n" +
+          "  --title=TITLE    PR title\n" +
+          "  --body=BODY      PR body\n" +
+          "\n" +
+          "Creates/locates a PR, waits, then checks review. Blocks if Codex review\n" +
+          "finds issues requiring doc/rule updates before code changes.\n",
+        );
+        return;
+      }
       let opts;
       try {
         opts = parsePrCycleArgs(rest);
@@ -526,7 +769,7 @@ async function main(): Promise<void> {
     }
     case "doctor": {
       const opts = parseDoctorArgs(rest);
-      const result = await executeDoctor({ ...opts, cwd: process.cwd() });
+      const result = await executeDoctor({ ...opts, cwd: opts.cwd ?? process.cwd() });
       if (opts.json) {
         process.stdout.write(JSON.stringify(result, null, 2) + "\n");
       } else if (!opts.postinstall || !result.allPassed) {
@@ -592,6 +835,28 @@ async function main(): Promise<void> {
       return;
     }
     case "reclassify": {
+      if (rest.includes("--help") || rest.includes("-h") || rest[0] === "--help" || rest[0] === "-h") {
+        process.stdout.write(
+          "Usage:\n" +
+          "  teamagent reclassify apply --plan <path> [--dry-run] [--min-conf=0.7]\n" +
+          "  teamagent reclassify rollback --audit <audit-id>\n" +
+          "\n" +
+          "Subcommands:\n" +
+          "  apply      Apply a reclassification plan to rule channel/enforcement in knowledge.db\n" +
+          "  rollback   Reverse a previous apply using its audit-id\n" +
+          "\n" +
+          "Options for apply:\n" +
+          "  --plan=PATH      JSON plan file produced by scripts/reclassify-rules.ts\n" +
+          "  --dry-run        Preview without writing to DB\n" +
+          "  --min-conf=N     Minimum confidence threshold (default 0.7)\n" +
+          "\n" +
+          "Options for rollback:\n" +
+          "  --audit=ID       Audit-id from a previous apply\n" +
+          "\n" +
+          "Reclassifies rules by scope, changing channel and enforcement fields.\n",
+        );
+        return;
+      }
       const sub = rest[0];
       const subArgs = rest.slice(1);
       const { runReclassifyApply, runReclassifyRollback } = await import("./commands/reclassify.js");
@@ -636,6 +901,20 @@ async function main(): Promise<void> {
           "",
           "用法:",
           "  teamagent skeleton-demo          M0 Walking Skeleton 演示",
+          "  teamagent m5-infect [--project-root=<path>] [--author=<name>]",
+          "                                   [M5-A] 把 TeamAgent 病毒式契约写入项目（幂等）",
+          "  teamagent m5-bootstrap [--project-root=<path>] [--check]",
+          "                                   [M5-A] 读项目 manifest，报告本机与契约的差异",
+          "  teamagent m5-share --text=\"<规则文本>\" [--rule-id=<id>] [--scope=personal|team] [--author=<n>]",
+          "                                   [M5-B] 跑闸门 1+2 决定规则归宿；shareable 的写到 .teamagent/team/",
+          "  teamagent m5-sync [--project-root=<path>]",
+          "                                   [M5-C] 读 .teamagent/team/ 所有 claim，LWW 合并报告团队规则集",
+          "  teamagent m5-delete --rule-id=<id> [--by=<n>] [--reason=<text>]",
+          "                                   [M5-C] 写 tombstone（任意人删任意规则）",
+          "  teamagent m5-status [--project-root=<path>]",
+          "                                   [M5-D] 综合面板：契约 + 本机 diff + 团队规则集统计",
+          "  teamagent m5-publish [--project-root=<path>] [--push]",
+          "                                   [M5-E] 自动 commit .teamagent/team/ 待变化（--push 同时推 origin）",
           "  teamagent pitfall                手动记录一条踩坑经验 (交互)",
           "  teamagent pitfall --non-interactive --trigger=... --wrong=... --correct=... --reason=...",
           "                                   非交互模式 (可选: --category=C|E|S|K --tags=a,b --level=personal|team|global --nature=objective|subjective)",
@@ -650,21 +929,21 @@ async function main(): Promise<void> {
           "  teamagent uninstall-user-hook    移除用户级 SessionStart hook 注册",
           "  teamagent analyze [--session=<id|path>] [--verbose] [--commit]",
           "                                   分析 Claude Code 会话日志，识别纠正时刻+成功信号",
-          "                                   --commit: 通过 LLM 提取成知识条目并写入知识库 + 重编译 CLAUDE.md",
+          "                                   --commit: 通过 LLM 提取成知识条目并写入知识库 + 更新 Skills + 调度 docs propagation",
           "  teamagent review [N] [--scope=personal|team|global]",
           "                                   列出最近 N 条知识（默认 10），供人工复核",
           "  teamagent init [--dry-run] [--skip-import] [--skip-hook] [--install-plugins] [--target=claude|codex|both]",
-          "                                   一键安装到当前项目：建目录 + 注入元原则 + 导入已有规则 + 注册 Hook + 编译规则文件",
-          "                                   默认 target=claude；codex 会创建 AGENTS.md/.codex/skills 软链接且不注册 Claude hook",
+          "                                   一键安装到当前项目：建目录 + 注入元原则 + 导入已有规则 + 注册 Hook + 导出 Skills",
+          "                                   默认 target=claude；codex 会创建 .codex/skills 软链接且不注册 Claude hook",
           "                                   --install-plugins: 同时注册团队标配插件（opt-in，改写用户全局 settings）",
           "  teamagent install-codex [--dry-run] [--skip-import]",
-          "                                   Codex 快捷安装：编译 CLAUDE.md，并创建 AGENTS.md -> CLAUDE.md",
+          "                                   Codex 快捷安装：导出 Skills，并创建 .codex/skills 软链接",
           "  teamagent doctor [--fix] [--json]",
           "                                   诊断安装环境（Node版本/Claude Code/sqlite-vec/Hook/CLAUDE.md）",
           "                                   --fix: 自动修复能自动修的问题",
           "                                   --json: 输出机器可读 JSON",
           "  teamagent install-plugins [--dry-run] [--only=a,b] [--scope=user|project|local]",
-          "                                   注册团队标配 plugins（superpowers/caveman/sales/playground）",
+          "                                   注册团队标配 plugins（superpowers/sales/playground）",
           "                                   通过 'claude plugin marketplace add' + 'claude plugin install' 调 CC CLI",
           "                                   默认装全部；--only 限定子集；--dry-run 只预览",
           "  teamagent pair capsule --name=<device> --host=<host> [--user=<user>] [--out=<file>]",
@@ -695,16 +974,22 @@ async function main(): Promise<void> {
           "  teamagent dashboard --once",
           "                                   只生成一次 docs/dashboard.html，不启动服务器",
           "  teamagent compile [--dry-run] [--skills-only] [--markdown-only] [--force] [--legacy-claude-md] [--target=claude|codex|both]",
-          "                                   编译出口（默认）：用户级 nested rule store @ ~/.claude/teamagent/rules/ + Claude Agent Skills (stable+)；Codex 通过软链接读取 skills",
-          "                                   --legacy-claude-md: 旧行为，把规则写进项目 CLAUDE.md (issue #42 之前的默认；TEAMAGENT_LEGACY_CLAUDE_MD=1 等价)",
+          "                                   编译 Agent Skills (stable+)；CLAUDE.md 规则块输出已禁用",
+          "                                   --legacy-claude-md: 显式恢复旧 CLAUDE.md managed block 输出",
           "                                   --dry-run: 预览将写/删哪些文件，不实际写入",
-          "                                   --skills-only / --markdown-only: 只写其中一路出口",
+          "                                   --skills-only / --markdown-only: legacy flags",
+          "  teamagent docs-propagate --rule-id=<id>",
+          "                                   将新规则自然传播到 docs/ 并用 cheap runner 验证",
           "  teamagent config stop-mode <sync|async>  切换 Stop hook 运行模式（默认 sync）",
           "  teamagent config show                    查看当前配置",
           "  teamagent scan-errors [--mode=efficient|full] [--since=<duration|ISO>] [--min-freq=N] [--dry-run] [--quiet]",
           "                                   自动采集错误信号 → 提取候选规则 → 写入候选队列",
-          "  teamagent review-candidates [--limit=N]",
-          "                                   交互式审核候选规则：[a]批准 [r]拒绝 [s]跳过 [q]退出",
+          "  teamagent review-candidates [--limit=N] [--approve-scope=personal|team|global]",
+          "                                   交互式审核候选规则：[a]批准 [r]拒绝 [s]跳过 [q]退出；可把批准项提升为本地 team scope",
+          "  teamagent team-export [--out=path]",
+          "                                   导出本地 active team scope 规则到 JSON；导出前执行隐私守门",
+          "  teamagent team-import [--file=path]",
+          "                                   从 team-export JSON 导入本地 team scope 规则，已存在 id 会跳过",
           "  teamagent pr-cycle [--pr=N] [--wait-ms=300000] [--dry-run]",
           "                                   创建/定位 PR，等待后检查 review；有反馈时要求先更新文档/规则并用 claudefast/codexfastg 验证答案",
           "  teamagent migrate-v6 [--dry-run] [--limit=N] [--db=<path>]",

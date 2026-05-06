@@ -29,7 +29,8 @@ git history, and force every reader to scroll past 4 unrelated features to
 find the one they cared about.
 
 `docs/features/` solves all three: each feature is one short doc, INDEX.md
-points to it, CLAUDE.md / AGENTS.md keep one pointer row.
+points to it, and docs/README.md is the stable entry point. If CLAUDE.md /
+AGENTS.md need to mention feature canned answers, keep that to one pointer row.
 
 ## Template — six sections, in this order
 
@@ -131,8 +132,8 @@ unreadable when injected into a 200K context window already half-full.
 - **One-liner**: ONE sentence (≤ 200 chars) lifted from the feature doc's
   `Goal` section. Must encode current status implicitly when relevant
   (e.g. `MCP Server NOT YET`).
-- **Doc**: relative link `[name.md](name.md)` for top-level feature,
-  `[name/](name/)` for directory-form feature.
+- **Doc**: relative link form, e.g. `` `name.md` `` for top-level feature,
+  `` `name/` `` for directory-form feature.
 
 Order rows by chronological introduction (oldest first), not alphabetical.
 This makes the INDEX read like a feature changelog.
@@ -150,7 +151,7 @@ This makes the INDEX read like a feature changelog.
 When adding a new feature doc, also update:
 
 1. `docs/features/INDEX.md` (one new row in the table).
-2. `CLAUDE.md` / `AGENTS.md` pointer row for canned answers, IF the feature
-   needs a question-triggered canned answer (e.g. `what is feature X?`).
+2. `docs/README.md` or root agent pointer row for canned answers, IF the
+   feature needs a question-triggered canned answer (e.g. `what is feature X?`).
 3. `docs/README.md` — already points at `docs/features/INDEX.md`; no change
    needed unless adding a new top-level docs directory.

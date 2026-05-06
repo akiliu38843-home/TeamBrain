@@ -22,10 +22,11 @@ TeamAgent 解决这件事：从你纠正它的每一次对话里，自动**提�
 
 ---
 
-## 30 秒上手
+## 5–10 分钟上手
 
 ```bash
-npm install -g github:libz-renlab-ai/TeamBrain#release   # 1. 装（直接从 GitHub 拉）
+# 1. 装（首次需要 5–10 分钟：下载 ~30MB hook bundle + 编译 native deps + 预热 ~120MB 向量模型）
+npm install -g https://github.com/libz-renlab-ai/TeamBrain/archive/refs/heads/release.tar.gz
 cd your-project                                          # 2. 进项目
 teamagent init                                           # 3. 初始化（注册 hook + 预热向量模型）
 # 如果同一个项目也要给 Codex 读取规则：
@@ -34,6 +35,9 @@ teamagent init --target=both
 # → 系统每小时自动检查 GitHub 上有没有新版本，有就静默更新
 # → 它每次被你纠正，都会自动入库
 ```
+
+> **为什么用 tarball URL 而不是 `npm install -g github:libz-renlab-ai/TeamBrain#release`？**
+> npm 的 `github:` shorthand 默认走 SSH（`git+ssh://git@github.com/...`），没配 SSH key 的机器（绝大多数 Windows 用户、CI/容器）会直接失败。tarball URL 走 HTTPS，绕开 git clone，更稳定。
 
 之后**不用做任何事**——继续正常开发，TeamAgent 自动学习 + 自动更新。
 
@@ -68,7 +72,7 @@ pnpm teamagent dashboard --once                          # 只生成 docs/dashbo
 装完之后**完全不用管**。每次开 Claude Code 时 SessionStart hook 在后台静默：
 
 1. 检查 GitHub `release` 分支 HEAD commit
-2. 不一样就 detached spawn `npm install -g github:.../release` 拉新代码
+2. 不一样就 detached spawn `npm install -g https://github.com/.../archive/refs/heads/release.tar.gz` 拉新代码（走 HTTPS tarball，不依赖 SSH）
 3. 链式跑 `migrate-auto`（数据库 schema 升级）
 4. 失败自动回滚到上一版（备份在 `~/.teamagent/rollback/`）
 5. 当前会话不动（避免热替换风险），下次开 Claude 看到一行 banner：
@@ -97,6 +101,10 @@ teamagent bug-report                    # 生成系统信息 + hook 配置 + 原
 **环境变量**：
 - `TEAMAGENT_AUTO_UPDATE=0`：会话级禁用（不写文件）
 - `~/.teamagent/update-state.json` 的 `interval_hours` 可改 1/6/24（默认 1）
+
+**验证边界**：`teamagent update --status` 是 sandbox-safe，只读状态并显示
+`updater_binary` 是否存在；它不会运行 `npm install -g`。如果显示 missing，先在本仓库构建
+`pnpm --filter @teamagent/cli build:hook`，再用 `teamagent update --now` 触发真实更新。
 
 ---
 
@@ -132,10 +140,10 @@ claudefast -p "hi"
    ① analyze    扫描会话，找"被纠正时刻"和"成功信号"
    ② extract    LLM 把每个时刻抽成结构化规则（trigger / wrong / correct / why）
    ③ calibrate  用真实使用数据校准每条规则的置信度（Wilson 置信区间）
-   ④ compile    高置信规则编译进 CLAUDE.md（3000 token 预算 + Jaccard 多样性过滤）
+   ④ compile    高置信规则传播到 Skills / docs 知识索引（按预算和多样性筛选）
         │
         ▼  下次会话开启
-   CLAUDE.md 自动挂入 Claude 上下文 → 它读到"教训"
+   Skills / docs 知识索引进入上下文 → 它读到"教训"
         │
         ▼  当它要犯同样错误时
    PreToolUse hook 在工具调用之前拦截 → block / warn / suggest
@@ -164,7 +172,7 @@ claudefast -p "hi"
 | **UserPromptSubmit** | 用户发问时把相关规则**主动注入**进上下文 |
 | **PreToolUse** | AI 想动工具前按规则**拦截 / 警告 / 放行**（block / warn / suggest / passive 四档） |
 | **PostToolUse** | 记录工具调用结果（成功/失败/exit code）到事件库，供下次校准 |
-| **Stop** | 会话结束，跑完整学习闭环（analyze → calibrate → compile） |
+| **Stop** | 会话结束，跑完整学习闭环（analyze → calibrate → docs/Skills propagation） |
 | **SessionEnd / PreCompact** | 全量重扫，确保 token 压缩 / 退出时不漏 turn |
 
 每次操作都通过 **AttributionBus** 给你一段归因输出 —— 你能看见"系统刚刚做了什么 / 传播到哪个文件 / 下次体验会怎样"。不黑盒。
@@ -175,14 +183,14 @@ claudefast -p "hi"
 
 | 层 | 存储 | 作用域 |
 |---|---|---|
-| **project** | `<repo>/.teamagent/knowledge.db` | 仅当前项目（项目独有约定） |
-| **personal** | `~/.teamagent/global.db` | 跨所有项目（个人通用经验） |
+| **project** | `<repo>/.teamagent/knowledge.db` | 当前项目内的 personal / team 本地知识 |
+| **global** | `~/.teamagent/global.db` | 跨所有项目（个人通用经验） |
 | **events** | `~/.teamagent/events.db` | 真实工具调用记录，校准引擎用 |
 
 每条规则不是死规则，有完整的**生命周期**：
 
 - 新生 → `experimental` tier，confidence ≈ 0.5
-- 多次成功命中 → 升 `canonical` → `canonical+` → 进入 CLAUDE.md token 预算优先级
+- 多次成功命中 → 升 `canonical` → `canonical+` → 优先传播到 Skills / docs 知识索引
 - 被用户 override / 工具失败 → demerit 累积 → 掉 tier → 归档
 
 校准用 **Wilson 置信区间** + **指数衰减**，少量噪声不会带跑偏。
@@ -194,7 +202,7 @@ claudefast -p "hi"
 | 难题 | 解法 |
 |---|---|
 | 关键词匹配漏召回 | **BM25 + 语义向量**（multilingual-e5-small, 384 维）做 RRF 融合 + soft-AND 打分 |
-| CLAUDE.md 编译爆 context window | 严格 **3000 token 预算** + **Jaccard 多样性过滤**（去近义条目） |
+| 知识传播挤爆 context window | 严格预算 + **Jaccard 多样性过滤**（去近义条目） |
 | 用户感觉系统在偷偷搞事 | 每次操作都通过 **AttributionBus** 渲染归因块 |
 | Stop hook 阻塞会话关闭 | 全部 **detached spawn** + **永不非零退出** |
 | 重复扫描浪费 token | **scan-cursor.json** 增量扫描，只看新 turn |
@@ -209,8 +217,8 @@ claudefast -p "hi"
 # 安装与诊断
 teamagent init               # 初始化项目（注册 hook + 创建 .teamagent/ + 预热向量模型）
 teamagent warmup             # 单独预热向量模型 (~120MB，init 已自动跑)
-teamagent doctor             # 8 项环境诊断
-teamagent install-plugins    # 装 superpowers / caveman / sales / playground 等团队标配 skill
+teamagent doctor             # 环境诊断 + 产品边界状态
+teamagent install-plugins    # 装 superpowers / sales / playground 等团队标配 skill
 teamagent uninstall          # 卸载（保留数据，加 --delete-data 清空）
 
 # 自动更新
@@ -226,7 +234,7 @@ teamagent stats              # 看知识库分布与最近新增
 teamagent review [N]         # 复核最近 N 条新规则
 teamagent pitfall            # 手动录一条经验（交互或 --non-interactive）
 teamagent analyze --commit   # 主动分析最近会话并入库
-teamagent compile            # 重编译 CLAUDE.md
+teamagent compile            # 刷新 Skills / docs 知识传播产物
 teamagent calibrate          # 主动校准（hook 已自动跑）
 
 # 高级
@@ -285,6 +293,10 @@ npm uninstall -g teamagent
 
 **自动更新太频繁？** `teamagent update --disable` 完全关掉。或编辑 `~/.teamagent/update-state.json` 把 `interval_hours` 改大（6 / 24）。
 
+**团队共享完成了吗？** 还没有。本地 `scope=team` 已支持写入、读取和统计；
+但 `teamagent doctor --json` 仍会把 `team-sharing` 标为 `skip/PARTIAL`：
+跨机器 git transport、privacy redaction、review gates 都落地后，才能说多人团队共享完成。
+
 **模型下载失败？** 设置 `HF_ENDPOINT=https://hf-mirror.com` 重跑 `teamagent warmup`。
 
 **新版本启动崩了？** `teamagent update --rollback <旧 sha>` 回退。备份在 `~/.teamagent/rollback/`（保留最近 3 个）。
@@ -294,7 +306,7 @@ npm uninstall -g teamagent
 ## 适合谁
 
 ✅ **天天用 Claude Code 的开发者**——每天被打脸 ≥1 次的，回收成本最快
-✅ **多人协作团队**——把"团队约定"沉淀进 personal/global 知识库
+✅ **多人协作团队**——先把"团队约定"沉淀进本地 team/project/global 知识库；跨成员自动同步仍在后续阶段
 ✅ **大型代码库 owner**——项目级规则（`.teamagent/knowledge.db`）跟随仓库，新人秒同步
 ✅ **有大量重复犯错模式的场景**——任何"这个我说过吧"的瞬间，都是 ROI
 

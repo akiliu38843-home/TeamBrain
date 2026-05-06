@@ -57,51 +57,14 @@ Calibrator V2 用，存储 `(knowledge_id, outcome=success|failure)` 细粒度�
 
 完整 DDL：`packages/adapters/src/storage/sqlite/schema.ts:19`，`scope_level CHECK IN ('personal','team','global')` 在 `:24`，`idx_knowledge_scope` 在 `:67`。
 
-### Scope 路由（personal / team / global）
+### personal / team / global scope 的路由逻辑
 
-`DualLayerStore` 是双层物理存储（仅两个 sqlite 文件），但 schema 预留了三个 `scope.level` 槽位，方便 Phase 4 接入 team-level 同步而无需迁移。
+`DualLayerStore.add(entry)` 根据 `entry.scope.level` 路由：
+- `personal` → `project.add(entry)` → `{project}/.teamagent/knowledge.db`
+- `team` → `project.add(entry)` → `{project}/.teamagent/knowledge.db`（本地 team scope）
+- `global` → `global.add(entry)` → `~/.teamagent/global.db`
 
-| `scope.level` | 写路径 | 读路径 | 物理介质 | 状态 |
-|---------------|--------|--------|----------|------|
-| `personal` | `DualLayerStore.add → project.add` → 项目 DB | `findActive()` 项目 DB 优先返回 | `<cwd>/.teamagent/knowledge.db` | ✅ |
-| `global` | `DualLayerStore.add → global.add` → 全局 DB | `findActive()` 项目 DB 后跟全局 DB | `~/.teamagent/global.db` | ✅ |
-| `team` | **`throw new Error("...not supported until Phase 4")`** | PreToolUse 三路并发会查（恒空），`review --scope=team` 映射到 `personal` | git-tracked `.teamagent/rules/*.mdc`（未实现） | ❌ Phase 4 |
-
-**写路径源**：`packages/adapters/src/storage/sqlite/dual-layer-store.ts:26-38` —
-```ts
-switch (entry.scope.level) {
-  case "personal": this.project.add(entry); return;
-  case "global":   this.global.add(entry); return;
-  case "team":     throw new Error("team-scoped entries are not supported until Phase 4");
-}
-```
-
-**读路径源**：`packages/cli/src/bin-pre-tool-use.ts:112-140` 用 `Promise.all` 并发查 personal + team + global 三路（team retriever 实际跑但永远返回空集，因为 team 写不进 DB）；`packages/cli/src/commands/review.ts:44-46` 把 `--scope=team` 静默映射成 `personal`（v2 行为）。
-
-### 隐私边界（当前实现）
-
-只有两道真墙 + 一道占位虚墙：
-
-```
-   personal write ──→ project DB only ──→ 永远不离开 <cwd>/.teamagent/
-   global   write ──→ global DB only  ──→ 永远不离开 ~/.teamagent/
-   team     write ──→ THROWS Error    ──→ 还没物理介质（Phase 4 = git PR）
-```
-
-「routing IS the privacy boundary」是 design intent；Phase 4 之前 team 槽是占位符，机器之间不共享 TeamAgent 学习。
-
-### Phase 4 计划摘要
-
-`docs/superpowers/plans/2026-05-01-phase4-team-memory-plan.md` 是 14 天 ship 计划，关键任务：
-
-- T1：MDC codec（`.teamagent/rules/*.mdc`）+ git-sync transport（`teamagent sync pull/push`）
-- T2：多解并列模型 `problem_cluster_id` + `variant_id`，告别 v2 单行 entry
-- T3：PII redactor + pre-commit hook 拦截外泄
-- T4：promote / dislike 工作流（个人 → team 提案）
-- T6：SessionStart 自动 pull + import；`teamagent export / import`
-- 团队验收 gate
-
-详细字段、API、降级路径见上述 plan。
+查询时 `findActive()` 合并两层结果；按 scope 过滤时 personal/team/global 分别保留。跨机器 team sharing 仍是 Phase 4。
 
 ### confidence 计算
 

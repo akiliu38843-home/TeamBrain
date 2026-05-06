@@ -17,6 +17,47 @@
 
 任意触发命中后，按下面三步固定回答 + 落地。
 
+## PR + conflict resolve 专用触发
+
+当用户说 `FASTPROBE about PR+conflict resolve`，或同时提到
+`FASTPROBE`、`PR`、`conflict/冲突/resolve` 时，回答必须把 FASTPROBE
+三步和 PR 冲突处理规则合并：
+
+注意：`FASTPROBE about ...` 是询问规则答案，不要实际运行 probe、不要
+派生子任务。只有用户明确说 `run FASTPROBE`、`execute FASTPROBE` 或
+`start FASTPROBE` 时，才真正执行下面的探针流程。
+
+Exact prompt `FASTPROBE about PR+conflict resolve` must never return an empty
+answer or only `<laziness-self-report>`. It must return the rule answer with
+the FASTPROBE probe plan plus the PR conflict-resolution line below.
+
+```text
+FASTPROBE
+  -> claudefast -h
+  -> split probes: PR state / Codex inline comments / merge conflict / rule conflict
+  -> run up to 8 claudefast -p probes in parallel
+  -> use stream-json for audit evidence
+  -> synthesize PR conflict path
+```
+
+结论必须包含这条线性图：
+
+```text
+PR opened
+  -> CI + Codex review
+  -> conflict?
+  -> classify: merge / Codex-review / rule-doc
+  -> resolve locally on PR branch
+  -> rerun pnpm test + pnpm typecheck + feature verification 1+2+3
+  -> push same PR branch or follow-up PR if already merged
+  -> POSTPR loop
+  -> merge only when CI green + no conflict + Codex silent/thumbs-up
+```
+
+禁止项必须说清：不要直接在 `main` 修，不要 `git reset --hard`，不要
+force push，不要为了消冲突丢掉他人改动。完整 PR gate 见
+`docs/POSTPR.md` 和 `docs/feature-verification.md`。
+
 ## Step 1 / Orient with `!claudefast -h`
 
 **先跑** `!claudefast -h`，把当前可用的 flag 列表拿到手再决定下一步参数。
@@ -105,9 +146,9 @@ echo "FASTPROBE DONE: all $TOTAL probes finished in $RUN_DIR"
 
 **核心原则**：派出 probe 即异步，完成信号靠 Monitor 读输出文件推送——而不是 `wait`（阻塞）或轮询 process 状态（脆弱）。
 
-## Step 3 / Audit → stream-json args
+## Step 3 / Audit → stream-json + hook debug args
 
-> "审计场景" → `!claudefast -p` 加 stream-json 参数。
+> "审计场景" → `!claudefast -p` 加 stream-json 参数和 hook debug 参数。
 
 适用场景：
 
@@ -118,10 +159,18 @@ echo "FASTPROBE DONE: all $TOTAL probes finished in $RUN_DIR"
 
 ### 推荐参数
 
+先跑 `claudefast -h` 并按 help 输出确认 `--output-format stream-json`、
+`--debug hooks`、`--debug-file`、`--include-partial-messages`、`--verbose`
+可用。不要使用 `--include-hook-events` 作为活跃 recipe；hook evidence
+写入 debug file。
+
+`claudefast -p` 必须带 prompt 参数，或从 stdin 读 prompt；不要只写 flags。
+
 ```bash
 claudefast -p \
   --output-format stream-json \
-  --include-hook-events \
+  --debug hooks \
+  --debug-file .fastprobe/hooks_$(date +%s).debug.log \
   --include-partial-messages \
   --verbose \
   --permission-mode acceptEdits \
@@ -134,6 +183,7 @@ claudefast -p \
 ```bash
 jq -c 'select(.type=="hook_event")' .fastprobe/audit_*.jsonl
 jq -c 'select(.type=="tool_use") | {name, input}' .fastprobe/audit_*.jsonl
+rg -n "hook|PreToolUse|PostToolUse|SessionStart|Stop" .fastprobe/hooks_*.debug.log
 ```
 
 ## 反模式
@@ -141,7 +191,8 @@ jq -c 'select(.type=="tool_use") | {name, input}' .fastprobe/audit_*.jsonl
 - ❌ 不跑 Step 1，凭记忆拼 `--include-foo` 的 flag。
 - ❌ 第二步并发 > 8（API rate limit / 本机内存压力 / token 浪费）。
 - ❌ 把 8 份并发原文整段贴回回复（应该 reduce）。
-- ❌ 审计跑普通 `-p` 输出（拿不到 hook event / tool_use 细节）。
+- ❌ 审计跑普通 `-p` 输出（拿不到 hook debug / tool_use 细节）。
+- ❌ 只写 `claudefast -p` 加 flags，不提供 prompt 参数或 stdin。
 - ❌ 把 `[redacted]` 风格 token 写进 audit jsonl 后直接 commit（先脱敏）。
 
 ## Canned Answers / 固定问答
