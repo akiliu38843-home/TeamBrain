@@ -41,19 +41,19 @@ describe('rankTechChoices', () => {
 
   it('ranks dayjs first for lightweight immutable context', () => {
     const ranked = rankTechChoices([MOMENT, DAYJS], 'lightweight immutable dates');
-    expect(ranked[0].name).toBe('dayjs');
+    expect(ranked[0]!.name).toBe('dayjs');
   });
 
   it('ranks moment first for legacy locale context', () => {
     const ranked = rankTechChoices([DAYJS, MOMENT], 'legacy locale mature');
-    expect(ranked[0].name).toBe('moment');
+    expect(ranked[0]!.name).toBe('moment');
   });
 
   it('preserves original order on tie (score 0 vs 0)', () => {
     const a: TechChoice = { name: 'a', strengths: ['foo'], weaknesses: [] };
     const b: TechChoice = { name: 'b', strengths: ['bar'], weaknesses: [] };
     const ranked = rankTechChoices([a, b], 'unrelated context xyz');
-    expect(ranked[0].name).toBe('a');
-    expect(ranked[1].name).toBe('b');
+    expect(ranked[0]!.name).toBe('a');
+    expect(ranked[1]!.name).toBe('b');
   });
 });
