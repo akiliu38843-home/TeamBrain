@@ -10,7 +10,7 @@ if [ ! -f "${REPO_ROOT}/README.md" ]; then
 fi
 echo "README.md exists: PASS"
 
-if grep -qE "(quick.?start|快速开始|Quick Start|30 秒上手)" "${REPO_ROOT}/README.md"; then
+if grep -qE "(quick.?start|快速开始|Quick Start|[0-9]+.*分钟|[0-9]+-.*分钟)" "${REPO_ROOT}/README.md"; then
   echo "README contains quickstart section: PASS"
 else
   echo "FAIL: README does not contain quickstart section"

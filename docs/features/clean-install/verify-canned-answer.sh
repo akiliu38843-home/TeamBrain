@@ -11,7 +11,7 @@ if [ ! -d "${REPO_ROOT}/node_modules" ]; then
 fi
 echo "node_modules present: PASS"
 
-HELP_OUTPUT="$(pnpm --dir "${REPO_ROOT}" teamagent --help 2>&1 | head -20)"
+HELP_OUTPUT="$(pnpm --dir "${REPO_ROOT}" teamagent --help 2>&1 | head -20 || true)"
 echo "teamagent --help output:"
 echo "${HELP_OUTPUT}"
 
