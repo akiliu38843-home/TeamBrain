@@ -80,6 +80,41 @@ For comparison, the v1 path with `--omit=optional` (which npm ignored) measured 
 | `pnpm test` not run | unrelated to this change set; `pnpm typecheck` covers static safety; full test suite costs minutes and includes unrelated assertions | run by CI on PR |
 | Worktree at `.claude/worktrees/fix-install` violates CLAUDE.md's `.codex/worktrees/` rule | pre-existing worktree, not created in this session | housekeeping PR |
 
+## Verification harness (8/8 mandatory)
+
+Per "boil the lake" directive, the harness is now 8 channels — all required, no degrade-to-null path.
+
+| # | Channel | Tool | Collector |
+|---|---|---|---|
+| 1 | file create | `fswatch` | `scripts/verify-real-install-30s.sh` (Phase 1) |
+| 2 | file read | `fs_usage` (sudo) | `scripts/verify-fs-usage.sh` (Phase 2) |
+| 3 | hook called | `claudefast --debug hooks` | `scripts/verify-runtime-hooks.sh` (Phase 2) |
+| 4 | statusline | `tmux capture-pane` | `scripts/verify-statusline.sh` (Phase 2) |
+| 5 | lifecycle | `time -p`, exit | `scripts/verify-real-install-30s.sh` (Phase 1) |
+| 6 | content | `sqlite3` / `jq` | `scripts/verify-db-content.sh` (Phase 2) |
+| 7 | network | npm cache delta | `scripts/verify-real-install-30s.sh` (Phase 1) |
+| 8 | negative | `[ ! -d ... ]` | `scripts/verify-negative-existence.sh` (Phase 2) |
+
+**Master orchestrator**: `scripts/verify-all-channels.sh`. One command runs all 8 channels in dependency order, pauses for a one-time `sudo -v` prompt for channel #2, keeps sudo cached across the run, writes evidence to `.judge/<RUN_ID>/`, and emits a manifest mapping each channel → evidence path. The MAIN agent then dispatches 8 parallel `claudefast -p` probes per `judge.md` Step 2, each reading only its own evidence subset (no probe sees the source, this report, or another probe's verdict). Final PASS = AND of all 8.
+
+Subagents (Sonnet) authored these collectors in parallel:
+- agent #1: extended `verify-real-install-30s.sh` with fswatch start/stop + `du -sk` cache pre/post; new JSON fields `fswatch_log_path`, `cache_delta_kb`.
+- agent #2: new `verify-fs-usage.sh` (sudo, returns trace pid), `verify-db-content.sh` (sqlite3 + jq snapshots), `verify-negative-existence.sh` (PASS/FAIL per assertion).
+- agent #3: new `verify-runtime-hooks.sh` (claudefast `--debug hooks --debug-file` + Read prompt to fire PreToolUse), `verify-statusline.sh` (tmux session + capture-pane).
+- main: `verify-all-channels.sh` master orchestrator + `judge.md` upgrade to 8/8 mandatory + this report.
+
+Required tools (master fails loud if any missing): `fswatch`, `du`, `fs_usage`, `sqlite3`, `jq`, `claudefast`, `tmux`, `npm`, `node`. macOS-specific (`fs_usage`); Linux port via `strace`/`inotifywait` is a follow-up.
+
+To run end-to-end:
+
+```bash
+cd /Users/m1/projects/TeamBrain/.claude/worktrees/fix-install
+pnpm --filter teamagent build && (cd packages/teamagent && npm pack)
+bash scripts/verify-all-channels.sh   # prompts for sudo password once
+```
+
+Then synthesize per `docs/plans/2026-05-07-fix-install/judge.md` Step 2 + 3.
+
 ## Commit plan
 
 ```

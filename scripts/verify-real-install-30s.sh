@@ -13,6 +13,16 @@
 set -eu
 cd "$(dirname "$0")/.."
 
+# Hard-fail if required tools are missing (all channels mandatory — no silent skip).
+if ! command -v fswatch >/dev/null 2>&1; then
+  echo "FATAL: fswatch required: brew install fswatch" >&2
+  exit 1
+fi
+if ! command -v du >/dev/null 2>&1; then
+  echo "FATAL: du required (should be a POSIX built-in; check PATH)" >&2
+  exit 1
+fi
+
 WORKTREE=$(pwd)
 RUN_ID="${RUN_ID:-real-$(date +%s)}"
 JUDGE_DIR=".judge/${RUN_ID}"
@@ -39,7 +49,25 @@ run_install() {
   local out="${EVIDENCE_DIR}/${label}.out"
   local timing="${EVIDENCE_DIR}/${label}.time"
   local statefile="${home}/.teamagent/.warmup-state.json"
+  local fswatch_log="${EVIDENCE_DIR}/${label}.fswatch.log"
+  local cache_pre_file="${EVIDENCE_DIR}/${label}.cache-pre.size"
+  local cache_post_file="${EVIDENCE_DIR}/${label}.cache-post.size"
   local exit_code=0
+  local FSWATCH_PID=""
+
+  # Cleanup trap: kill fswatch on any exit path.
+  trap '[ -n "${FSWATCH_PID}" ] && kill "${FSWATCH_PID}" 2>/dev/null; true' EXIT INT TERM
+
+  # Pre-create watched dirs so fswatch doesn't refuse to start.
+  mkdir -p "${home}/.teamagent" "${cach}" "${pref}/lib/node_modules"
+
+  # Cache-size BEFORE install.
+  du -sk "${cach}" | awk '{print $1}' > "${cache_pre_file}"
+
+  # Start fswatch in background.
+  fswatch -0 -t -x "${home}/.teamagent" "${cach}" "${pref}/lib/node_modules" \
+    > "${fswatch_log}" 2>&1 &
+  FSWATCH_PID=$!
 
   echo ">>> ${label}: prefix=${pref} cache=${cach} home=${home}" | tee -a "${EVIDENCE_DIR}/run.log"
   HOME="${home}" "$@" \
@@ -48,6 +76,19 @@ run_install() {
       --cache="${cach}" \
       "${TGZ}" \
     >"${out}" 2>"${timing}.raw" || exit_code=$?
+
+  # Stop fswatch now that install is done.
+  kill "${FSWATCH_PID}" 2>/dev/null || true
+  FSWATCH_PID=""
+
+  # Cache-size AFTER install.
+  du -sk "${cach}" | awk '{print $1}' > "${cache_post_file}"
+
+  # Compute delta in kB (integer).
+  local cache_pre cache_post cache_delta
+  cache_pre=$(cat "${cache_pre_file}")
+  cache_post=$(cat "${cache_post_file}")
+  cache_delta=$((cache_post - cache_pre))
 
   awk '/^real |^user |^sys /{print > "/dev/stderr"; next} {print}' "${timing}.raw" 2>"${timing}" 1>>"${out}"
   rm -f "${timing}.raw"
@@ -78,11 +119,15 @@ run_install() {
   "warmup_state_pid": "${state_pid}",
   "tarball_size_bytes": ${TGZ_SIZE},
   "stdout_path": "${EVIDENCE_DIR}/${label}.out",
-  "timing_path": "${EVIDENCE_DIR}/${label}.time"
+  "timing_path": "${EVIDENCE_DIR}/${label}.time",
+  "fswatch_log_path": "${fswatch_log}",
+  "cache_delta_kb": ${cache_delta}
 }
 JSON_EOF
 
   rm -rf "${pref}" "${cach}" "${home}"
+  # Reset trap to no-op after clean per-run teardown.
+  trap - EXIT INT TERM
 }
 
 # 01: SKIP_WARMUP baseline — pure npm work + Stage1+3 only
