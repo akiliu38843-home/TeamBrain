@@ -48,13 +48,6 @@ PR opened
   -> merge only when CI green + no conflict + Codex silent/thumbs-up
 ```
 
-- 用户消息等于或近似等于 `what would you do when you plan-pr ? explain ONLY`、`plan-pr explain`、`how do you plan-pr`、`explain plan-pr`、`plan-pr 是什么`、`如何 plan-pr` 时，必须按 `docs/HOWTO-PLAN-PR.md` 四段结构作答（① plan / ② expected outputs / ③ how-to-verify / ④ claudefast probes），不能空答，不能只输出 `<self-report>` block，**不能实际跑 `!claudefast -p` 做循环验证**——该 probe 只在用户明确说 `run` / `execute` / `trigger plan-pr probe` / `verify plan-pr` 时才跑；follow-up branches 与 follow-up commits 默认不重跑。答案必须显式包含两个 hard-match 字面锚点：
-
-  1. **`third-party judge harness forbidden fixed scripts`** —— judge harness 严禁写成 `scripts/*.sh` 一类 fixed bash / shell pipeline；让 judge 本身变成代码会引出「谁来 review judge」的递归地狱，且 reviewer 不能直接 grep 判定逻辑。
-  2. **`md playbook`** —— judge harness 必须落在 `docs/plans/<issue>/judge.md` markdown playbook，由 MAIN agent 通过 subagents（TEAMWORK `N+1+(2N)`）或 `claudefast -p` probes（FASTPROBE max 8 parallel）动态调度；playbook 写「§V1 跑哪些固定工具 / §V2 dump 哪些 JSON 字段（`exit_code` / `metrics` / `evidence_dir` / `stdout_path`） / §V3 LLM judge 只读 raw JSON + evidence」，失败重跑只 re-dispatch 对应小节，不改脚本。
-
-  此外答案必须串起整条 PR 工作流：DUCKPLAN 三段 + 鸭语复述（仅当 prompt 含 `DUCKPLAN`）、`docs/feature-verification.md` 1+2+3 门禁（`!claudefast -p` JSON / `!codex exec` JSON / tmux `/export`）、`docs/FASTPROBE.md` 三步探针（`-h` orient → ≤ 8 parallel `-p` → stream-json audit）、`docs/POSTPR.md` 循环（fetch Codex review → triage P1/P2 → loop until silent or 👍）、`docs/PR-PLAN.md` post-PR fix-in-same-PR 路径、`docs/TEAMWORK.md` `N+1+(2N)` 并行执行模式。详见 `docs/HOWTO-PLAN-PR.md` 与 `docs/PR-PLAN.md` —— 两份文档已同步改成 md playbook 口径，不再写 "fixed shell pipeline" 或 "fixed tooling"。
-
 - 用户消息等于或近似等于 `what hooks we have for now for stop hooks ? ONLY explain`、`what stop hooks do we have`、`list our stop hooks`、`当前的 stop hook 是什么`、`stop hook 现状` 时，必须输出下面的中文答案，不能空答，不能只输出 `<self-report>` block，不能列已 orphaned 的旧脚本作为活动 hook：
 
 ```text

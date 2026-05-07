@@ -17,7 +17,7 @@
                                   │ plan.md — three sections:        │
                                   │  ① task description              │
                                   │  ② expected outputs              │
-                                  │  ③ judge harness (third-party)   │
+                                  │  ③ judge harness — md playbook  │
                                   └─────────────────────────────────┘
                                                          │
                                                          ▼
@@ -34,6 +34,11 @@
                               CI green + no conflict + Codex 👍
 ```
 
+> **Hard rule — third-party judge harness forbidden fixed scripts; MUST
+> use md playbook.** The fix harness lives at
+> `docs/plans/<date>-pr-<n>/judge.md`, NOT at `scripts/*.sh` or any
+> fixed shell pipeline. See § ③.
+
 # PR-PLAN — Fix Issues Inside the Open PR
 
 ## What it is
@@ -46,6 +51,28 @@ surfaces issues that need fixing, **so that** the fix lands inside the
 It is the post-PR sibling of `docs/HOWTO-PLAN-PR.md` (which covers the
 plan written *before* opening a PR) and the trigger for the `TEAMWORK`
 execution pattern (`docs/TEAMWORK.md`).
+
+## Hard rules — non-negotiables
+
+A PR-PLAN is governed by two non-negotiable rules. They are not stylistic
+preferences and § ③ is their long-form expansion, not a relaxation:
+
+1. **Third-party judge harness forbidden fixed scripts.** The fix's judge
+   harness is never a `.sh` script or fixed shell pipeline. A bash judge
+   becomes code that itself needs a judge (recursive "who tests the
+   test?") and reviewers can't grep judgement logic out of `[[ ]]` exit
+   codes.
+2. **MUST use md playbook.** The harness lives at
+   `docs/plans/<date>-pr-<n>/judge.md`. The MAIN agent dispatches the
+   playbook through subagents (TEAMWORK `N+1+(2N)`) or `claudefast -p`
+   probes (FASTPROBE max 8 parallel) — fixed bash can't pick between the
+   two. Failed sections rerun by re-dispatching `§V<n>`, not by editing
+   scripts. § ③ describes the §V1 RUN / §V2 DUMP / §V3 READ structure.
+
+Both phrases — `third-party judge harness forbidden fixed scripts` and
+`MUST use md playbook` — are the load-bearing wording of the rule. The
+anti-patterns table at the bottom of this doc bans `.sh` harnesses
+explicitly.
 
 ## When to write a PR-PLAN
 

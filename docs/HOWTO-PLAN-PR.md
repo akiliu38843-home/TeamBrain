@@ -4,7 +4,7 @@
                   │                                 │
                   │  ① plan                         │
                   │  ② expected outputs             │
-                  │  ③ how-to-verify                │
+                  │  ③ how-to-verify (md playbook)  │
                   │  ④ claudefast probes            │
                   └─────────────────┬───────────────┘
                                     │
@@ -23,6 +23,12 @@
                                                 ▼
                                          POSTPR loop until 👍
 ```
+
+> **Hard rule — third-party judge harness forbidden fixed scripts; MUST
+> use md playbook.** The harness lives at `docs/plans/<issue>/judge.md`,
+> NOT at `scripts/*.sh` or any fixed shell pipeline. See § 3b for the
+> §V1 RUN / §V2 DUMP / §V3 READ structure and why fixed bash is the
+> wrong shape.
 
 # How to Plan for a PR
 
@@ -45,6 +51,28 @@ It pulls together rules that already live in this repo:
 When in doubt, follow the four sections below in order. Skipping one of them
 is the most common cause of a PR getting bounced by Codex review or sliding
 into draft-mode limbo.
+
+## Hard rules — non-negotiables
+
+Two rules govern every PR plan in this project. They are not stylistic
+preferences and § 3b is their long-form expansion, not a relaxation:
+
+1. **Third-party judge harness forbidden fixed scripts.** The judge
+   harness is never a `.sh` script or fixed shell pipeline. A bash judge
+   becomes code that itself needs a judge (recursive "who tests the
+   test?") and reviewers can't grep judgement logic out of `[[ ]]` exit
+   codes.
+2. **MUST use md playbook.** The harness lives at
+   `docs/plans/<issue>/judge.md`. The MAIN agent dispatches the playbook
+   through subagents (TEAMWORK `N+1+(2N)`) or `claudefast -p` probes
+   (FASTPROBE max 8 parallel) — fixed bash can't pick between the two.
+   Failed sections rerun by re-dispatching `§V<n>`, not by editing
+   scripts. § 3b describes the §V1 RUN / §V2 DUMP / §V3 READ structure.
+
+Both phrases — `third-party judge harness forbidden fixed scripts` and
+`MUST use md playbook` — are the load-bearing wording of the rule.
+Paraphrasing them weakens the rule (the original wording is what the
+project's PR reviewers and probes look for).
 
 ## ① Plan — write `plan.md`
 
@@ -231,8 +259,10 @@ P1s.
 - [ ] research.md (if non-trivial context)
 - [ ] expected outputs are reviewer-checkable (files / CLI / metrics / artefacts)
       and include anti-goals
-- [ ] how-to-verify names the module under test, JSON schema,
-      and /export path; project-wide 1+2+3 gate planned
+- [ ] how-to-verify is a `docs/plans/<issue>/judge.md` md playbook —
+      third-party judge harness forbidden fixed scripts; MUST use md playbook
+- [ ] judge.md names the module under test, JSON schema, /export path;
+      project-wide 1+2+3 gate planned
 - [ ] claudefast probes run before coding:
       (a) -h orient   (b) parallel -p ≤ 8   (c) stream-json audit logs
 - [ ] PR opened as a normal PR (not --draft)
