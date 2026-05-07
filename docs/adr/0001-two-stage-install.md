@@ -1,6 +1,12 @@
 ---
-Status: proposed
+Status: accepted
 Date: 2026-05-07
+Implementation:
+  - packages/teamagent/postinstall.mjs (Stage 2 detached)
+  - packages/cli/src/commands/init.ts (spawnDetachedWarmup, issue #91)
+  - packages/cli/src/warmup-state.ts (atomic state file)
+  - packages/cli/src/bin-pre-tool-use.ts (legacy substring fallback when status!=ready)
+Verifier: scripts/verify-postinstall-detached.sh (judge harness for ADR §1)
 ---
 
 # Two-stage install: legacy substring immediate, vector model background upgrade
