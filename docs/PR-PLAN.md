@@ -99,13 +99,30 @@ A reviewer-checkable list of artefacts:
 
 ### ③ Judge harness (third-party, JSON-emitting)
 
-The fix is verified by a harness that runs fixed tooling, dumps JSON
-into `.judge/<run_id>/judge.json`, and lets a separate LLM (or
-`claudefast -p`) read **only** the raw JSON + evidence to grade the
-fix. The PR author / executing agent / code-under-test must not be the
-judge. Schema example: `{ "exit_code": <int>, "tests_passed": <int>,
-"tests_failed": <int>, "typecheck_clean": <bool>, "evidence_dir": ...,
-"stdout_path": ... }`. See `~/.claude/docs/rules/testing-judge-harness.md`.
+**Hard rule — third-party judge harness forbidden fixed scripts; MUST use
+md playbook.** The harness lives at
+`docs/plans/<date>-pr-<n>/judge.md`, NOT at `scripts/*.sh` or any fixed
+shell pipeline. The MAIN agent dispatches the playbook through subagents
+(TEAMWORK `N+1+(2N)`) or `claudefast -p` probes (FASTPROBE max 8 parallel)
+— fixed bash can't pick between the two and would itself become code that
+needs a judge.
+
+The playbook documents three sections:
+
+- **§V1 RUN** — fixed tools to invoke (`pnpm test`, `pnpm typecheck`,
+  feature-verification 1+2+3 commands, regression repro). Stdout/stderr
+  captured to `evidence_dir`.
+- **§V2 DUMP** — canonical JSON written to `.judge/<run_id>/judge.json`,
+  schema example `{ "exit_code": <int>, "tests_passed": <int>,
+  "tests_failed": <int>, "typecheck_clean": <bool>, "evidence_dir": ...,
+  "stdout_path": ... }` plus raw stdout/stderr in `evidence_dir`.
+- **§V3 READ** — a separate LLM judge (`claudefast -p` or `codex exec`)
+  reads ONLY the raw JSON + evidence and grades the fix. The PR author,
+  the executing agent, and the code-under-test must never be the judge.
+
+See `~/.claude/docs/rules/testing-judge-harness.md` and user-memory
+`feedback_judge_harness_md_playbook.md`. Failed sections rerun by
+re-dispatching `§V<n>`, not by editing scripts.
 
 ## Execution: TEAMWORK
 
@@ -147,6 +164,7 @@ reviewer approved it). `research.md` is optional.
 |---|---|
 | **Open a follow-up issue and merge anyway** | The merge lands the defect on `main`; the issue often slips. Removed by this rule. |
 | **Skip the PR-PLAN and just push fix commits** | No third-party judge harness means the fix is graded by the agent that wrote it. |
+| **Write the judge harness as a `.sh` / fixed shell pipeline** | The harness becomes code that itself needs a judge — recursive "who tests the test?" problem. Use a `docs/plans/<date>-pr-<n>/judge.md` playbook and let the MAIN agent dispatch it via subagents or `claudefast -p` probes. |
 | **Write the PR-PLAN but execute solo when N>1** | TEAMWORK's parallel workers + opus reporter are the cross-validation layer. |
 | **Force-push to overwrite PR history** | `git reset --hard` / `--force` wipe the trail Codex used to compare. Push fix commits *on top*. |
 | **Branch off `main` for the fix** | Creates a sibling PR. Fix has to land on the PR's branch. |
