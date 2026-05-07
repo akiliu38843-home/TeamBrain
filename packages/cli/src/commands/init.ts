@@ -214,8 +214,42 @@ export async function executeInit(opts: InitOptions = {}): Promise<InitResult> {
     dryRun ||
     process.env["NODE_ENV"] === "test" ||
     process.env["TEAMAGENT_SKIP_WARMUP"] === "1";
+  // ADR 0001 §opt-in: default install does NOT pull @xenova/transformers +
+  // onnxruntime-node (npm 10 ignores --omit=optional for tarball installs, so
+  // they're absent from package.json entirely). Skip warmup entirely when the
+  // optionals aren't on disk — otherwise spawnDetachedWarmup would write a
+  // placeholder "downloading pid=0" state that bin-pre-tool-use sees as
+  // permanently in-flight.
+  const haveVectorOptionals = (() => {
+    try {
+      // Same bounded resolution policy as packages/teamagent/postinstall.mjs:
+      // peer to teamagent (npm hoist) or local under teamagent/node_modules.
+      const here = fileURLToPath(import.meta.url);
+      let dir = path.dirname(here);
+      for (let i = 0; i < 8; i++) {
+        if (
+          fs.existsSync(path.join(dir, "node_modules", "@xenova", "transformers", "package.json")) ||
+          fs.existsSync(path.join(dir, "..", "@xenova", "transformers", "package.json"))
+        ) {
+          return true;
+        }
+        const parent = path.dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  })();
   if (skipWarmup) {
     steps.push({ step: "warmup", status: "skipped", detail: "skipWarmup / dryRun / test env" });
+  } else if (!haveVectorOptionals) {
+    steps.push({
+      step: "warmup",
+      status: "skipped",
+      detail: "vector deps 未安装 (默认 install 不带 @xenova/onnxruntime); 重装设 TEAMAGENT_INCLUDE_OPTIONAL=1 启用",
+    });
   } else {
     // Issue #91: default to detached (two-stage) warmup so init returns to
     // the shell prompt within ~30s. The legacy foreground path is preserved

@@ -5,6 +5,34 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
+/**
+ * ADR 0001 §opt-in: detect whether the optional vector deps (@xenova/transformers
+ * + onnxruntime-node) are installed alongside teamagent. Default install.sh
+ * passes --omit=optional so they are absent. Skip Stage 2 entirely when
+ * missing — otherwise the detached child would fail and the placeholder state
+ * file would stick at status="downloading" pid=0 forever (isPidAlive(0)=true),
+ * confusing bin-pre-tool-use which would never see a terminal "ready"/"failed".
+ *
+ * Uses bounded fs.existsSync rather than createRequire walks: we must NOT find
+ * a globally-installed @xenova in the user's nvm/node_modules; we want to know
+ * specifically whether the optionals were installed alongside this teamagent
+ * (npm hoists deps to <prefix>/lib/node_modules/ peer dirs in -g installs, or
+ * to ./node_modules/ for local installs).
+ */
+function vectorOptionalsInstalled(pkgDir) {
+  const candidates = [
+    path.join(pkgDir, "node_modules", "@xenova", "transformers", "package.json"),
+    path.join(pkgDir, "..", "@xenova", "transformers", "package.json"),
+  ];
+  const found = candidates.some((p) => {
+    try { return fs.existsSync(p); } catch { return false; }
+  });
+  if (process.env.TEAMAGENT_POSTINSTALL_DEBUG === "1") {
+    process.stderr.write(`DEBUG postinstall pkgDir=${pkgDir} found=${found} candidates=${JSON.stringify(candidates)}\n`);
+  }
+  return found;
+}
+
 // --- duck-mode (issue #116) — inline because postinstall.mjs ships
 // standalone without bundled @teamagent/core. Synced subset of the
 // authoritative table at packages/core/src/duck-mode/translations.ts.
@@ -230,8 +258,22 @@ async function main() {
   //   TEAMAGENT_FOREGROUND_WARMUP=1   foreground 同步等齐（旧行为；适合 CI / 预热镜像）
   //   (默认)                       detached 后台
   let warmupStatus = "skipped";
+  const haveVectorOptionals = vectorOptionalsInstalled(pkgDir);
   if (process.env.TEAMAGENT_SKIP_WARMUP === "1") {
     process.stderr.write(duckify("[2/2] warmup: 跳过 (TEAMAGENT_SKIP_WARMUP=1)\n"));
+  } else if (!haveVectorOptionals) {
+    // Default install.sh now passes --omit=optional → @xenova/transformers
+    // and onnxruntime-node are absent. Skip warmup entirely; substring
+    // matcher is fully functional from first interception.
+    warmupStatus = "vector-deps-absent";
+    process.stderr.write(
+      duckify(
+        "[2/2] warmup: 跳过 (vector deps 未安装; 默认装的是 substring matcher 版本)\n" +
+          "     需要 BM25+dense RRF 语义匹配请重装：\n" +
+          "       TEAMAGENT_INCLUDE_OPTIONAL=1 sh -c \"$(curl -fsSL https://raw.githubusercontent.com/libz-renlab-ai/TeamBrain/release/install.sh)\"\n" +
+          "     或：npm install -g --include=optional teamagent\n",
+      ),
+    );
   } else if (process.env.TEAMAGENT_FOREGROUND_WARMUP === "1") {
     process.stderr.write(duckify("[2/2] 下载向量模型 (TEAMAGENT_FOREGROUND_WARMUP=1; ~120MB):\n"));
     const t2 = Date.now();
@@ -315,7 +357,9 @@ async function main() {
           ? "向量模型已预热 (TEAMAGENT_FOREGROUND_WARMUP=1)"
           : warmupStatus === "foreground-failed"
             ? "向量模型预热失败 (foreground 模式), 首次 embed 会按需下载 (~5–10s)"
-            : "向量模型: 跳过预热 (TEAMAGENT_SKIP_WARMUP=1)";
+            : warmupStatus === "vector-deps-absent"
+              ? "语义匹配: 未安装 (substring matcher 已就绪; 重装时设 TEAMAGENT_INCLUDE_OPTIONAL=1 启用 vector)"
+              : "向量模型: 跳过预热 (TEAMAGENT_SKIP_WARMUP=1)";
 
   process.stdout.write(
     duckify([

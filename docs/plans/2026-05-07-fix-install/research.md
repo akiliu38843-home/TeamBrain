@@ -61,3 +61,15 @@ postinstall.mjs 切 detached 后 ADR 该改为 **accepted**。
 ## Worktree 位置
 
 当前 worktree 在 `.claude/worktrees/fix-install`，违反 `CLAUDE.md` 「新建 git worktree 必须放在 `.codex/worktrees/`」。这是已存在的 worktree，本次不迁移；report.md 里 flag。
+
+## v2 update — 2026-05-07 实测后追加
+
+实施 v1（detached warmup）后实测真实 `npm install -g <teamagent.tgz>` wall-clock **44–51s**，超 30s 预算。归因 + 关键发现：
+
+1. **postinstall.mjs 不再是瓶颈**：detached 后 postinstall.mjs 自身只占 ~150ms（Stage 1） + ~5ms（Stage 2 detached spawn）。
+2. **真正的瓶颈是 npm 装 deps 的网络下载**：92–159 packages（含 onnxruntime-node ~30MB compressed prebuild、@xenova/transformers transitive chain）。
+3. **npm 10.9.4 的 tarball install 忽略 `--omit=optional` / `--no-optional`**：把 `optionalDependencies` 当成 `dependencies` 一起装。验证：`npm install -g --omit=optional <tgz>` 后 `<prefix>/lib/node_modules/teamagent/node_modules/@xenova/transformers` 仍存在。
+4. **唯一可靠的修法**：把 `@xenova/transformers` + `onnxruntime-node` 从 `packages/teamagent/package.json` **完全移除**（包括 `optionalDependencies`），只保留 sqlite-vec + tree-sitter-* + web-tree-sitter。
+5. **opt-in 必须显式列包**：在 `install.sh` 的 `TEAMAGENT_INCLUDE_OPTIONAL=1` 分支用 `npm install -g <tarball> @xenova/transformers@^2.17.0 onnxruntime-node@1.14.0`，绕开 tarball-flag 失效问题。
+
+实施 v2 后实测：median **3.32s**（3 runs，fresh cache），9 packages。详见 `report.md`。
