@@ -18,7 +18,7 @@ docs/features/
     ├── pii-redaction/            ← md playbook at docs/plans/docs--features--pii-redaction--run-judge/judge.md
     ├── hook-registered/          ← md playbook at docs/plans/docs--features--hook-registered--run-judge/judge.md
     ├── doctor-install/           ← md playbook at docs/plans/docs--features--doctor-install--run-judge/judge.md
-    ├── cursor-compiler/          ← md playbook at docs/plans/docs--features--cursor-compiler--run-judge/judge.md
+    ├── cursor-compiler/          ← bash docs/features/cursor-compiler/run-judge.sh (utility, retained per docs/legacy/judge-scripts/README.md exemption)
     ├── ab-benchmark/             ← md playbook at docs/plans/docs--features--ab-benchmark--run-judge/judge.md
     ├── rule-quality/             ← md playbooks at docs/plans/docs--features--rule-quality--run-judge/judge.md
     │                               and docs/plans/docs--features--rule-quality--verify-canned-answer/judge.md
@@ -56,7 +56,7 @@ For the **full feature inventory** (49 features, all VERIFIED), see
 | Cross-machine sync (`sync push\|pull`) | `docs/plans/docs--features--xsync--run-judge/judge.md` | Git-remote push+pull round-trip verified |
 | PII redaction before team-share | `docs/plans/docs--features--pii-redaction--run-judge/judge.md` | API key, JWT, phone, CC, AWS key scrubbed |
 | MCP server `check_pitfall` | `docs/plans/docs--features--mcp-server--run-judge/judge.md` | initialize/tools-list/tools-call all green |
-| Cursor `.cursorrules` compiler | `docs/plans/docs--features--cursor-compiler--run-judge/judge.md` | Exports top-N rules as Cursor file |
+| Cursor `.cursorrules` compiler | `bash docs/features/cursor-compiler/run-judge.sh (utility, not archived)` | Exports top-N rules as Cursor file |
 | `teamagent doctor` diagnostics | `docs/plans/docs--features--doctor-install--run-judge/judge.md` | hook-registered / plugin-sync / mcp-reachable |
 | hook-registered detection | `docs/plans/docs--features--hook-registered--run-judge/judge.md` | PreToolUse hook detected post-install |
 | A/B benchmark (bare vs TeamAgent) | `docs/plans/docs--features--ab-benchmark--run-judge/judge.md` | Per-arm avoidance-rate metrics produced |

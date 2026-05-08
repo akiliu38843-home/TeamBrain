@@ -220,7 +220,7 @@ user-visible VERIFIED rows; this doc covers everything.
 
 | # | Feature | Evidence |
 |---|---------|----------|
-| 60 | One-line `curl\|sh` installer at `release/install.sh` (POSIX sh): gates `node ≥ 22`, picks `npm`/`pnpm`, runs release-tarball install with deterministic exit codes (10/11/20/30) and idempotent re-run | `docs/plans/docs--features--install-sh--run-judge/judge.md` (6 scenarios: syntax / node-missing / node-old / node-ok-install with captured argv / idempotent-rerun / dash-portability; archived: `docs/legacy/judge-scripts/docs/features/install-sh/run-judge.sh`) |
+| 60 | One-line `curl\|sh` installer at `release/install.sh` (POSIX sh): gates `node ≥ 22`, picks `npm`/`pnpm`, runs release-tarball install with deterministic exit codes (10/11/20/30) and idempotent re-run | `bash docs/features/install-sh/run-judge.sh` (6 scenarios: syntax / node-missing / node-old / node-ok-install with captured argv / idempotent-rerun / dash-portability; utility, retained per docs/legacy/judge-scripts/README.md exemption) |
 
 ### Seed packs / first-run interception (issue #88)
 

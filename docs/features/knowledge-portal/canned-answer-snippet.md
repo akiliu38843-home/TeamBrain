@@ -22,9 +22,8 @@ pnpm vitest run packages/portal --reporter=basic
 The verify script checks for `Test Files  1 passed` in vitest output.
 
 ```text
-# Dispatch via subagent or claudefast -p probe (script archived):
-docs/plans/docs--features--knowledge-portal--verify-canned-answer/judge.md
-# Archived: docs/legacy/judge-scripts/docs/features/knowledge-portal/verify-canned-answer.sh
+# Verify-canned-answer (utility, retained per docs/legacy/judge-scripts/README.md exemption):
+bash docs/features/knowledge-portal/verify-canned-answer.sh
 ```
 
 PASS requires vitest output to contain `Test Files  1 passed` for `VERIFIED: live knowledge portal HTTP+WS PASS`.

@@ -36,10 +36,10 @@ This feature ranks external internet sources (papers, documentation, blog posts)
 ## Verification
 
 ```text
-# Dispatch via subagent or claudefast -p probe (scripts archived):
-docs/plans/docs--features--internet-rag--run-judge/judge.md
-docs/plans/docs--features--internet-rag--verify-canned-answer/judge.md
-# Archived: docs/legacy/judge-scripts/docs/features/internet-rag/{run-judge,verify-canned-answer}.sh
+# Run-judge (utility, retained per docs/legacy/judge-scripts/README.md exemption):
+bash docs/features/internet-rag/run-judge.sh
+# Verify-canned-answer (utility, retained per docs/legacy/judge-scripts/README.md exemption):
+bash docs/features/internet-rag/verify-canned-answer.sh
 ```
 
 PASS requires `vitest_ok=true` AND `rank_ok=true` (first ranked domain must be `paper`).
