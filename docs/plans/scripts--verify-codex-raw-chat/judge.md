@@ -8,7 +8,7 @@
 
 - Replaced script: `docs/legacy/judge-scripts/scripts/verify-codex-raw-chat.sh`
 - Original purpose: Verify that `codex exec` can read the project's AGENTS.md/CLAUDE.md and sees the TeamBrain managed block, using `gpt-5.4-mini` to answer `TEAMBRAIN_VISIBLE` vs `TEAMBRAIN_MISSING`.
-- Status: DEPRECATED — the TeamBrain managed block (`TEAMAGENT:START` / `TEAMAGENT:END`) is no longer written to CLAUDE.md by default since M4 (compile flag `--legacy-claude-md` required to opt back in, commit `7e044b5`). The literal string `TEAMBRAIN_VISIBLE` cannot be reliably produced when there is no managed block to detect.
+- Status: **ACTIVE** (re-classified iter-5) — the underlying feature ("does `codex exec` actually read CLAUDE.md and see content we put in it?") is alive and useful. iter-4's classification as DEPRECATED was based on the assumption that the TEAMAGENT-managed block is absent by default since M4, but in this checkout the auto-managed block IS present (3 `TEAMAGENT:START` hits in CLAUDE.md, refreshed by `pnpm teamagent compile`, see commit `02c2d95`). When the managed block is present, this playbook is a real test of codex's context-loading; when it's absent (e.g. fresh checkout that hasn't run compile), the playbook gracefully SKIPs.
 
 ## §V1 RUN
 
@@ -35,7 +35,7 @@ Canonical JSON written to `.judge/<run_id>/judge.json`:
   "evidence_dir": ".judge/<run_id>",
   "stdout_path": ".judge/<run_id>/codex-stream.jsonl",
   "stderr_path": ".judge/<run_id>/last-message.txt",
-  "feature_status": "deprecated"
+  "feature_status": "active"
 }
 ```
 
@@ -46,21 +46,10 @@ LLM judge prompt (run via `claudefast -p`):
 > Read `.judge/<run_id>/judge.json` and supporting evidence in
 > `evidence_dir`. Emit verdict `PASS` / `FAIL` / `SKIP`. Criteria:
 >
-> This playbook is DEPRECATED (feature deleted at commit d341da8). The correct verdicts are:
->
-> - **SKIP** (expected / good) if the canned-answer trigger phrase `TEAMAGENT:START` is **absent**
->   from `CLAUDE.md`. This confirms the deletion is intact; the deprecated feature has not
->   regressed. `managed_block_present` is irrelevant — do NOT use it as the SKIP gate.
->   Check: `grep -qc 'TEAMAGENT:START' CLAUDE.md` returns 0.
->
-> - **FAIL** (regression detected) if `TEAMAGENT:START` has regressed back into `CLAUDE.md`
->   (e.g. someone ran `pnpm teamagent compile --legacy-claude-md` accidentally). When the
->   trigger phrase is present, the deprecated raw-chat behavior may become observable again.
->   Check: `grep -qc 'TEAMAGENT:START' CLAUDE.md` returns > 0.
->
-> Do NOT use `managed_block_present` as a criterion — that field always reflects the actual
-> block content and is normally `false` since M4 regardless of whether a regression occurred.
-> The canned-answer trigger phrase (`TEAMAGENT:START`) is the correct regression signal.
+> - **PASS** if `managed_block_present == true` AND `codex_exec_exit_code == 0` AND `teambrain_visible_in_response == true`. The managed block is present in CLAUDE.md and codex correctly read and reported it.
+> - **FAIL** if `managed_block_present == true` AND `codex_exec_exit_code == 0` AND `teambrain_visible_in_response == false`. The managed block is present but codex didn't see it — context-loading regression (codex no longer reads CLAUDE.md, or the managed-block content changed in a way that makes it undetectable).
+> - **SKIP** if `managed_block_present == false`. This checkout doesn't have a managed block compiled into CLAUDE.md (e.g. fresh clone before running `pnpm teamagent compile --legacy-claude-md`); the playbook is not applicable. Record reason `managed block absent in this checkout`.
+> - **SKIP** if `codex_exec_exit_code != 0` (codex CLI unavailable, auth failure, or model unreachable). Record stderr in evidence.
 
 ## Notes
 
@@ -73,3 +62,5 @@ LLM judge prompt (run via `claudefast -p`):
 
 ## Phase 2 fix log
 Resolved 2026-05-08: #9 (P3) rewrote §V3 SKIP/FAIL logic: removed `managed_block_present` gate; SKIP now triggers when `TEAMAGENT:START` is absent from CLAUDE.md (deletion confirmed, expected path); FAIL triggers when trigger phrase regresses back. Commit fee007b.
+
+Re-resolved 2026-05-08 (iter-5): the iter-4-era fix had the same root bug as the canned-answers/teamwork playbooks — `TEAMAGENT:START` is the *opening marker* of the auto-managed learned-knowledge block (refreshed by `pnpm teamagent compile`, see commit `02c2d95`), not a deleted canned-answer trigger. It returns 3 hits in current CLAUDE.md, so the iter-4 fix's "SKIP if absent / FAIL if present" logic was inverted relative to reality. iter-5 reclassified Status as **ACTIVE**: this playbook now tests whether codex actually reads CLAUDE.md when the managed block IS present (PASS), with explicit SKIP for checkouts that haven't compiled the block. See iter-5 review commit.

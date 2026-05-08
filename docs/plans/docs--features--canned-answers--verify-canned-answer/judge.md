@@ -11,8 +11,8 @@
 
 ## §V1 RUN
 Commands MAIN agent dispatches; capture to `evidence_dir = .judge/<run_id>/`:
-- Step 1: Check whether any canned-answer trigger phrases have regressed back into `CLAUDE.md`:
-  `grep -c 'DOGFOOD\|DUCKPLAN\|POSTPR' CLAUDE.md > .judge/<run_id>/trigger-check.txt 2>&1; echo $? > .judge/<run_id>/trigger.exit`
+- Step 1: Check whether any canned-answer **rule wrappers** have regressed back into `CLAUDE.md`. Match the deleted wrapper pattern (not bare keywords — those legitimately appear in prose like `docs/POSTPR.md`):
+  `grep -cE "被问到.*(DOGFOOD|DUCKPLAN|POSTPR).*关键字时|用户消息单纯含 \\\`(DOGFOOD|DUCKPLAN|POSTPR)\\\` 关键字" CLAUDE.md > .judge/<run_id>/trigger-check.txt 2>&1; echo $? > .judge/<run_id>/trigger.exit`
 - Step 2: Record grep count and exit code in `evidence_dir` for the §V3 LLM judge to read.
 
 ## §V2 DUMP
@@ -31,11 +31,11 @@ JSON to `.judge/<run_id>/judge.json`:
 >
 > This playbook is DEPRECATED (canned-answer keyword gate deleted at commit d341da8). The correct verdicts are:
 >
-> - **SKIP** (expected / good) if the canned-answer trigger phrases `DOGFOOD`, `DUCKPLAN`, or `POSTPR` are **absent** from `CLAUDE.md`. This confirms the deletion is intact; the deprecated feature has not regressed.
->   Check: `grep -c 'DOGFOOD\|DUCKPLAN\|POSTPR' CLAUDE.md` returns 0.
+> - **SKIP** (expected / good) if the deleted canned-answer **rule wrappers** are **absent** from `CLAUDE.md`. This confirms the deletion is intact; the deprecated feature has not regressed. Bare keyword mentions in prose (e.g. `docs/POSTPR.md`, `DUCKPLAN flow`) are legitimate and do NOT count as regression.
+>   Check: `grep -cE "被问到.*(DOGFOOD|DUCKPLAN|POSTPR).*关键字时|用户消息单纯含 \\\`(DOGFOOD|DUCKPLAN|POSTPR)\\\` 关键字" CLAUDE.md` returns 0.
 >
-> - **FAIL** (regression detected) if any of those trigger phrases have regressed back into `CLAUDE.md`. The deprecated keyword-gate behavior would become observable again.
->   Check: `grep -c 'DOGFOOD\|DUCKPLAN\|POSTPR' CLAUDE.md` returns ≥ 1.
+> - **FAIL** (regression detected) if any of those wrappers have regressed back into `CLAUDE.md`. The deprecated keyword-gate behavior would become observable again.
+>   Check: same regex above returns ≥ 1.
 >
 > Do NOT emit always-SKIP without reading `trigger-check.txt` — that loses regression-catch power.
 
