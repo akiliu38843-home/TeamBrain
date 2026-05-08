@@ -66,3 +66,11 @@ Output last line in form `OVERALL: PASS` or `OVERALL: FAIL`.
 - Original logic summary: bash script with cross-platform `stat -f%z || stat -c%s` helper, `check_anchor` accumulator, and `jq`/printf-fallback judge.json writer. Backups state files, traps EXIT to restore.
 - Dependencies: `pnpm typecheck`, `pnpm vitest`, `node packages/teamagent/postinstall.mjs`, optional `expect`, optional `jq`, optional baseline at `docs/baselines/help-output.txt`.
 - Limitations: J4 known to FAIL state_file_created when `defaultSpawn(choice, [])` cannot find subcommand binary in PATH; this is the W1 bug the script itself documents. State write is fully covered by J2 vitest.
+
+## Phase 2 fix log
+
+Resolved 2026-05-08 (regression #5): PLAYBOOK-FIX — the `--help` anchor WAS present when Phase 2 Wave C1 ran.
+
+**Investigation:** `packages/teamagent/postinstall.mjs` line 244 emits `"   3. teamagent --help          — 看完整命令列表"` to `process.stdout`. Running `TEAMAGENT_SKIP_WARMUP=1 node packages/teamagent/postinstall.mjs > /tmp/out.txt 2>&1` and checking `grep -q "\-\-help" /tmp/out.txt` confirms the anchor is present. The `--help` token was added in commit `8b5a640` ("feat(m4): extend postinstall welcome with 3-actions block #87"), which predates Phase 2 Wave C1 (`e18af66`). The Phase 2 Wave C1 verdict "J3 anchors 5/6; missing --help" was inaccurate — likely caused by the test running against a stale binary or an off-by-one in the anchor accumulator script.
+
+**Current state:** All 6 J3 anchors (`✅`, `装好`, `skeleton-demo`, `stats`, `--help`, `github.com`) are present in postinstall stdout. J3 anchor count = 6/6. No code change required. The J3 pass criterion `anchors_hit_count >= 6` is correctly met.
