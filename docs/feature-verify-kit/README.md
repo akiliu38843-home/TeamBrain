@@ -31,8 +31,9 @@ diff -u "$OUT_DIR/expected-features.sorted.json" "$OUT_DIR/claude-features.sorte
 `(gsub("\\s+"; "") | length > 0)`，即纯空白字符串的值视为失败。
 
 **回归守护**：`bash docs/feature-verify-kit/test-hardmatch-regression.sh`
-（由 Worker 1 创建的同级脚本）已接入 `run-all.sh`，任何将 hardmatch 降级回
-keys-only 的提交都会触发该测试失败。
+（由 Worker 1 创建的同级 utility 脚本，保留）是强制性回归门禁，按
+`docs/plans/docs--feature-verify-kit--run-all/judge.md` §V1 Step 6
+驱动执行。任何将 hardmatch 降级回 keys-only 的提交都会触发该测试失败。
 
 **禁止合并的 PR 类型**：将 `diff -u` 全量 JSON 比对替换为 `jq -S 'keys'`
 键名比对、删除非空值检查、或将值检查改为子串/schema 匹配的 PR，均属

@@ -36,5 +36,5 @@ JSON to `.judge/<run_id>/judge.json`:
   - Relied on `scripts/verify-all-rules.sh` as primary path; grep of `CLAUDE.md` was only a fallback
   - This was a structural presence check (keyword in file), not a semantic probe — it could not detect a keyword-present-but-wrong-content failure
   - The six keywords are no longer maintained as canned-answer triggers in `CLAUDE.md` after d341da8
-  - Active rule verification is now handled via `docs/rule-verify/INDEX.md` and `bash scripts/verify-all-rules.sh`
+  - Active rule verification is now handled via `docs/rule-verify/INDEX.md` — dispatch the corresponding md playbook via `claudefast -p` probe (see that file's registry table). Do not run `scripts/verify-all-rules.sh`; it is archived at `docs/legacy/judge-scripts/scripts/`.
   - This playbook must always emit SKIP; do not run grep checks against `CLAUDE.md`
