@@ -79,15 +79,17 @@ Plan 起源：[Architecture grilling session 2026-05-07/08](.) — `/improve-cod
 
 ### 移动（adapter → core，FCIS 修复）
 
-| from | to |
-|------|-----|
-| `packages/adapters/src/hook/claude-agent-sdk/pre-tool-use-sdk.ts` | `packages/core/src/hook/pre-tool-use-handler.ts` |
-| `packages/adapters/src/hook/.../post-tool-use-sdk.ts` | `packages/core/src/hook/post-tool-use-handler.ts` |
-| `packages/adapters/src/hook/.../user-prompt-submit-sdk.ts` | `packages/core/src/hook/user-prompt-submit-handler.ts` |
-| `packages/adapters/src/hook/.../stop-sdk.ts` | `packages/core/src/hook/stop-handler.ts` |
-| `packages/adapters/src/hook/.../session-{start,end}-sdk.ts` | `packages/core/src/hook/session-handler.ts` |
+**Plan correction (post-impl)**：原计划假设 5 个 handler factory 要搬。实际 inventory 后只有 **2 个** SDK handler factory 存在：
 
-每个 handler 加 3 个注入参数：`idGen: () => string`、`now: () => string`、`formatStyle: "humane" | "ascii-box"`（替换 `crypto.randomUUID` / `new Date()` / `process.env.TEAMAGENT_HOOK_ASCII_BOX` 三处不纯）。
+| from | to | commit |
+|------|-----|--------|
+| `packages/adapters/src/hook/claude-agent-sdk/pre-tool-use-sdk.ts` | `packages/core/src/hook/pre-tool-use-handler.ts` | dc6510b |
+| `packages/adapters/src/hook/claude-agent-sdk/post-tool-use-sdk.ts` | `packages/core/src/hook/post-tool-use-handler.ts` | 2dbca7c |
+
+PreToolUse 注入 3 个 dep：`idGen: () => string` / `now: () => string` / `formatStyle: "humane" | "ascii-box"`（替换 `crypto.randomUUID` / `new Date()` / `process.env.TEAMAGENT_HOOK_ASCII_BOX`）。
+PostToolUse 注入 2 个 dep：`idGen` / `now`（无 env-driven format flag）。
+
+其他 hook channel（`user-prompt-submit` / `stop` / `session-start` / `session-end` / `pre-compact` / `updater`）已经直接以 imperative `bin-*.ts` 形态在 `packages/cli/src/`，没有 `createXxxHandler(deps)` factory 模式可搬。它们已经在 imperative shell 层（per ADR-0006 设计），通过 commits 5-12 改用 HookShell 即可，不需要 sweep 到 core。
 
 ### 重塑
 
@@ -187,7 +189,7 @@ commit 16: chore(m6): cleanup any dead wiring + verify-all-rules pass
 |------|------|
 | bin-stop 632 行迁移最复杂 | 放最后 commit；single-step rollback；commit 前用 `pnpm teamagent skeleton-demo` 验证 |
 | AttributionEvent reshape 破坏既有 emit point | commit 4 同步改 pitfall.ts / skeleton-demo.ts；契约测试覆盖 Renderer |
-| FCIS sweep 5 个 handler 移动 import 路径变化范围大 | 每个 sweep commit 跑 typecheck；adapter 端保留 re-export 一段时间 |
+| FCIS sweep 2 个 handler（PreToolUse + PostToolUse）移动 import 路径变化 | 每个 sweep commit 跑 typecheck；adapter 端保留 re-export 一段时间 |
 | TS conditional type gate 写错导致 runAdvancedHook 误用不报错 | 单元测试用 type-level assertion；运行时 `assertEscapeNonEmpty` 兜底 |
 | 与 ADR-0005 `_archived/` PR 冲突（同周内两个大重构） | merge 顺序：先 ADR-0005 PR，再 HookShell PR；HookShell PR rebase 后跑全套 verify |
 
@@ -219,9 +221,9 @@ per `docs/POSTPR.md`：PR 开后 fetch Codex review → triage P1/P2/P3 → 用 
    ^^^^^^^^
 ```
 
-🦆 **(1) 任务描述**：把 8 只 bin 小鸭重复的洗脸刷牙工序提取成 `HookShell` 公共澡堂；7 只小鸭用「默认池」，1 只胖鸭 bin-stop 用「进阶池」（带 spawn 子鸭、lock 牌、240s 沙漏）。同时把 5 个 handler 从 adapter 鸭舍搬回 core 鸭舍（修 FCIS 元约束），把 `AttributionEvent` 升级成 `kind: 12-20 enum` 的清晰窄类型。
+🦆 **(1) 任务描述**：把 8 只 bin 小鸭重复的洗脸刷牙工序提取成 `HookShell` 公共澡堂；3 只小鸭用「默认池」（post-tool-use / pre-tool-use / user-prompt-submit），4 只胖鸭用「进阶池」（bin-stop / bin-session-end / bin-pre-compact / bin-session-start，各自带 spawn detached / lock / pipeline timeout / manualResources 中的一些）。同时把 **2 个**（不是原计划的 5 个）handler factory 从 adapter 鸭舍搬回 core 鸭舍（修 FCIS 元约束）——只有 PreToolUse + PostToolUse 真存在 factory 模式。把 `AttributionEvent` 升级成 `kind: 40 enum` 的清晰窄类型。
 
-🦆 **(2) 预期产出**：HookShell 模块 (3 文件 + 测试) / ADR-0006 / 5 handler 搬移 / AttributionEvent 重塑 / 8 bin 改写 / CONTEXT.md +3 术语 / lint rule。
+🦆 **(2) 预期产出**：HookShell 模块 (3 文件 + 测试) / ADR-0006 / 2 handler 搬移 / AttributionEvent 重塑 (40 kind) / 8 bin 改写 / CONTEXT.md +3 术语 / lint rule。
 
 🦆 **(3) 第三方裁判**：本 PR 自己**不**评自己。3 阶段 judge harness：RUN（固定工具）→ DUMP（固定 JSON）→ READ（LLM judge）。任一 probe FAIL → block merge。
 
