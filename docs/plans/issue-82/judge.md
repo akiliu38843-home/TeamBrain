@@ -41,7 +41,7 @@ This is the **MD playbook** dispatched by the main agent (or a maintainer runnin
     {"id": 2, "name": "m5-ship-regression",           "exit_code": 0, "metrics": {"checks_run": 7, "checks_pass": 7}},
     {"id": 3, "name": "e2e-teaching-rig",             "exit_code": 0, "metrics": {"positive_trigger_rate": 1.0, "false_positive_rate": 0.0}},
     {"id": 4, "name": "attribution-chain-complete",   "exit_code": 0, "metrics": {"events_checked": 12, "events_with_all_source_fields": 12}},
-    {"id": 5, "name": "dependency-on-#81",            "exit_code": 0, "metrics": {"personal_use_subjects_present": 3}}
+    {"id": 5, "name": "dependency-on-#81",            "exit_code": 0, "metrics": {"personal_use_subjects_present": 1}}
   ],
   "verdict": "pass",
   "verdict_reason": "all 5 steps green; attribution chain intact; dependency on #81 satisfied"
@@ -95,7 +95,7 @@ Sub-agent runs the new e2e rig (path defined in plan ② section). Reads its `su
 - `positive_trigger_rate == 1.0`
 - `false_positive_rate == 0.0`
 - `attribution_present == true`
-- `attribution.source_commit_sha` matches the M1-side commit SHA recorded in `m1.log`
+- `source_commit_sha` (top-level on each event in `attribution.jsonl`, matching the flat 4-field schema in plan §② and Step 4) matches the M1-side commit SHA recorded in `m1.log`
 - Total intercept events ≥ the rig's expected sample size (configurable in the rig but ≥ 5)
 
 The rig itself is responsible for picking a representative pitfall (e.g., a substring that maps cleanly to a `wrong_pattern` rule) and for not faking attribution chain. Sub-agent does NOT modify rig output.

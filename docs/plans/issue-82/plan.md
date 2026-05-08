@@ -64,7 +64,7 @@
 
 | Issue 用语 | CONTEXT.md canonical | 物理对应 |
 |---|---|---|
-| group sharing | **team-scope viral sync teaching** | M5 sync 子系统 + L2 共享层 |
+| group sharing | **team-scope viral sync teaching** | M5 sync 子系统 + L2 team layer（CONTEXT.md canonical 名称；不写 "shared layer"） |
 | group brain | **team scope** (in-project, **not** cross-project) | `<cwd>/.teamagent/knowledge.db` 中 `scope.level=team` 的子集 |
 | group mode | **team-scope mode**（`teamagent review --scope=team`） | DualLayerStore 路由 |
 | group rule | **team-scope rule** | `scope.level=team` 的 entry |
@@ -97,9 +97,11 @@ Issue #82 的 5 个原始设计问题里，**前 4 个已被 M5 viral sync (PR #
    - SessionStart auto-pull（默认 on）
    - 团队边界：`team_id = SHA256(normalize(git remote))[:16]`
    - 4 通道拦截（PreToolUse / UserPromptSubmit / Stop / AttributionBus）
-   - Calibration via Claude Code subagent（ADR-0004，hit-count decay + tier 升降）
+   - Calibration via Claude Code subagent（ADR-0004：`RuleBasedCalibrator` 只更新 `confidence`，不写 `tier`、不写 `demerit`；`tier` 是 `KnowledgeEntry` 一等字段，由人或 Claude Code subagent 通过 `teamagent set-tier <rule-id> <tier> --reason "..."` 外部写入）
 
    这些不在本 plan 工作量内。本 plan 把它们当作既成事实，引用而不重写。
+
+   **注意**：issue #82 第 4 个设计问题（"怎么避免噪声爆炸？投票 / 校准 / hit-count decay / team owner 审批"）M5 + ADR-0004 **部分回答**——`confidence` 由 `RuleBasedCalibrator` 持续校准、低分规则进入 compile gate 黑名单、`team-owner-only enforcement` 由 reviewer 角色（人 + subagent）通过 `set-tier` 与 `review-candidates --approve-scope=team` 把关。**未回答**：自动 demote 到 dormant 的策略（ADR-0004 把 auto-tier 列为 rejected alternative d，明确不做闭环自动降权）。本 plan 不补这条；如果未来 noise 爆炸成真，开新 issue 单独评估是否引入手动批量 demote 工具。
 
 2. **新增 cross-machine e2e teaching rig**（本 plan 主交付物之一）：
    - Rig 形态：`packages/cli/src/__tests__/m5-e2e-teaching.test.ts` 或 `tests/e2e/m5-teaching/` 目录。
@@ -127,8 +129,8 @@ Issue #82 的 5 个原始设计问题里，**前 4 个已被 M5 viral sync (PR #
 | Artifact | Path | Reviewer 验收点 |
 |---|---|---|
 | Cross-machine e2e teaching rig | `packages/cli/src/__tests__/m5-e2e-teaching.test.ts` 或 `tests/e2e/m5-teaching/` 目录 | 跑通：pitfall → 双闸门 → push → pull → apply → PreToolUse intercept；rig 退出码 0 |
-| E2E rig 原始输出 | `tests/e2e/m5-teaching/.evidence/<run-id>/{m1.log, m2.log, intercepts.jsonl, attribution.jsonl}` | M1 push commit message 含 `[teamagent-sync]`；M2 attribution 事件含 `source_commit_sha == <M1's commit>` |
-| AttributionBus 结构化事件 schema | `packages/core/src/m5/attribution-event.schema.json` 或 ts 类型导出 | team-scope 拦截事件含 `source_author`、`source_machine_id`、`source_commit_sha`、`source_rule_id` 4 字段，每字段 non-empty |
+| E2E rig 原始输出 | `tests/e2e/m5-teaching/.evidence/<run-id>/{m1.log, m2.log, intercepts.jsonl, attribution.jsonl}` | M1 push commit message 含 `[teamagent-sync]`；M2 attribution 事件**顶层** `source_commit_sha == <M1's commit>`（与 4 字段平铺约定一致） |
+| AttributionBus 结构化事件 schema 扩展 | 扩展现有 `packages/types/src/attribution.ts` 的 `AttributionEvent` 类型（**不**新建 `packages/core/src/m5/attribution-event.schema.json`，避免与现有类型分裂——参考 M0 元约束 "Port 接口冻结于 M0、不分叉类型"） | team-scope 拦截事件**顶层平铺**含 `source_author`、`source_machine_id`、`source_commit_sha`、`source_rule_id` 4 字段（不嵌套在 `attribution.*` 子对象下），每字段 non-empty |
 | Renderer 展示 evidence | `tests/e2e/m5-teaching/.evidence/<run-id>/m2-banner.txt` | M2 用户能在 banner / TUI 文本里看到"this rule came from A's commit <sha>" |
 | Probe summary | `tests/e2e/m5-teaching/.evidence/<run-id>/summary.json` | `{positive_trigger_rate: 1.0, false_positive_rate: 0.0, attribution_present: true, dependency_check_ok: true}` |
 | Product features 增量 | `docs/PRODUCT-FEATURES.md` 增 1 行 VERIFIED：`team-scope-viral-sync-teaching-e2e` | 状态字段 VERIFIED；指针回 e2e rig 路径 |
