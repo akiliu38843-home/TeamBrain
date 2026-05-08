@@ -1,9 +1,51 @@
 #!/usr/bin/env node
 /**
- * SessionStart Hook entry. NEVER blocks UI. NEVER exits non-zero.
+ * SessionStart Hook entry — HookShell migration (commit 7 of M6 fused PR).
+ *
+ * Lifecycle (stdin / bus / mirror / exit) is owned by `runAdvancedHook` with
+ * `escape.manualResources = true`. The handler never touches `ctx.store()`
+ * or `ctx.eventLog()`, so neither sqlite handle is opened — which is
+ * load-bearing: SessionStart's auto-init detection works by checking
+ * whether `<cwd>/.teamagent/knowledge.db` exists, and `DualLayerStore`'s
+ * eager open in the default `runHook` layer would create that file before
+ * `decideAction` ran, flipping every probe to `skip-already-initialized`.
+ *
+ * The default layer (`runHook`) is therefore wrong for this channel; the
+ * advanced layer's lazy resources are the right tool. SessionStart never
+ * writes to knowledge.db / events.db, so passing `manualResources` and
+ * never calling the lazy getters keeps zero filesystem footprint at
+ * sqlite level.
+ *
+ * What runs in the handler:
+ *   1. cleanup helpers (wiki-residue, db-backup) — best-effort, silent.
+ *   2. `decideAction(cwd)` — detects new project vs. project-marker-less
+ *      vs. already-initialized, drives the auto-init banner + spawn.
+ *   3. update banners (`maybeShowPendingBanner`, `maybeShowReinstallBanner`)
+ *      — both helpers accept an injectable `stderr` callback so we route
+ *      them through `ctx.mirrorSystemMessage` instead of raw stderr,
+ *      keeping the unified `TEAMAGENT_HOOK_STDERR=0` opt-out.
+ *   4. updater spawn (detached, fire-and-forget).
+ *   5. M5 auto-pipeline — same gates as before (`TEAMAGENT_M5_AUTOSESSION`,
+ *      `TEAMAGENT_M5_AUTOPUSH`).
+ *
+ * SessionStart has no `hookSpecificOutput` envelope wired today (this bin
+ * has historically returned exit 0 with empty stdout). We keep that —
+ * the handler returns `undefined` and HookShell writes nothing to stdout.
+ *
+ * AttributionEvent currently has no `hook-session.*` kind. The user-facing
+ * banners (auto-init, skip-not-a-project, pending-update, reinstall-needed,
+ * M5 pipeline result) are info-only system messages, not structured
+ * AttributionEvents — `mirrorSystemMessage` is the right channel. Adding
+ * `hook-session.*` kinds is type-additive but explicitly deferred per the
+ * task scope guard.
+ *
+ * cjs has no top-level await; wrap in `async main(); void main();` per the
+ * commit-5 canary pattern. `runAdvancedHook` never throws, so no `.catch`
+ * needed.
  */
 import os from "node:os";
 import path from "node:path";
+import type { SessionStartHookInput } from "@anthropic-ai/claude-agent-sdk";
 import {
   decideAction,
   spawnAutoInit,
@@ -16,82 +58,105 @@ import {
 import { cleanupWikiResidue } from "./wiki-residue-cleanup.js";
 import { cleanupDbBackups } from "./db-backup-cleanup.js";
 import { runM5Session, renderM5SessionBanner } from "./m5-session-hook.js";
+import { runAdvancedHook } from "./hook-shell/index.js";
 
-async function main(): Promise<void> {
-  // B-090: best-effort cleanup of orphan ~/.teamagent/wiki-refresh-errors.log
-  // left over by the removed wiki subsystem (commit 280e4e8). Silent + cheap;
-  // never blocks the hook.
-  cleanupWikiResidue();
+/**
+ * SessionStart accepts effectively any input shape (including missing /
+ * empty stdin). The handler doesn't read input fields — `ctx.cwd` is the
+ * source of truth, and HookShell's own `pickRawCwd` already seeds it from
+ * `raw.cwd` when the SDK supplies one. We return a typed-but-permissive
+ * sentinel so empty stdin still drives the cleanup + auto-init pipeline
+ * (legacy behavior).
+ */
+type SessionStartInput = Partial<SessionStartHookInput>;
 
-  // B-094: prune legacy `*.before-*` schema-migration db backups in both
-  // user-global ~/.teamagent and project-local <cwd>/.teamagent so they do
-  // not accumulate forever. Best-effort.
-  const homeTeamagent = path.join(os.homedir(), ".teamagent");
-  cleanupDbBackups(homeTeamagent);
-
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
-  const raw = Buffer.concat(chunks).toString("utf-8").trim();
-
-  let cwd = process.env["CLAUDE_PROJECT_DIR"] ?? process.cwd();
-  if (raw) {
-    try {
-      const input = JSON.parse(raw) as { cwd?: string };
-      if (input.cwd) cwd = input.cwd;
-    } catch { /* fallback to env/cwd */ }
-  }
-
-  // B-094: project-scoped db backup pruning once we know cwd.
-  cleanupDbBackups(path.join(cwd, ".teamagent"));
-
-  const action = decideAction(cwd, new Date());
-  if (action === "auto-init") {
-    // New project: show visible banner to user + kick off init in background.
-    // Claude Code displays SessionStart stderr/stdout on first turn.
-    process.stderr.write(
-      `✨ TeamAgent: 新项目检测到 (无 .teamagent/knowledge.db)，后台自动 init 中...\n` +
-      `   日志: ~/.teamagent/auto-init.log\n` +
-      `   禁用: touch ~/.teamagent/auto-init.disabled\n`,
-    );
-    try { spawnAutoInit(cwd); } catch (e) { logError("auto-init-spawn-failed", e); }
-  } else if (action === "skip-not-a-project") {
-    // 当前目录没有项目标记 (.git / package.json / pyproject.toml 等), 不敢自动建 .teamagent/.
-    // 告诉用户为啥没动作 + 提供出路.
-    process.stderr.write(
-      `ℹ️  TeamAgent: 当前目录不像项目 (无 .git / package.json / pyproject.toml 等标记), 跳过 auto-init\n` +
-      `   想启用: 在有这些标记的项目里开 Claude Code, 或手动运行 \`teamagent init\`\n` +
-      `   完全静默: touch ~/.teamagent/auto-init.disabled\n`,
-    );
-  }
-
-  // 自动更新：先显示上次更新完成的 banner，再决定是否后台 spawn updater
-  try { maybeShowPendingBanner(); } catch (e) { logError("banner-show-failed", e); }
-  // B-104: 如果自动更新连续失败（旧 SSH PACKAGE_SPEC 卡死），提示用户手动重装。
-  // 24h 节流，避免每次 SessionStart 刷屏。
-  try { maybeShowReinstallBanner(); } catch (e) { logError("reinstall-banner-failed", e); }
-  try {
-    if (shouldSpawnUpdater()) spawnUpdater();
-  } catch (e) {
-    logError("updater-spawn-failed", e);
-  }
-
-  // M5 自动管线：infect + bootstrap apply + sync apply + auto-publish（全部降级，不阻塞）
-  // 默认开启（spec §7"激进模式"）：设 TEAMAGENT_M5_AUTOSESSION=0 显式关闭
-  // auto-push 也默认开启：设 TEAMAGENT_M5_AUTOPUSH=0 显式关闭
-  // 闸门 1 (secret scanner) + 闸门 2 (scope classifier) 兜底，规则离不开本机前都已过两道闸
-  if (process.env["TEAMAGENT_M5_AUTOSESSION"] !== "0") {
-    try {
-      const r = await runM5Session({
-        projectRoot: cwd,
-        homeDir: os.homedir(),
-        autoPush: process.env["TEAMAGENT_M5_AUTOPUSH"] !== "0",
-      });
-      const banner = renderM5SessionBanner(r);
-      if (banner) process.stderr.write(banner + "\n");
-    } catch (e) {
-      logError("m5-session-failed", e);
-    }
-  }
+function parseInput(raw: unknown): SessionStartInput {
+  if (raw && typeof raw === "object") return raw as SessionStartInput;
+  return {};
 }
 
-main().catch((e) => { logError("main-crash", e); process.exit(0); });
+async function main(): Promise<void> {
+  await runAdvancedHook({
+    channel: "SessionStart",
+    parseInput,
+    escape: { manualResources: true },
+    handler: async (ctx) => {
+      // B-090: best-effort cleanup of orphan wiki-refresh-errors.log left
+      // over by the removed wiki subsystem (commit 280e4e8). Silent + cheap.
+      cleanupWikiResidue();
+
+      // B-094: prune legacy `*.before-*` schema-migration db backups in both
+      // user-global ~/.teamagent and project-local <cwd>/.teamagent so they
+      // do not accumulate forever. Best-effort.
+      const homeTeamagent = path.join(os.homedir(), ".teamagent");
+      cleanupDbBackups(homeTeamagent);
+      cleanupDbBackups(path.join(ctx.cwd, ".teamagent"));
+
+      // CRITICAL: decideAction MUST run before any code that could touch
+      // <cwd>/.teamagent/knowledge.db. We're using runAdvancedHook with
+      // manualResources=true precisely so the shell does NOT eagerly open
+      // DualLayerStore (which would create the .db file and flip the
+      // detection from "auto-init" to "skip-already-initialized"). The
+      // handler never calls ctx.store() / ctx.eventLog().
+      const action = decideAction(ctx.cwd, new Date());
+      if (action === "auto-init") {
+        // New project: show visible banner + kick off init in background.
+        // Claude Code displays SessionStart stderr on first turn.
+        ctx.mirrorSystemMessage(
+          `✨ TeamAgent: 新项目检测到 (无 .teamagent/knowledge.db)，后台自动 init 中...\n` +
+          `   日志: ~/.teamagent/auto-init.log\n` +
+          `   禁用: touch ~/.teamagent/auto-init.disabled`,
+        );
+        try { spawnAutoInit(ctx.cwd); } catch (e) { logError("auto-init-spawn-failed", e); }
+      } else if (action === "skip-not-a-project") {
+        // 当前目录没有项目标记 (.git / package.json / pyproject.toml 等),
+        // 不敢自动建 .teamagent/. 告诉用户为啥没动作 + 提供出路.
+        ctx.mirrorSystemMessage(
+          `ℹ️  TeamAgent: 当前目录不像项目 (无 .git / package.json / pyproject.toml 等标记), 跳过 auto-init\n` +
+          `   想启用: 在有这些标记的项目里开 Claude Code, 或手动运行 \`teamagent init\`\n` +
+          `   完全静默: touch ~/.teamagent/auto-init.disabled`,
+        );
+      }
+
+      // 自动更新：先显示上次更新完成的 banner，再决定是否后台 spawn updater.
+      // session-start-logic 的 banner helper 默认写 process.stderr；这里改走
+      // ctx.mirrorSystemMessage 以遵守 TEAMAGENT_HOOK_STDERR=0 的统一开关。
+      // helper 自己加 \n，mirror 也加 \n，所以 strip 末尾换行避免双重换行。
+      try {
+        maybeShowPendingBanner((s) => ctx.mirrorSystemMessage(s.replace(/\n$/, "")));
+      } catch (e) { logError("banner-show-failed", e); }
+      // B-104: 自动更新连续失败时的手动重装提示。24h 节流。
+      try {
+        maybeShowReinstallBanner((s) => ctx.mirrorSystemMessage(s.replace(/\n$/, "")));
+      } catch (e) { logError("reinstall-banner-failed", e); }
+      try {
+        if (shouldSpawnUpdater()) spawnUpdater();
+      } catch (e) {
+        logError("updater-spawn-failed", e);
+      }
+
+      // M5 自动管线：infect + bootstrap apply + sync apply + auto-publish
+      // （全部降级，不阻塞）。默认开启（spec §7"激进模式"），TEAMAGENT_M5_AUTOSESSION=0
+      // 显式关闭；auto-push 也默认开启，TEAMAGENT_M5_AUTOPUSH=0 显式关闭。
+      // 闸门 1（secret scanner）+ 闸门 2（scope classifier）兜底，规则离开本机前
+      // 都已过两道闸。
+      if (ctx.env["TEAMAGENT_M5_AUTOSESSION"] !== "0") {
+        try {
+          const r = await runM5Session({
+            projectRoot: ctx.cwd,
+            homeDir: os.homedir(),
+            autoPush: ctx.env["TEAMAGENT_M5_AUTOPUSH"] !== "0",
+          });
+          const banner = renderM5SessionBanner(r);
+          if (banner) ctx.mirrorSystemMessage(banner);
+        } catch (e) {
+          logError("m5-session-failed", e);
+        }
+      }
+
+      return undefined;
+    },
+  });
+}
+
+void main();
