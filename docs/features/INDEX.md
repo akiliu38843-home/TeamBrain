@@ -61,7 +61,7 @@ For the **full feature inventory** (49 features, all VERIFIED), see
 | Matcher scope (B-055 + file_types) | `matcher-scope/run-judge.sh` | Word-boundary guard + glob scope correct |
 | Multi-tool: PreToolUse/Stop/AttributionBus | `multi-tool/verify-canned-answer.sh` | All three hooks live; DOGFOOD Tier 2/3 green |
 | `teamagent compile` (Skills-default, CLAUDE.md legacy opt-in) | `packages/cli/src/__tests__/compile.test.ts` (`no flags: writes skills and leaves CLAUDE.md untouched` + `--legacy-claude-md restores old behavior`) | Default writes Skills only; deleted CLAUDE.md block does NOT regenerate without `--legacy-claude-md` (or `TEAMAGENT_LEGACY_CLAUDE_MD=1`) |
-| Canned-answer rules (9 triggers) | `docs/rule-verify/INDEX.md` | `bash scripts/verify-all-rules.sh` PASS |
+| Canned-answer rules (9 triggers) | `docs/rule-verify/INDEX.md` | md playbooks under `docs/plans/` (archived: `docs/legacy/judge-scripts/scripts/verify-all-rules.sh`) |
 
 ## Patterns
 
@@ -71,11 +71,21 @@ For the **full feature inventory** (49 features, all VERIFIED), see
 
 ## How to run all feature harnesses
 
-```bash
-for sh in docs/features/*/run-judge.sh docs/features/*/verify-canned-answer.sh; do
-  [ -x "$sh" ] && echo "=== $sh ===" && bash "$sh" || true
-done
+Feature harnesses are now md playbooks dispatched via subagent or `claudefast -p`
+probe (FASTPROBE max 8 parallel). The bash scripts previously at
+`docs/features/<feature>/run-judge.sh` and `verify-canned-answer.sh` are archived
+at `docs/legacy/judge-scripts/`. Each corresponding md playbook lives at
+`docs/plans/docs--features--<feature>--<harness>/judge.md`.
+
+To run a single feature harness:
+
+```text
+claudefast -p "Follow the judge playbook at
+docs/plans/docs--features--<feature>--run-judge/judge.md
+and return structured JSON {pass: bool, reasons: [string]}."
 ```
+
+To run all in parallel, dispatch up to 8 probes — see `docs/FASTPROBE.md`.
 
 ## Planned stubs (superseded or Phase 5–6, no impl)
 

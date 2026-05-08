@@ -54,3 +54,41 @@ no fixed bash gates the verdict.
 This archive exists for git history and reference. Deleting the archive
 entirely in a future commit is acceptable; `git log` preserves original
 content.
+
+## Phase 3 sweep log (PR #148, 2026-05-08)
+
+All dangling references to archived `.sh` paths were swept across docs on
+branch `worktree-mdplaybook`. Files updated:
+
+- `docs/rule-verify/INDEX.md` — registry table converted to md playbook pointers
+- `docs/PRODUCT-FEATURES.md` — evidence column updated for features 5, 8–64
+- `docs/features/INDEX.md` — run-all section rewritten
+- `docs/feature-verification.md` — run command updated
+- `docs/feature-verify-kit/README.md` — run sections replaced
+- `docs/canary-verify/README.md` — re-run section replaced
+- `docs/feature-verification/duck-mode-judge-harness.md` — script ref updated
+- `docs/feature-verification/hook-prompt-judge-harness.md` — script ref updated
+- `README.md` — installer verify harness updated
+- `WORKTREE_TASK.md` — archive note added
+- `scripts/judge-first-run.README.md` — sweep note added
+- 17 `docs/features/*/canned-answer-snippet.md` files — bash→text blocks
+- `docs/features/first-run.md` — verification section updated
+- `docs/features/multi-tool.md` — 3 references updated
+- `docs/features/team-share.md` — 2 references updated
+- `docs/features/pack-cli/INDEX.md` — judge harness reference updated
+- `docs/features/team-sharing-probe/README.md` — run sections rewritten
+- `docs/specs/2026-05-07-issue82-*.md` (5 files) — run command references updated
+- `docs/specs/2026-05-07-issue85-*.md` (2 files) — verify script references updated
+- `docs/specs/2026-05-07-issue87-first-run.md` — 4 references updated
+- `docs/PRESHIP.md` — Rule 8 updated
+- `docs/pr-14-status.md` — utility/archive clarification added
+- `docs/issues/92/{plan,report,research}.md` — run-judge refs updated
+- `docs/vendored-skills-verification/README.md` — harness ref updated
+- `docs/reports/2026-05-06-canned-answer-migration-report.md` — verify-all-rules refs updated
+- `docs/teambrain/ONBOARDING.md` — tbrain-verify refs updated
+- `docs/teambrain/USAGE_EXAMPLES.md` — tbrain-verify refs updated
+- `docs/teambrain/TRAPS.md` — TRAP-OPS-012 verify_command and GAP table updated
+- `docs/teambrain/VERIFY_TEMPLATE.md` — command field and example updated
+- `docs/teambrain/CONVERGENCE.md` — H24-36 and Decision paragraphs updated
+- `docs/teambrain/agent_rules/claude.md` — AP-8 awk scope updated
+- `docs/teambrain/evidence/README.md` — registered runs table and archive gate description updated

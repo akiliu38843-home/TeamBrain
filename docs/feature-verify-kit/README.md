@@ -39,22 +39,20 @@ keys-only 的提交都会触发该测试失败。
 **回归（regression），不得合并**。历史背景：issue #64 记录了 commit `39e81ea`
 的原始降级，已由 commit `9c78f99` 恢复。
 
-## 一次性运行
+## 运行方式（md playbook，非固定脚本）
 
-```bash
-bash docs/feature-verify-kit/run-all.sh
-```
+这套脚本已归档至 `docs/legacy/judge-scripts/docs/feature-verify-kit/`。
+验收逻辑已迁移为 md playbooks，通过 subagent 或 `claudefast -p` probe 驱动：
 
-## 逐步运行
+| 步骤 | md playbook |
+|------|-------------|
+| 全套一次性运行 | `docs/plans/docs--feature-verify-kit--run-all/judge.md` |
+| verify-claude-stream-json | `docs/plans/docs--feature-verify-kit--verify-claude-stream-json/judge.md` |
+| hardmatch-features | `docs/plans/docs--feature-verify-kit--hardmatch-features/judge.md` |
+| verify-dashboard-health | `docs/plans/docs--feature-verify-kit--verify-dashboard-health/judge.md` |
+| verify-tmux-interactive | `docs/plans/docs--feature-verify-kit--verify-tmux-interactive/judge.md` |
 
-```bash
-bash docs/feature-verify-kit/verify-claude-stream-json.sh
-bash docs/feature-verify-kit/hardmatch-features.sh
-bash docs/feature-verify-kit/verify-dashboard-health.sh
-bash docs/feature-verify-kit/verify-tmux-interactive.sh
-```
-
-`verify-claude-stream-json.sh` 会把 help 输出写到
+历史记录：`verify-claude-stream-json.sh` 会把 help 输出写到
 `runs/claudefast-help.txt`，把实际采用的 flags 写到
 `runs/claudefast-stream-json-flags.txt`，并把 hook debug log 写到
 `runs/claude-hooks.debug.log`。`claudefast -p` 必须带 prompt 参数或 stdin；

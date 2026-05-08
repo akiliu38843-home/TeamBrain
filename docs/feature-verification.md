@@ -131,22 +131,20 @@ diff -u claudefast.sorted.json codex.sorted.json
 
 ## Claude stream-json + tmux 固定脚本（haiku / MiniMax）
 
-当需求明确要求 `claude -p --model haiku`、`stream-json`、硬匹配产品特性、以及 tmux 交互 `/export` 时，直接使用：
+当需求明确要求 `claude -p --model haiku`、`stream-json`、硬匹配产品特性、以及 tmux 交互 `/export` 时，
+按 md playbook `docs/plans/docs--feature-verify-kit--run-all/judge.md` 调度（脚本已归档：
+`docs/legacy/judge-scripts/docs/feature-verify-kit/run-all.sh`）。
 
-```bash
-bash docs/feature-verify-kit/run-all.sh
-```
+Playbook 内部按顺序驱动以下四步：
 
-脚本会执行：
-
-1. `verify-claude-stream-json.sh`：先 `claudefast -h`，再用
+1. `verify-claude-stream-json` playbook：先 `claudefast -h`，再用
    `--output-format stream-json --include-partial-messages --verbose` 和
    `--debug hooks --debug-file <path>` 跑 JSON schema。
-2. `hardmatch-features.sh`：对 `fixtures/expected-product-features.json` 做 `jq -S` 后 `diff -u` 硬匹配。
-3. `verify-dashboard-health.sh`：生成 dashboard，并用稳定文本
+2. `hardmatch-features` playbook：对 `fixtures/expected-product-features.json` 做 `jq -S` 后 `diff -u` 硬匹配。
+3. `verify-dashboard-health` playbook：生成 dashboard，并用稳定文本
    `系统健康总结` / `Retrieval Health` 作为健康信号；watch 模式也可用
    `/health.json` 的 `service=teamagent-dashboard` 与 `status=ok`。
-4. `verify-tmux-interactive.sh`：tmux 启动 `claudefast` 交互模式并执行 `/export`。
+4. `verify-tmux-interactive` playbook：tmux 启动 `claudefast` 交互模式并执行 `/export`。
 
 不要把 `--include-hook-events` 当成活跃 recipe 或验收证据。hook evidence
 必须来自 `--debug hooks --debug-file <path>`；stream-json 用于原始

@@ -10,15 +10,15 @@ knowledge base via the standard MCP protocol.
 
 - Either `packages/mcp-server` directory exists, OR a `package.json` in `packages/`
   contains `"@teamagent/mcp"` or a name matching `*mcp*`
-- OR: if `docs/features/mcp-server/verify-canned-answer.sh` is executable, that
-  script exits 0 (Trae reuses the MCP server protocol)
+- OR: if `docs/plans/docs--features--mcp-server--verify-canned-answer/judge.md` playbook passes, that
+  satisfies the condition (Trae reuses the MCP server protocol; archived script: `docs/legacy/judge-scripts/docs/features/mcp-server/verify-canned-answer.sh`)
 - Final output line: `VERIFIED: Trae/VSCode Copilot adapter via MCP PASS`
 
 ### Harness Structure
 
 **verify-canned-answer.sh** uses a two-level fallback:
-1. **Primary**: If `docs/features/mcp-server/verify-canned-answer.sh` is executable,
-   delegate to it (since Trae reuses the same MCP server protocol)
+1. **Primary**: Dispatch `docs/plans/docs--features--mcp-server--verify-canned-answer/judge.md`
+   playbook (since Trae reuses the same MCP server protocol; archived: `docs/legacy/judge-scripts/docs/features/mcp-server/verify-canned-answer.sh`)
 2. **Fallback**: Check for `packages/mcp-server` directory; if absent, search all
    `packages/*/package.json` for `"@teamagent/mcp"` or `"name".*mcp` pattern
 

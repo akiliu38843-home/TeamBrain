@@ -9,8 +9,10 @@ channels, covering the full spectrum of team knowledge capture.
 
 The feature is verified by grepping source definitions in the codebase:
 
-```bash
-bash docs/features/six-source-ingest/verify-canned-answer.sh
+```text
+# Dispatch via subagent or claudefast -p probe (script archived):
+docs/plans/docs--features--six-source-ingest--verify-canned-answer/judge.md
+# Archived: docs/legacy/judge-scripts/docs/features/six-source-ingest/verify-canned-answer.sh
 ```
 
 Checks performed:
