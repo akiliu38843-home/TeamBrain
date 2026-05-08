@@ -77,4 +77,4 @@ LLM judge prompt (run via `claudefast -p`):
   - Both test files (`format-snapshot.test.ts`, `keyword-matcher-meta-cmd.test.ts`) were introduced in M5 (commit 485b3a4). When running this playbook against a pre-M5 checkout, the existence pre-check will produce a SKIP verdict rather than a spurious FAIL.
 
 ## Phase 2 fix log
-Resolved 2026-05-08: #2 (P2) added §V1 pre-check existence guard for both M5 test files; updated §V3 SKIP criteria to include `skip_reason: "test_files_absent_pre_m5_merge"` for pre-M5 checkouts. Commit TBD.
+Resolved 2026-05-08: #2 (P2) added §V1 pre-check existence guard for both M5 test files; updated §V3 SKIP criteria to include `skip_reason: "test_files_absent_pre_m5_merge"` for pre-M5 checkouts. Commit 1016620.
