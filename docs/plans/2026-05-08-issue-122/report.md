@@ -65,7 +65,7 @@ Closes:
 |---|---|---|---|
 | A — Pages env-policy | `gh api` add `main` to deploy branch policies | Done; `total_count` went 1→2; admin auth available | none |
 | B — Re-trigger + verify | workflow_dispatch + curl 200 | Done; deploy `success`, page 6926 bytes, `looks_like_landing: true` | none |
-| C — Hero GIF + HTML swap | Drop GIF (recorded asciinema → agg) + `<img>` swap | Done with **placeholder GIF** (python-pil 7-frame split-panel animation). Acceptance bar "non-zero valid GIF renders" met; high-fidelity recording is post-merge follow-up. **As-built path:** relative `double-moment.gif` (review auto-fix from initial absolute `/TeamBrain/double-moment.gif`). | placeholder vs real recording (disclosed in PR description) |
+| C — Hero GIF + HTML swap | Drop GIF (recorded asciinema → agg) + `<img>` swap | Done as planned. Initial commit (`7c025e6`) shipped a python-pil placeholder; later commit (`dcc4119`) replaced it with a real `asciinema 3.2.0` + `agg 1.7.0` recording of `pnpm teamagent skeleton-demo` (787×450 ↦ 16:9 hero, 37705 bytes, ~4 s). Cast saved at `docs/plans/issue-84/v1-dogfood/landing-hero-demo.cast` for reference. **As-built path:** relative `double-moment.gif` (review auto-fix from initial absolute `/TeamBrain/double-moment.gif`). | none after `dcc4119`; placeholder→real swap was a user-gated step before merge |
 | D — Dogfood scaffold | `README.md` + `template-comment.md` + `.gitkeep` | Done; 280 + 188 + 0 lines. Threshold sources unified (ASCII art now defers to abort signals table after /review adversarial finding). | none |
 | E — 1+2+3 hardmatch | `pnpm --filter landing build` claudefast/codex hardmatch | Module substituted to `pnpm teamagent --help` (landing build script has no `--help`). Codex substituted to direct shell exec (`OPENAI_API_KEY` unset in env, HTTP 401). Hardmatch byte-clean (0 bytes diff). tmux `/export` left as a placeholder for the lead — not run interactively. | both substitutions disclosed in PR description and `judge.md` "as-built note" |
 
@@ -79,7 +79,11 @@ Two passes ran on the open PR:
    `dba737f` to a relative `src="double-moment.gif"`.
 
 2. **/review adversarial subagent (Step 5.7)** — found 9
-   INFORMATIONAL findings; all auto-fixed inline:
+   INFORMATIONAL findings; all auto-fixed inline. *(Note: at the time
+   of this list the GIF was still a python-pil placeholder. A
+   follow-up commit (`dcc4119`, after a user-gated decision) replaced
+   it with a real asciinema-recorded GIF; see Slice C row above and
+   the updated alt text on `index.html:53`.)*:
    - `loading="lazy"` → `loading="eager"` + added `fetchpriority="high"`
      (hero is above the fold; lazy delays LCP).
    - `apps/landing/public/.gitkeep` removed (no longer needed; was
@@ -123,15 +127,19 @@ After this PR squash-merges:
    *issues* (this is post-merge UX iteration, not the PR-PLAN
    no-follow-up-issue rule which targets in-PR review findings — see
    `README.md` Abort 后做什么 §).
-7. Replace placeholder GIF with a real high-fidelity recording before
-   any public launch announcement (tracked separately, no GitHub
-   issue opened until that point — owner is whoever leads the launch).
+7. *(Resolved pre-merge in commit `dcc4119`: the placeholder GIF was
+   replaced with a real `asciinema` + `agg` recording of
+   `pnpm teamagent skeleton-demo`. No public-launch follow-up needed
+   for the GIF asset itself; the dogfood result may still surface
+   wording / install-flow follow-ups per item 6.)*
 
 ## Risks and known limitations
 
-- **Placeholder GIF**: visual quality is below what a public-facing
-  hero deserves. Acceptance bar met (non-zero valid GIF renders);
-  launch readiness bar not met. Replacement is a follow-up.
+- ~~**Placeholder GIF**~~ — *resolved in commit `dcc4119` before merge:
+  the python-pil placeholder was replaced with a real asciinema-recorded
+  GIF of `pnpm teamagent skeleton-demo` (787×450, 37 KB, ~4 s; cast
+  saved under `docs/plans/issue-84/v1-dogfood/landing-hero-demo.cast`).
+  The PR now ships a real demo asset.*
 - **Codex substitution in §V1.E**: full cross-LLM determinism is not
   proven for this PR — only `claudefast` actually participated as an
   LLM. Mitigation: the substituted artefact still shows byte-identity
