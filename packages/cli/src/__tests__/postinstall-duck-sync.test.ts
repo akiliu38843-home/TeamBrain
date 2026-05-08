@@ -39,6 +39,7 @@ function parseTranslationsTs(): ParsedEntry[] {
   let termMatch: RegExpExecArray | null;
   while ((termMatch = termRe.exec(src)) !== null) {
     const term = termMatch[1];
+    if (term === undefined) continue;
     // Look for aliases array in the same object (within ~300 chars after the term)
     const sliceAfterTerm = src.slice(termMatch.index, termMatch.index + 400);
     const aliasesRe = /aliases:\s*\[([^\]]*)\]/;
@@ -46,11 +47,12 @@ function parseTranslationsTs(): ParsedEntry[] {
     const aliases: string[] = [];
     if (aliasMatch) {
       // Extract individual strings from the array
-      const inner = aliasMatch[1];
+      const inner = aliasMatch[1] ?? "";
       const strRe = /"([^"]+)"/g;
       let m: RegExpExecArray | null;
       while ((m = strRe.exec(inner)) !== null) {
-        aliases.push(m[1]);
+        const v = m[1];
+        if (v !== undefined) aliases.push(v);
       }
     }
     entries.push({ term, aliases });
@@ -68,23 +70,25 @@ function parsePostinstallDuck(): ParsedEntry[] {
   if (!arrayMatch) {
     throw new Error("Could not find POSTINSTALL_DUCK array in postinstall.mjs");
   }
-  const arrayBody = arrayMatch[1];
+  const arrayBody = arrayMatch[1] ?? "";
   const entries: ParsedEntry[] = [];
 
   const termRe = /term:\s*"([^"]+)"/g;
   let termMatch: RegExpExecArray | null;
   while ((termMatch = termRe.exec(arrayBody)) !== null) {
     const term = termMatch[1];
+    if (term === undefined) continue;
     const sliceAfterTerm = arrayBody.slice(termMatch.index, termMatch.index + 400);
     const aliasesRe = /aliases:\s*\[([^\]]*)\]/;
     const aliasMatch = aliasesRe.exec(sliceAfterTerm);
     const aliases: string[] = [];
     if (aliasMatch) {
-      const inner = aliasMatch[1];
+      const inner = aliasMatch[1] ?? "";
       const strRe = /"([^"]+)"/g;
       let m: RegExpExecArray | null;
       while ((m = strRe.exec(inner)) !== null) {
-        aliases.push(m[1]);
+        const v = m[1];
+        if (v !== undefined) aliases.push(v);
       }
     }
     entries.push({ term, aliases });
