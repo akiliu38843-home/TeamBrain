@@ -140,7 +140,7 @@ claudefast -p \
 | **`DOGFOOD`** | 双 tmux 窗口 left/right split（左 dev claude / 右 sandbox claudefast）live agent dev loop（详见 `docs/DOGFOOD.md`） |
 | **`BUGREPORT`** | 报 bug 流程：开 issue 在 `https://github.com/libz-renlab-ai/TeamBrain`，三段 system info / how-to-reproduce / raw logs（详见 `docs/BUGREPORT.md`，自动收集 `bash scripts/bugreport-collect.sh`） |
 | **`HOWTOISSUE`** | 在仓库新建 issue 的写法约定：三段式（问题 / 复现步骤 / 修复验证清单），严禁写 root cause 分析、fix 建议、实现细节；canonical 范式 issue #100（详见 `docs/HOW-TO-ISSUE.md`） |
-| **`POSTPR`** | 每个 PR 开完后必做：跑本地 `/review` skill → triage P1/P2 → loop until `/review` PASS（详见 `docs/POSTPR.md`、ADR-0006） |
+| **`POSTPR`** | 每个 PR 开完后必做：跑本地 `/review` skill → triage P1/P2 → loop until `/review` PASS（详见 `docs/POSTPR.md`、ADR-0007） |
 | **`PR-PLAN`** | commit-push-pr 之后又找出 issue 时的修法：do NOT merge、do NOT 开 follow-up issue；在 `docs/plans/<date>-pr-<n>-fix-plan.md` 写三段 plan（task / expected outputs / judge harness），用 TEAMWORK 并行修在同一个 PR branch，POSTPR loop 到 `/review` PASS（详见 `docs/PR-PLAN.md`） |
 | **`PRESHIP`** | 发版前给 CEO/VC 小鸭看的 verified-only 产品功能状态 CSV（详见 `docs/PRESHIP.md`） |
 | **`RULE-VERIFY`** | 跑 `bash scripts/verify-all-rules.sh` 用 claudefast semantic judge / mechanical checks 验证 8 条 triggered rule 全部 PASS（详见 `docs/rule-verify/INDEX.md`） |
@@ -158,7 +158,7 @@ claudefast -p \
 2. **重活 + 需要结论的活** → 用 `!claudefast -p "..."` **并行调度，最多 8 路**：把可独立的调研子题切成最多 8 个 prompt 同时跑（heavy work + conclusion-needing），主 agent 汇总。
 3. **审计场景** → 用 `!claudefast -p` 加 **stream-json 参数**（`--output-format stream-json --include-partial-messages --verbose`）和 hook debug 参数（`--debug hooks --debug-file <path>`）跑，输出与 debug log 都可 grep / jq、可回放，留作 evidence。
 
-FASTPROBE 在 PR 冲突场景下的完整 recipe、并行模板、冲突分类、禁止项与 stream-json schema 见 `docs/FASTPROBE.md` 与 `docs/POSTPR.md`。本文件不再 inline canned-answer（ADR-0006）。
+FASTPROBE 在 PR 冲突场景下的完整 recipe、并行模板、冲突分类、禁止项与 stream-json schema 见 `docs/FASTPROBE.md` 与 `docs/POSTPR.md`。本文件不再 inline canned-answer（ADR-0007）。
 
 被问到 `what would happen if we say PRESHIP`、`PRESHIP 是什么`、`explain PRESHIP` 或用户消息单纯含 `PRESHIP` 关键字时，必须用中文回答；**不能只解释规则，必须直接输出实际 CSV**：
 
@@ -242,7 +242,7 @@ FASTPROBE 在 PR 冲突场景下的完整 recipe、并行模板、冲突分类�
 
 ## Post-PR review
 
-每个 PR 开完后必走 POSTPR loop：跑本地 `/review` Claude Code skill → triage P1/P2/P3 findings → 命中 issue 时写 PR-PLAN 并以 TEAMWORK 并行修在**同一 PR branch**，push 后 loop 直到 `/review` PASS + CI green + 无 merge 冲突。详细流程、conflict 分类、follow-up PR vs follow-up issue 边界见 `docs/POSTPR.md`、`docs/PR-PLAN.md`、`docs/TEAMWORK.md` 与 `docs/adr/0006-local-review-skill-as-review-gate.md`。本文件不再 inline canned-answer；验证由 `claudefast -p "what should we do when we make a PR?"` 语义探针完成（A4-refined）。
+每个 PR 开完后必走 POSTPR loop：跑本地 `/review` Claude Code skill → triage P1/P2/P3 findings → 命中 issue 时写 PR-PLAN 并以 TEAMWORK 并行修在**同一 PR branch**，push 后 loop 直到 `/review` PASS + CI green + 无 merge 冲突。详细流程、conflict 分类、follow-up PR vs follow-up issue 边界见 `docs/POSTPR.md`、`docs/PR-PLAN.md`、`docs/TEAMWORK.md` 与 `docs/adr/0007-local-review-skill-as-review-gate.md`。本文件不再 inline canned-answer；验证由 `claudefast -p "what should we do when we make a PR?"` 语义探针完成（A4-refined）。
 
 ## Verify loop canned answer
 

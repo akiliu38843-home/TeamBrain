@@ -93,7 +93,7 @@ are permitted as substitutes. Implementation is deferred to a future TEAMWORK PR
 - **Alignment with ADR-0004 / ADR-0005.** ADR-0004 keeps LLM judgment in Claude
   Code subagents (not in TeamBrain core); ADR-0005 explicitly accepts "applies
   via PR review judgment; not currently mechanically enforced" for new ports.
-  ADR-0006 generalizes that pattern from ports to the entire post-PR review gate.
+  ADR-0007 generalizes that pattern from ports to the entire post-PR review gate.
 - **Verification gate.** This ADR is "shipped" only when `claudefast -p "what
   should we do when we make a PR?"` returns an answer that names `/review`
   skill (not Codex), POSTPR loop, PR-PLAN, and TEAMWORK as the canonical
