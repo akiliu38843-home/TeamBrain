@@ -65,6 +65,45 @@ function parseVisibility(env: Readonly<NodeJS.ProcessEnv>): Visibility {
     : "verbose";
 }
 
+/**
+ * Hook-level verbose opt-in (issue #174 W3).
+ *
+ * Default visibility for hook channels is `verbose`, which makes
+ * `StdoutRenderer` append the `--- raw events ---` JSON dump and the
+ * `counterfactual` line to every rendered AttributionEvent on stderr. That
+ * trailing block is noisy for end users — they only need the three-line
+ * highlight/warning summary that `smart` mode already produces.
+ *
+ * This helper opts users into the noisy verbose tail explicitly via
+ * `TEAMAGENT_HOOK_VERBOSE=1` (or `=true`). When unset, the shell
+ * downgrades the renderer's mode from `verbose` to `smart` for hook
+ * channels only, preserving the JSON envelope on stdout (returned to
+ * Claude Code) untouched.
+ *
+ * Non-hook commands (`pitfall`, `skeleton-demo`) continue to honour
+ * `TEAMAGENT_VISIBILITY` directly because they construct their own
+ * renderer outside this shell.
+ */
+export function shouldShowVerboseHookOutput(env: Readonly<NodeJS.ProcessEnv>): boolean {
+  const raw = env.TEAMAGENT_HOOK_VERBOSE;
+  return raw === "1" || raw === "true";
+}
+
+/**
+ * Effective renderer mode for a hook channel — downgrades `verbose` to
+ * `smart` unless `TEAMAGENT_HOOK_VERBOSE=1` is set. `silent` and `smart`
+ * pass through unchanged.
+ */
+function effectiveHookRenderMode(
+  visibility: Visibility,
+  env: Readonly<NodeJS.ProcessEnv>,
+): Visibility {
+  if (visibility === "verbose" && !shouldShowVerboseHookOutput(env)) {
+    return "smart";
+  }
+  return visibility;
+}
+
 function resolvePaths(cwd: string, home: string): HookDbPaths {
   return {
     projectDbPath: path.join(cwd, ".teamagent", "knowledge.db"),
@@ -204,10 +243,18 @@ export async function runHook<TInput, TOutput>(
     // become user-visible stderr lines (per visibility). bin handlers can
     // emit `bus.emit({ kind, ... })` and trust the rendering reaches the
     // terminal — no need for each bin to wire its own renderer.
+    //
+    // Issue #174 W3: gate the renderer's `verbose` mode behind an explicit
+    // `TEAMAGENT_HOOK_VERBOSE=1` opt-in. Default hook output keeps only the
+    // three-line warning block (title / fix / confidence) — the noisy
+    // `--- raw events ---` JSON dump and `counterfactual` lines now require
+    // an explicit env opt-in. The JSON envelope written to stdout via
+    // `writeStdout(wrapped)` is unchanged; only stderr human-prose trails.
+    const renderMode = effectiveHookRenderMode(visibility, rt.env);
     const renderer = new StdoutRenderer();
     const unsubscribeRenderer = bus.subscribe((event) => {
       if (visibility === "silent") return;
-      const text = renderer.render([event], visibility);
+      const text = renderer.render([event], renderMode);
       if (text && text.length > 0) {
         try { process.stderr.write(`${text}\n`); } catch { /* best-effort */ }
       }
@@ -382,10 +429,16 @@ export async function runAdvancedHook<
   // emits ~12 user-visible AttributionEvents through ctx.bus; the renderer
   // ensures each lands on stderr per visibility mode without each handler
   // managing its own subscription.
+  //
+  // Issue #174 W3: same `TEAMAGENT_HOOK_VERBOSE=1` gate as the default layer
+  // — downgrade `verbose` to `smart` unless the env opt-in is set so the
+  // `--- raw events ---` JSON dump only appears for explicit operators. The
+  // JSON envelope on stdout is independent (still unconditionally emitted).
+  const renderMode = effectiveHookRenderMode(visibility, rt.env);
   const renderer = new StdoutRenderer();
   const unsubscribeRenderer = bus.subscribe((event) => {
     if (visibility === "silent") return;
-    const text = renderer.render([event], visibility);
+    const text = renderer.render([event], renderMode);
     if (text && text.length > 0) {
       try { process.stderr.write(`${text}\n`); } catch { /* best-effort */ }
     }
