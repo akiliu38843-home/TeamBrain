@@ -104,13 +104,14 @@ function parseBannerStrings(): string[] {
 
   // Find the banner stdout.write block (the big join("\n") array)
   const bannerBlockMatch = /process\.stdout\.write\(\s*duckify\(\s*\[([\s\S]*?)\]\.join/m.exec(src);
-  if (bannerBlockMatch) {
-    const inner = bannerBlockMatch[1];
+  const innerCapture = bannerBlockMatch?.[1];
+  if (innerCapture !== undefined) {
     // Extract double-quoted string literals
     const strRe = /"([^"\\]*)"/g;
     let m: RegExpExecArray | null;
-    while ((m = strRe.exec(inner)) !== null) {
-      bannerStrings.push(m[1]);
+    while ((m = strRe.exec(innerCapture)) !== null) {
+      const v = m[1];
+      if (v !== undefined) bannerStrings.push(v);
     }
   }
 
@@ -118,22 +119,26 @@ function parseBannerStrings(): string[] {
   const stderrRe = /process\.stderr\.write\(\s*duckify\(\s*`([^`]*)`/g;
   let m2: RegExpExecArray | null;
   while ((m2 = stderrRe.exec(src)) !== null) {
-    bannerStrings.push(m2[1]);
+    const v = m2[1];
+    if (v !== undefined) bannerStrings.push(v);
   }
   const stderrStrRe = /process\.stderr\.write\(\s*duckify\(\s*"([^"]*)"/g;
   let m3: RegExpExecArray | null;
   while ((m3 = stderrStrRe.exec(src)) !== null) {
-    bannerStrings.push(m3[1]);
+    const v = m3[1];
+    if (v !== undefined) bannerStrings.push(v);
   }
   // Multi-line duckify with string concatenation blocks
   const stderrConcatRe = /process\.stderr\.write\(\s*\n?\s*duckify\(\s*\n?([\s\S]*?)\),?\s*\)/g;
   let m4: RegExpExecArray | null;
   while ((m4 = stderrConcatRe.exec(src)) !== null) {
     const block = m4[1];
+    if (block === undefined) continue;
     const strInnerRe = /"([^"\\]+)"/g;
     let m5: RegExpExecArray | null;
     while ((m5 = strInnerRe.exec(block)) !== null) {
-      bannerStrings.push(m5[1]);
+      const v = m5[1];
+      if (v !== undefined) bannerStrings.push(v);
     }
   }
 
