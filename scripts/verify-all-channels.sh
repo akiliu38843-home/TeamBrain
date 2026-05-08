@@ -226,19 +226,28 @@ for f in db-tables.txt db-rule-count.txt warmup-state.kv; do
   fi
 done
 
-# Channel #3: runtime hooks.
+# Channel #3: runtime hooks. Codex P2 fix: 8/8 mandatory means a collector
+# failure must propagate to the orchestrator's exit code. Track failures in
+# CHANNEL_FAILURES and fail the run at the end if any are non-zero. Don't
+# abort mid-run though — we still want to collect the remaining channels'
+# evidence so the report tells the user what worked and what didn't.
+CHANNEL_FAILURES=()
 echo ""
 echo "── Channel #3: runtime hooks (claudefast --debug hooks) ────"
-RUN_ID="${RUN_ID}" HOMEDIR="${P2_HOME}" PROJECT_DIR="${P2_PROJ}" \
-  bash scripts/verify-runtime-hooks.sh \
-  || echo "  ⚠ verify-runtime-hooks.sh had non-zero exit; continuing"
+if ! RUN_ID="${RUN_ID}" HOMEDIR="${P2_HOME}" PROJECT_DIR="${P2_PROJ}" \
+       bash scripts/verify-runtime-hooks.sh; then
+  echo "  ✗ verify-runtime-hooks.sh failed (mandatory channel #3)" >&2
+  CHANNEL_FAILURES+=("3:runtime-hooks")
+fi
 
 # Channel #4: tmux statusline.
 echo ""
 echo "── Channel #4: tmux statusline ─────────────────────────────"
-RUN_ID="${RUN_ID}" HOMEDIR="${P2_HOME}" PROJECT_DIR="${P2_PROJ}" \
-  bash scripts/verify-statusline.sh \
-  || echo "  ⚠ verify-statusline.sh had non-zero exit; continuing"
+if ! RUN_ID="${RUN_ID}" HOMEDIR="${P2_HOME}" PROJECT_DIR="${P2_PROJ}" \
+       bash scripts/verify-statusline.sh; then
+  echo "  ✗ verify-statusline.sh failed (mandatory channel #4)" >&2
+  CHANNEL_FAILURES+=("4:statusline")
+fi
 
 # ─── Summary ──────────────────────────────────────────────────────────────
 echo ""
@@ -307,3 +316,13 @@ JSON_EOF
 
 echo "manifest: ${JUDGE_DIR}/master-manifest.json"
 echo ""
+
+# Codex P2 fix: 8/8 mandatory means a non-zero collector exit → non-zero
+# orchestrator exit. CI / parent automation can now key off `bash
+# scripts/verify-all-channels.sh; echo $?` instead of being misled by
+# silent warnings.
+if [ "${#CHANNEL_FAILURES[@]}" -gt 0 ]; then
+  echo "FATAL: mandatory channel(s) failed: ${CHANNEL_FAILURES[*]}" >&2
+  echo "  See evidence dir for partial output. Re-run after fixing." >&2
+  exit 4
+fi

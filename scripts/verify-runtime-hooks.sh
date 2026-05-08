@@ -67,8 +67,13 @@ claudefast -p \
 CLAUDEFAST_PID=$!
 ( sleep 120 && kill "${CLAUDEFAST_PID}" 2>/dev/null ) &
 KILLER_PID=$!
-wait "${CLAUDEFAST_PID}" 2>/dev/null
-CF_EXIT=$?
+# Codex P1 fix: with `set -eu`, a non-zero `wait` aborts the script before
+# the exit-code file is written, leaving Probe E with no evidence on the
+# very failure modes (timeout = 137, network/auth = non-zero) we most need
+# to capture. Use `|| CF_EXIT=$?` so the assignment runs unconditionally;
+# CF_EXIT defaults to 0 on success.
+CF_EXIT=0
+wait "${CLAUDEFAST_PID}" 2>/dev/null || CF_EXIT=$?
 kill "${KILLER_PID}" 2>/dev/null || true
 
 # Record claudefast's own exit code for the orchestrator to inspect

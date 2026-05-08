@@ -269,9 +269,9 @@ async function main() {
     process.stderr.write(
       duckify(
         "[2/2] warmup: 跳过 (vector deps 未安装; 默认装的是 substring matcher 版本)\n" +
-          "     需要 BM25+dense RRF 语义匹配请重装：\n" +
+          "     需要 BM25+dense RRF 语义匹配请重装（@xenova + onnxruntime 不在 package.json 里，必须显式列出）：\n" +
           "       TEAMAGENT_INCLUDE_OPTIONAL=1 sh -c \"$(curl -fsSL https://raw.githubusercontent.com/libz-renlab-ai/TeamBrain/release/install.sh)\"\n" +
-          "     或：npm install -g --include=optional teamagent\n",
+          "     或者直接：npm install -g teamagent @xenova/transformers@^2.17.0 onnxruntime-node@1.14.0\n",
       ),
     );
   } else if (process.env.TEAMAGENT_FOREGROUND_WARMUP === "1") {
