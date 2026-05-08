@@ -1,5 +1,15 @@
 export { scoreEntry } from "./scorer.js";
 export {
+  TRANSLATIONS,
+  isDuckModeEnabled,
+  duckify,
+  duckifyText,
+  writeDuckified,
+  type DuckTranslation,
+  type DuckifyOpts,
+  type IsEnabledOpts,
+} from "./duck-mode/index.js";
+export {
   compileMarkdownBlock,
   injectBlockIntoDoc,
   stripLegacyTeamagentBlock,
@@ -43,8 +53,18 @@ export {
   accumulateHardNegative,
   MAX_HARD_NEG,
 } from "./matcher/hard-negative-accumulator.js";
-export { ruleBasedCorrectionDetector } from "./correction-detector/rule-based.js";
-export { ruleBasedSuccessDetector } from "./success-detector/rule-based.js";
+export {
+  ruleBasedCorrectionDetector,
+  type CorrectionDetector,
+  type CorrectionMoment,
+  type CorrectionSignal,
+} from "./correction-detector/rule-based.js";
+export {
+  ruleBasedSuccessDetector,
+  type SuccessDetector,
+  type SuccessSignal,
+  type SuccessSignalType,
+} from "./success-detector/rule-based.js";
 export { parseSessionFile } from "./session-parser/index.js";
 export {
   buildExtractionPrompt,
@@ -137,7 +157,10 @@ export {
   detectBlockedCircumventedSignals,
   type OverrideSignalEvent,
 } from "./pipeline/override-signal.js";
-export { clusterByTag } from "./error-collector/cross-session-cluster.js";
+export {
+  clusterByTag,
+  type RawErrorSignal,
+} from "./error-collector/cross-session-cluster.js";
 export { filterSignals } from "./error-collector/signal-filter.js";
 export type { FilterOptions } from "./error-collector/signal-filter.js";
 export {
@@ -211,6 +234,8 @@ export {
   serializeTeamRule,
   parseTeamRule,
   validateTeamRule,
+  isSafeRuleId,
+  isSafeAuthor,
   type TeamRuleFile,
   type TeamRuleState,
   type TeamRuleAlive,

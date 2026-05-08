@@ -1,4 +1,6 @@
 import { execSync, execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import * as path from "node:path";
 
 /**
  * m5-publish：把 .teamagent/team/ 下的本地未提交修改自动 commit 到 git，
@@ -11,9 +13,10 @@ import { execSync, execFileSync } from "node:child_process";
 export interface M5PublishOptions {
   projectRoot: string;
   /**
-   * 是否同时 push 到 origin。**默认 true**（spec §7 激进模式）。
+   * 是否同时 push 到 origin。**默认 false**（与 CLI help 文本"--push 同时推 origin"一致；
+   * 历史上曾默认 true 但与文档不符，2026-05 修正——见 BUGS.md B-111）。
    * push 失败会落到 result.push_error 上，不抛——commit 已在本地、下次再推。
-   * 关闭：传 push=false 或 CLI 参数 --no-push。
+   * 启用：传 push=true 或 CLI 参数 --push。
    */
   push?: boolean;
   /** 自定义 commit message 前缀；默认 [teamagent-sync] */
@@ -38,11 +41,29 @@ export async function runM5Publish(
     pushed: false,
   };
 
-  // 探测 .teamagent/team/ 下的变化
+  // B-150: viral propagation needs the manifest + .githooks/ to land in git
+  // alongside team rules — otherwise teammates pull the rules but neither
+  // the manifest (so they don't know it's a TeamAgent project) nor the
+  // post-merge hook (so the next pull doesn't auto-sync) propagates.
+  // Filter to only paths that actually exist in this checkout, so
+  // pre-infect repos still publish team rules correctly.
+  const CANDIDATE_PATHS = [
+    ".teamagent/team",
+    ".teamagent/manifest.json",
+    ".githooks",
+  ];
+  const PATHS = CANDIDATE_PATHS.filter((p) =>
+    existsSync(path.join(opts.projectRoot, p)),
+  );
+  if (PATHS.length === 0) {
+    result.reason = "no team-rule / manifest / githooks paths exist yet";
+    return result;
+  }
+
   let status = "";
   try {
     status = execSync(
-      `git status --porcelain -- .teamagent/team/`,
+      `git status --porcelain -- ${PATHS.join(" ")}`,
       { cwd: opts.projectRoot, encoding: "utf8" }
     );
   } catch (e) {
@@ -53,13 +74,13 @@ export async function runM5Publish(
   const lines = status.split("\n").filter((l) => l.trim().length > 0);
   result.changes_count = lines.length;
   if (lines.length === 0) {
-    result.reason = "no .teamagent/team/ changes to publish";
+    result.reason = "no team-rule / manifest / githooks changes to publish";
     return result;
   }
 
-  // git add
+  // git add (only existing paths)
   try {
-    execSync(`git add .teamagent/team/`, {
+    execFileSync("git", ["add", ...PATHS], {
       cwd: opts.projectRoot,
       encoding: "utf8",
     });
@@ -87,8 +108,8 @@ export async function runM5Publish(
     return result;
   }
 
-  // 默认 push（spec §7 激进模式）；失败落到 push_error，不抛
-  const shouldPush = opts.push ?? true;
+  // 默认不 push（与 CLI help "--push 同时推 origin" 一致；显式 --push 才推）
+  const shouldPush = opts.push ?? false;
   if (shouldPush) {
     try {
       execSync("git push", {

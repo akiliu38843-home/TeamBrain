@@ -164,11 +164,30 @@ export function stripTeamagentBlock(content: string): {
   return { content: joined.endsWith("\n") ? joined : joined + "\n", changed: true };
 }
 
+/** B-127/B-149: known flags for `uninstall`; reject typos so a fat-fingered
+ *  `--delette-data` does not silently miss the actual --delete-data toggle. */
+const UNINSTALL_KNOWN_FLAGS = new Set<string>(["--delete-data", "--dry-run"]);
+
+export class UninstallArgError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UninstallArgError";
+  }
+}
+
 export function parseUninstallArgs(argv: string[]): UninstallOptions {
   const opts: UninstallOptions = {};
   for (const a of argv) {
     if (a === "--delete-data") opts.deleteData = true;
     else if (a === "--dry-run") opts.dryRun = true;
+    else if (a.startsWith("--")) {
+      const base = a.split("=")[0]!;
+      if (!UNINSTALL_KNOWN_FLAGS.has(base)) {
+        throw new UninstallArgError(
+          `uninstall: unknown flag "${a}". Run 'teamagent --help' for valid flags.`,
+        );
+      }
+    }
   }
   return opts;
 }
@@ -179,5 +198,18 @@ export function renderUninstallResult(r: UninstallResult): string {
   lines.push("");
   for (const a of r.actions) lines.push(`  ${a}`);
   lines.push("");
+
+  // Real uninstall + we actually removed something => leave a clear path back.
+  // 否则用户跑完只看到一片"已移除"，不知道 statusline 和 4 类 hook 怎么找回来。
+  // 详见 bugs.md B-155、PR fix/install-md-and-uninstall-hint。
+  const removedSomething =
+    !r.dryRun && r.actions.some((a) => a.startsWith("已"));
+  if (removedSomething) {
+    lines.push("🔁 想恢复（重新启用 statusline + PreToolUse / PostToolUse / UserPromptSubmit / Stop hooks）？跑：");
+    lines.push("    pnpm teamagent install-hook    # 仅重装 hook + statusline，最小改动");
+    lines.push("    pnpm teamagent init             # 顺便重新预热向量模型 + 注入 universal pack");
+    lines.push("");
+  }
+
   return lines.join("\n") + "\n";
 }
