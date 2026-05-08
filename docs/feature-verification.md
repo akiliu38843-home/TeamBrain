@@ -153,7 +153,7 @@ diff -u claudefast.sorted.json codex.sorted.json
 按 md playbook `docs/plans/docs--feature-verify-kit--run-all/judge.md` 调度（脚本已归档：
 `docs/legacy/judge-scripts/docs/feature-verify-kit/run-all.sh`）。
 
-Playbook 内部按顺序驱动以下四步：
+Playbook 内部按顺序驱动以下五步（最后一步 hardmatch regression 是 **强制**门禁，不要停在 tmux export 后就以为 run-all 完成）：
 
 1. `verify-claude-stream-json` playbook：先 `claudefast -h`，再用
    `--output-format stream-json --include-partial-messages --verbose` 和
@@ -163,6 +163,7 @@ Playbook 内部按顺序驱动以下四步：
    `系统健康总结` / `Retrieval Health` 作为健康信号；watch 模式也可用
    `/health.json` 的 `service=teamagent-dashboard` 与 `status=ok`。
 4. `verify-tmux-interactive` playbook：tmux 启动 `claudefast` 交互模式并执行 `/export`。
+5. **hardmatch regression 强制门禁**：再跑一次 `verify-claude-stream-json` 拿新的 `claude-features.json`，然后跟 step 1 的产物做 byte-equality（fresh `claudefast -p` capture 与原 capture 必须 `diff` 为空）。fixture-level regression 必须在这一步被捕获，不允许跳过、不允许用其他探针替代。详见 `docs/plans/docs--feature-verify-kit--run-all/judge.md` 的 §V1 step 6。
 
 不要把 `--include-hook-events` 当成活跃 recipe 或验收证据。hook evidence
 必须来自 `--debug hooks --debug-file <path>`；stream-json 用于原始

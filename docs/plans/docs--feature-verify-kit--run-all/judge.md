@@ -87,8 +87,14 @@ Canonical JSON to `.judge/<run_id>/judge.json`:
 ## Notes
 - Original logic summary: The original `run-all.sh` was a trivial sequential shell script: it called each sub-verifier in order using `bash "$(dirname "$0")/...sh"` and relied on `set -euo pipefail` to abort on the first failure. Order mattered because `hardmatch-features.sh` depends on the output of `verify-claude-stream-json.sh`. The five sub-scripts were: stream-json extraction, hardmatch fixture comparison, dashboard health check, tmux interactive export, and hardmatch regression test. This playbook replaces that linear orchestration with a MAIN-agent-dispatched sequence where each step corresponds to an independent sub-playbook, enabling the MAIN agent to report partial failures with granularity rather than a single pipeline abort.
 - Known dependencies / limitations:
-  - Execution order is constrained: step 2 (hardmatch) must follow step 1 (stream-json extraction); steps 3, 4, and 5 are independent and may be dispatched in parallel if MAIN agent supports it.
-  - Step 5 (hardmatch regression) is REQUIRED — if a dedicated `hardmatch-regression` playbook is later authored, dispatch it; until then, re-run `hardmatch-features` with a fresh `claudefast -p` capture and require byte-equality between the two captures. Skipping or substituting this step is not allowed.
+  - Execution order is constrained. Following the `Step N` numbering in §V1 above:
+    - Step 1 (assign run_id) is independent.
+    - Step 2 (`verify-claude-stream-json` — extraction) must complete before Step 3.
+    - **Step 3 (`hardmatch-features`) depends on Step 2's `claude-features.json` output.** Do NOT parallelize Step 3 with Step 2.
+    - Steps 4 (`verify-dashboard-health`) and 5 (`verify-tmux-interactive`) are independent of Steps 2–3 and may be dispatched in parallel with each other and with Step 3 if MAIN agent supports it.
+    - Step 6 (hardmatch regression) requires a fresh re-run of Step 2 followed by a re-run of Step 3, then a byte-equality check between the two `claude-features.json` captures.
+    - Step 7 (aggregate) runs last.
+  - Step 6 (hardmatch regression) is REQUIRED — if a dedicated `hardmatch-regression` playbook is later authored, dispatch it; until then, re-run `verify-claude-stream-json` + `hardmatch-features` with a fresh `claudefast -p` capture and require byte-equality between the two captures. Skipping or substituting this step is not allowed.
   - Running all steps in one `run_id` directory means any file naming collision between sub-playbooks must be resolved by prefixing outputs with the step number.
   - Total wall-clock time is dominated by the tmux interactive step (up to ~4 min); MAIN agent should set a 10-minute timeout for the full orchestration.
 
