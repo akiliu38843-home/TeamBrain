@@ -111,7 +111,27 @@ Sub-agent uses a fixed synthetic cast file `docs/plans/issue-83/redaction-proof/
 - A fake home path `/Users/fakeuser/secret/`
 - A fake email `secret@example.test`
 
-Sub-agent runs the impl PR's ingest pipeline against this cast, then reads:
+The plan's ingest gate guarantees that if the secret scanner hits, the session is sealed in L1 and **nothing is uploaded to gbrain**. So this step has two execution branches:
+
+**Branch A — happy path: synthetic secrets are caught, ingest aborts.**
+
+Sub-agent confirms ingest aborted by checking `recording-ingest` exit code or AttributionBus event log for `recording_ingest_failed{reason: "sealed_in_L1"}`. Then verifies that `mcp__gbrain__file_list` does NOT contain a cast file for this run_id, and `mcp__gbrain__get_page` returns 404 for the expected page slug.
+
+```json
+{
+  "branch": "A",
+  "ingest_aborted": true,
+  "abort_reason": "sealed_in_L1",
+  "uploaded_cast_present": false,
+  "page_present": false
+}
+```
+
+Pass condition (Branch A): `ingest_aborted == true` AND `uploaded_cast_present == false` AND `page_present == false`.
+
+**Branch B — scanner failed to catch the secret: ingest proceeded.**
+
+This is a scanner BUG and Step 4 must fail loudly so the impl PR cannot merge. Sub-agent reads:
 
 - The transcript markdown (`transcript_md_path` from step 2's flow)
 - The page content (`mcp__gbrain__get_page` on the resulting page slug)
@@ -121,20 +141,30 @@ Sub-agent greps each for fake-token-shape patterns:
 
 ```json
 {
-  "transcript_token_leak": 0,
-  "transcript_path_leak": 0,
-  "transcript_key_leak": 0,
-  "transcript_email_leak": 0,
-  "page_token_leak": 0,
-  "page_path_leak": 0,
-  "page_key_leak": 0,
-  "page_email_leak": 0,
-  "uploaded_cast_token_leak_warning": "frame-level redaction OUT OF SCOPE for v1; cast file is uploaded as-is and requires manual review by author",
-  "uploaded_cast_token_leak_count": 4
+  "branch": "B",
+  "transcript_token_leak": <int>,
+  "transcript_path_leak": <int>,
+  "transcript_key_leak": <int>,
+  "transcript_email_leak": <int>,
+  "page_token_leak": <int>,
+  "page_path_leak": <int>,
+  "page_key_leak": <int>,
+  "page_email_leak": <int>,
+  "uploaded_cast_token_leak": <int>,
+  "uploaded_cast_path_leak": <int>,
+  "uploaded_cast_key_leak": <int>,
+  "uploaded_cast_email_leak": <int>
 }
 ```
 
-Pass conditions: `transcript_*_leak == 0` AND `page_*_leak == 0`. The uploaded cast file IS expected to contain raw tokens (frame-level redaction is OUT OF SCOPE for v1); this is documented and surfaced as a warning, not a fail. Authors must manually scrub cast files containing real secrets before publishing. UI banner in record CLI must remind users.
+Pass condition (Branch B): **all 12 leak counts == 0**. Any non-zero leak — transcript, page, OR uploaded cast — fails Step 4. The uploaded cast is included because v1 covers the cast's text stream end-to-end via the M5 secret scanner (per `plan.md` privacy section); a leak there means the scanner missed the pattern and must be patched. There is no "warning, requires manual review" exit hatch in v1 — frame-level visual redaction is OUT OF SCOPE only because v1 does not record the screen, not because v1 lets text-stream leaks through.
+
+The remediation when Step 4 Branch B fails:
+
+1. Delete the uploaded cast and page from gbrain (`mcp__gbrain__file_list` → delete; `delete_page`).
+2. Revoke any real token that was leaked (manual operator action).
+3. Patch the scanner regex table to catch the missed shape; add a regression test in `packages/core/src/m5/__tests__/secret-scanner.test.ts`.
+4. Re-run Step 4; only Branch A is acceptable for merge.
 
 ## Step 5 — Attribution link
 
@@ -186,7 +216,7 @@ Main agent reads `step-{1..6}/raw.json`, applies pass conditions, writes `verdic
 ## What this judge harness does NOT do
 
 - It does not judge whether asciinema is the "right" recording technology — that's a v1 decision in the plan.
-- It does not enforce frame-level redaction — explicitly OUT OF SCOPE for v1.
+- It does not enforce frame-level visual redaction — that's a v2 concern; v1 does not record the screen so the question doesn't arise. (It DOES enforce text-stream redaction end-to-end, including the uploaded cast file, via Step 4.)
 - It does not test cross-project (different `team_id`) playback — that's a non-goal.
 - It does not measure end-user UX for "watching another teammate's clip" — UX is iterated in v2.
 - It does not retrain or re-rank gbrain's hybrid search; trusts gbrain's existing query behavior.

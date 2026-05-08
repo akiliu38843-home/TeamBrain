@@ -63,7 +63,8 @@
 | group brain | **team scope** in gbrain | gbrain federated source 中绑到当前项目 git remote 的子集（`<cwd>/.teamagent/` 同 team_id） |
 | group 模式 | **team-scope mode** | gbrain page tag `team_id=<sha256-of-remote>` |
 | 同事看到对方录像 | **team-scope playback** | 同 `team_id` 下 page query 命中 |
-| 录像里有 secret 怎么办 | **transcript-level redaction**（v1）；frame-level redaction（OUT OF SCOPE） | M5 secret scanner 复用到 transcript；视频帧脱敏不在 v1 |
+| 录像里有 secret 怎么办（asciinema 文本流） | **transcript-level redaction**（v1）；scanner 命中 → ingest gate 直接 seal_in_L1，**不上传 gbrain**；因此**已上传到 gbrain 的 cast 文件不应含 secret 字面**（与 M5 双闸门同等强度） | M5 secret scanner 复用，覆盖 cast 文本流全部内容 |
+| 录像里有 secret 怎么办（v2 屏幕像素） | **frame-level visual redaction**（OUT OF SCOPE for v1） | v1 不录屏幕，画面像素脱敏问题不存在；v2 录屏幕时再设计 |
 
 ## ① Plan — task description
 
@@ -75,7 +76,7 @@
 - **索引**：录制完成后自动 (a) 转 transcript（asciinema 自带 `cast.events` 时间戳）→ (b) 跑 transcript-level 脱敏（M5 secret scanner 复用）→ (c) `mcp__gbrain__file_upload` 落 cast 原文件 → (d) `mcp__gbrain__put_page` 写一篇 page，frontmatter 含 `team_id` / `session_id` / `user` / `started_at` / `ended_at` / `attribution_link_to_rule_id?` → (e) `mcp__gbrain__add_timeline_entry` 给 page 加章节级 timeline（按"用户开口"切段，每段含 ≤ 60 秒摘要）→ (f) page 自动 chunk + embed（gbrain 内建）。
 - **查询**：用户跑 `gbrain query "上次 fly.io 部署失败的视频"` → 返回 ≥1 条命中，含 timestamped clip URL（指 cast 文件 + offset），点开能 replay 该段。
 - **Team 维度**：同 `team_id` 下 ≥2 同事的录像在同一个 gbrain 命名空间里都可被对方查到。**不**做跨 `team_id`（跨项目）共享。
-- **隐私**：transcript-level 脱敏强制（reuse M5 hard secret scanner）；frame-level（视频画面里的 token 字符）显式 OUT OF SCOPE for v1，发布前要人手过一遍 cast 文件。
+- **隐私**：M5 hard secret scanner 复用，覆盖 asciinema cast 的**全部文本流内容**（transcript + ingest gate）。Scanner 命中 → 整 session seal_in_L1、**不上传 gbrain**（与 M5 双闸门同等强度）。因此 v1 路径下**已上传到 gbrain 的 cast 文件不应含 secret 字面**——任何 leak 视为 scanner 漏检 bug，judge 步骤 4 直接 fail。Frame-level（屏幕录像的画面像素）脱敏 OUT OF SCOPE for v1，**因为 v1 不录屏幕**；v2 引入屏幕录像时再设计。
 
 ### 怎么做
 
@@ -100,7 +101,7 @@
 - **不** 录屏幕 / OBS-style 桌面录制 / browser screen recording（gstack `/browse`）—— v1 只录终端。screen recording 留 v2。
 - **不** 跨 `team_id`（跨项目）共享。team scope 严格按 git remote 边界，与 #82 一致。
 - **不** 实现自定义 video player UI——`mcp__gbrain__file_url` 返回的 URL 由用户 OS 默认 player 打开（`asciinema play <url>` 或浏览器 asciinema-player）。
-- **不** 实现 frame-level 视频画面脱敏。v1 transcript-level 已够；v2 看真实需求。
+- **不** 实现 frame-level 视频画面脱敏——**v1 不录屏幕**，画面脱敏问题不存在；屏幕录像 + frame-level 脱敏一并由 v2 处理。Asciinema cast 的文本流不属于 frame-level 范畴，由 M5 secret scanner 全覆盖。
 - **不** 自建中央 video 服务器。gbrain 自带 file storage 已够。
 - **不** 实现 cross-machine real-time co-watch / live streaming。录制是 batch 上传 + 异步检索。
 - **不** 写 `docs/specs/2026-05-XX-group-video-recording.md`（issue body 提到）—— canonical spec 路径是 `docs/specs/2026-05-XX-team-scope-session-recording.md`，由 follow-up impl PR 写。本 plan 不在 docs-only PR 里写 spec。
@@ -168,7 +169,7 @@ Judge harness **不**评：
 ## After-PR — POSTPR loop
 
 1. POSTPR loop 直到 Codex silent / 👍。
-2. Issue #83 close with cite-back comment（ADR-0005）：plan 路径 + PR 链接 + 一句 "ready for impl PR pending #82 follow-up impl PR shipping team-scope viral sync teaching e2e; canonical naming per CONTEXT.md is team-scope session recording, mapped to issue title 'group video recording' inside Glossary section; frame-level video redaction OUT OF SCOPE for v1"。
+2. Issue #83 close with cite-back comment（ADR-0005）：plan 路径 + PR 链接 + 一句 "ready for impl PR pending #82 follow-up impl PR shipping team-scope viral sync teaching e2e; canonical naming per CONTEXT.md is team-scope session recording, mapped to issue title 'group video recording' inside Glossary section; v1 covers asciinema text stream end-to-end via M5 secret scanner (any leak = fail); frame-level visual redaction OUT OF SCOPE for v1 because v1 does not record the screen"。
 3. Follow-up impl PR 反向引用本 plan；不重开 #83。
 
 ## 风险与回滚
@@ -176,7 +177,8 @@ Judge harness **不**评：
 | 风险 | 缓解 | 回滚动作 |
 |---|---|---|
 | gbrain 后续推出专用 video API、本 plan 的 file_upload+page 组合被 deprecate | 本 plan 显式锁定 v1 接口；spec 缺口节点列出；follow-up impl PR 启动前 Probe-1 复核 | 切换到 gbrain 官方 video API；plan 不重写，由 follow-up PR 描述 deprecation |
-| Frame-level 画面里的 token 泄露 | v1 显式 OUT OF SCOPE；spec 文档强调用户必须手动复检 cast；UI banner 反复提示 | 发现泄露 → 立即从 gbrain `file_list` 删除 + revoke token；BUGREPORT 流程接手 |
+| Asciinema cast 文本流泄露（scanner 漏检） | judge 步骤 4 强制 fail；scanner regex 表必须随 M5 同步更新；v1 路径下不允许"warning + 人手复检" | 发现泄露 → 立即从 gbrain `file_list` 删除 cast + revoke token + scanner regex 表补 + BUGREPORT；视为 scanner bug |
+| Frame-level 屏幕像素泄露（v2 议题） | v1 不录屏幕，问题不存在；v2 引入屏幕录像时单独设计 | 不适用（v1） |
 | 录制 / ingest 体积大、CI 上跑不动 | PoC evidence 限制 5–10 min；judge step 2 用合成短录像 | CI 不跑 long-form ingest；本地 dev 跑长录像；CI 只跑契约测试 |
 | asciinema v2 → v3 迁移 | 本 plan 锁 v2；v3 兼容由独立 issue 处理 | follow-up impl PR 启动时 Probe-2 复核版本 |
 | #82 follow-up impl 长期未启动 | 本 plan 显式依赖 #82；judge step 6 拦底 | #83 follow-up impl PR hold；本 plan 不重开 |
