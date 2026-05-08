@@ -2,7 +2,7 @@
  * Thin adapter wrapper around `createPostToolUseHandler` from `@teamagent/core`.
  *
  * The pure handler lives in `packages/core/src/hook/post-tool-use-handler.ts`
- * (FCIS: Functional Core, Imperative Shell — see ADR-0006 and the matching
+ * (FCIS: Functional Core, Imperative Shell — see ADR-0007 and the matching
  * sweep for `pre-tool-use-handler.ts` in commit 2). This module binds
  * production impurities — `crypto.randomUUID()` and `new Date().toISOString()`
  * — and accepts the SDK-typed input so existing callers don't change.

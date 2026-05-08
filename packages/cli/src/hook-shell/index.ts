@@ -18,7 +18,7 @@
  * path resolves to `process.exit(0)` with a single stderr fallback log line
  * prefixed by the channel name. Hooks must never block Claude Code.
  *
- * See ADR-0006 for design rationale.
+ * See ADR-0007 for design rationale.
  */
 import * as fs from "node:fs";
 import * as os from "node:os";

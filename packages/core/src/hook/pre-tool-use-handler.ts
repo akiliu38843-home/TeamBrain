@@ -8,7 +8,7 @@
  *   2. `new Date().toISOString()`        — current timestamp
  *   3. (planned) ascii-vs-humane format  — output style switch
  *
- * Per ADR-0006 these become injected `deps.idGen`, `deps.now`, `deps.formatStyle`
+ * Per ADR-0007 these become injected `deps.idGen`, `deps.now`, `deps.formatStyle`
  * so the handler is a pure function of `(deps) => (input) => result`. The
  * adapter layer (`packages/adapters/src/hook/claude-agent-sdk/pre-tool-use-sdk.ts`)
  * is a thin wrapper that binds production deps and re-exports.

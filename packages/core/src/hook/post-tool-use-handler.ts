@@ -1,7 +1,7 @@
 /**
  * PostToolUse hook handler — pure core (FCIS: Functional Core, Imperative Shell).
  *
- * Companion sweep to commit 2 (`pre-tool-use-handler.ts`). Per ADR-0006, the
+ * Companion sweep to commit 2 (`pre-tool-use-handler.ts`). Per ADR-0007, the
  * PostToolUse hook handler is pure logic and belongs in `packages/core/`,
  * not `packages/adapters/`. The original handler had two impurities that
  * have now been lifted out as injected deps:
@@ -10,7 +10,7 @@
  *      `tool_use_id` when input omits it)
  *   2. `new Date().toISOString()`        — current timestamp
  *
- * Per ADR-0006 these become injected `deps.idGen`, `deps.now` so the handler
+ * Per ADR-0007 these become injected `deps.idGen`, `deps.now` so the handler
  * is a pure function of `(deps) => (input) => result`. The adapter layer
  * (`packages/adapters/src/hook/claude-agent-sdk/post-tool-use-sdk.ts`) is a
  * thin wrapper that binds production deps and re-exports.

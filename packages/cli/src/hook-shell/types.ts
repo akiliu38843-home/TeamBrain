@@ -6,7 +6,7 @@
  * by hook handler factories living in `packages/core/` (post-commit-2 of the
  * fused PR; pre-commit-2 the handlers still live in adapters).
  *
- * See ADR-0006 for the design rationale and the two-layer split.
+ * See ADR-0007 for the design rationale and the two-layer split.
  */
 import type { AttributionBus } from "@teamagent/ports";
 

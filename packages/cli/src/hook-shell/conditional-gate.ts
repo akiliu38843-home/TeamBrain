@@ -20,7 +20,7 @@
  * case in code review; the runtime check below also rejects an empty
  * `escape` defensively (see `assertEscapeNonEmpty`).
  *
- * See ADR-0006 for why the gate exists at all.
+ * See ADR-0007 for why the gate exists at all.
  */
 import type { EscapeOptions } from "./types.js";
 

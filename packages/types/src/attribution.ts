@@ -3,7 +3,7 @@
  *
  * 自 PR `teamwork/hookshell-attribution-fused` commit 4 起，AttributionEvent
  * 是按 `kind` 区分的 discriminated union（之前是 `{ source, action: string, ... }`
- * 的 free-string 形态）。改动动机见 ADR-0006：让 StdoutRenderer 可以做
+ * 的 free-string 形态）。改动动机见 ADR-0007：让 StdoutRenderer 可以做
  * exhaustive switch by kind 在编译期捕获遗漏的 emit point。
  *
  * 命名约定：`kind` 用 `domain.action` 或 `verb-noun` 风格，与

@@ -109,11 +109,11 @@ Claude Code 与 TeamBrain 的集成通道。M6 时点共 8 个：`PreToolUse` / 
 _Avoid_: hook（无修饰，太泛）, tool integration（不区分 input/output 方向）, SDK channel（与 `@anthropic-ai/claude-agent-sdk` 概念混淆）
 
 **HookShell**:
-8 个 Hook channel 共享的 imperative shell module（`packages/cli/src/hook-shell/`）。两层 API：`runHook` 默认层（`bin-post-tool-use` / `bin-pre-tool-use` / `bin-user-prompt-submit` 等不需要 spawn detached / lock 的 channel 用，~30 行 boilerplate）+ `runAdvancedHook` 进阶层（`bin-stop` / `bin-session-end` / `bin-pre-compact` / `bin-session-start` 这种需要 spawn detached self / lock file / pipeline timeout / lazy resources 的 channel 用，opt-in via `escape: { detached?, lock?, pipelineTimeoutMs?, manualResources? }`）。TS conditional type `RequireAtLeastOneEscape` 强制进阶层必须传至少一个 `escape.*` 字段才编译，机械化简单-vs-复杂的 layer 选择。HookShell 持有 `DualLayerStore` / `SqliteEventLog` / `AttributionBus` 三件套的 lifecycle，并自动 wire `StdoutRenderer` 订阅 bus 让 `bus.emit({...})` 自动镜像 stderr per `TEAMAGENT_VISIBILITY`。详见 ADR-0006。
+8 个 Hook channel 共享的 imperative shell module（`packages/cli/src/hook-shell/`）。两层 API：`runHook` 默认层（`bin-post-tool-use` / `bin-pre-tool-use` / `bin-user-prompt-submit` 等不需要 spawn detached / lock 的 channel 用，~30 行 boilerplate）+ `runAdvancedHook` 进阶层（`bin-stop` / `bin-session-end` / `bin-pre-compact` / `bin-session-start` 这种需要 spawn detached self / lock file / pipeline timeout / lazy resources 的 channel 用，opt-in via `escape: { detached?, lock?, pipelineTimeoutMs?, manualResources? }`）。TS conditional type `RequireAtLeastOneEscape` 强制进阶层必须传至少一个 `escape.*` 字段才编译，机械化简单-vs-复杂的 layer 选择。HookShell 持有 `DualLayerStore` / `SqliteEventLog` / `AttributionBus` 三件套的 lifecycle，并自动 wire `StdoutRenderer` 订阅 bus 让 `bus.emit({...})` 自动镜像 stderr per `TEAMAGENT_VISIBILITY`。详见 ADR-0007。
 _Avoid_: hook framework（错位的 plugin/middleware 联想）, hook runner（runner 通常暗示长进程，hook 是短进程）, shell（无修饰，太泛）
 
 **Hook handler**:
-单个 Hook channel 的 channel-specific 业务函数，运行在 HookShell 的 `handler(ctx)` 槽位。位于 `packages/core/src/hook/`（自 ADR-0006 起；之前的 `createPreToolUseHandler` / `createPostToolUseHandler` 在 `packages/adapters/`，违反 FCIS 元约束）。每个 handler 是纯函数 + 注入 deps（`idGen` / `now` / `formatStyle` 等），通过 `bus.emit({ kind, ... })` 发 user-visible 系统事件，**不**直接 `process.stderr.write`。adapter 端保留 thin wrapper 绑生产 deps 让旧 caller 0 改动。
+单个 Hook channel 的 channel-specific 业务函数，运行在 HookShell 的 `handler(ctx)` 槽位。位于 `packages/core/src/hook/`（自 ADR-0007 起；之前的 `createPreToolUseHandler` / `createPostToolUseHandler` 在 `packages/adapters/`，违反 FCIS 元约束）。每个 handler 是纯函数 + 注入 deps（`idGen` / `now` / `formatStyle` 等），通过 `bus.emit({ kind, ... })` 发 user-visible 系统事件，**不**直接 `process.stderr.write`。adapter 端保留 thin wrapper 绑生产 deps 让旧 caller 0 改动。
 _Avoid_: handler（无修饰）, hook function（与 React hooks 联想冲突）, hook callback（暗示同步触发链）
 
 ## Relationships
@@ -126,7 +126,7 @@ _Avoid_: handler（无修饰）, hook function（与 React hooks 联想冲突）
 - 一条规则同时持有 **Confidence**（自动、连续）和 **Tier**（外部、离散）两条独立轴；前者由 `RuleBasedCalibrator` 自动推进，后者由 **Calibration subagent** 或人类通过 `teamagent set-tier` 推进，**Calibration source** 字段忠实记账谁推的
 - **Tier ≥ stable** 是 `pnpm teamagent compile` 写 Skills 的门槛；因此 **Tier** 决定 compile gate，**Confidence** 不直接决定
 - **Calibration subagent** 走 git-backed transport / cross-machine **无关** —— 它是 host agent 进程内的本地行为，输出落到 L1 还是 L2 由所改 rule 自身的 scope 决定
-- 每个 **Hook channel** 的 imperative shell 都走 **HookShell** 的两层 API；channel-specific 业务在 **Hook handler** 内（住 core，纯函数）；user-visible 副作用全部通过 `ctx.bus.emit` 走 **AttributionBus** + StdoutRenderer，禁止 `process.stderr.write`（per ADR-0006 + lint rule `scripts/check-bin-stderr.sh`）
+- 每个 **Hook channel** 的 imperative shell 都走 **HookShell** 的两层 API；channel-specific 业务在 **Hook handler** 内（住 core，纯函数）；user-visible 副作用全部通过 `ctx.bus.emit` 走 **AttributionBus** + StdoutRenderer，禁止 `process.stderr.write`（per ADR-0007 + lint rule `scripts/check-bin-stderr.sh`）
 
 ## Example dialogue
 
@@ -145,4 +145,4 @@ _Avoid_: handler（无修饰）, hook function（与 React hooks 联想冲突）
 - **"Calibrator v1 / v2"** — 历史上有两套 Calibrator port + impl 并存（`packages/ports/src/calibrator.ts` + `calibrator-v2.ts`）；v2 引入了 Wilson LB / `Observation` / 自动 Tier 状态机，但 callers 全程 hardcode v1；解决：见 ADR-0004，v2 整套删掉，**RuleBasedCalibrator (=v1)** 是 in-process 唯一 calibrator，仅动 **Confidence**；**Tier** 改由外部写
 - **"5-tier vs 6-tier"** — CLAUDE.md「TeamAgent 经验」第 4 条与设计文档曾写 5-tier；实际枚举 6 档（含 `dormant`）；解决：6-tier 为 canonical，文档在 ADR-0004 实现 PR 中对齐
 - **"AgenticCalibrator"** — 在 grilling 过程中曾被提出作为 TeamBrain 内部模块名；解决：拒绝；TeamBrain 不内嵌 LLM，agentic 判断由 host 端的 **Calibration subagent** 完成
-- **"5 handler factories" vs "2 handler factories"** — ADR-0006 + 早期 plan.md 假设 5 个 hook handler factory 要从 adapters 搬到 core；实际 inventory 只有 2 个（`pre-tool-use-sdk.ts` + `post-tool-use-sdk.ts`）。其他 hook channel（user-prompt-submit / stop / session-* / pre-compact / updater）已经直接以 `bin-*.ts` 形态在 `packages/cli/src/`，没有 `createXxxHandler(deps)` factory 模式可搬。**实际 sweep = 2 个 factory**，per commit 2 (PreToolUse) + commit 3 (PostToolUse)
+- **"5 handler factories" vs "2 handler factories"** — ADR-0007 + 早期 plan.md 假设 5 个 hook handler factory 要从 adapters 搬到 core；实际 inventory 只有 2 个（`pre-tool-use-sdk.ts` + `post-tool-use-sdk.ts`）。其他 hook channel（user-prompt-submit / stop / session-* / pre-compact / updater）已经直接以 `bin-*.ts` 形态在 `packages/cli/src/`，没有 `createXxxHandler(deps)` factory 模式可搬。**实际 sweep = 2 个 factory**，per commit 2 (PreToolUse) + commit 3 (PostToolUse)
