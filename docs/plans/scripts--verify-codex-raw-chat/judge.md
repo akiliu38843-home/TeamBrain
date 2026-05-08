@@ -72,4 +72,4 @@ LLM judge prompt (run via `claudefast -p`):
   - Model name `gpt-5.4-mini` used in original may not exist; use `gpt-4o-mini` or current Codex default.
 
 ## Phase 2 fix log
-Resolved 2026-05-08: #9 (P3) rewrote §V3 SKIP/FAIL logic: removed `managed_block_present` gate; SKIP now triggers when `TEAMAGENT:START` is absent from CLAUDE.md (deletion confirmed, expected path); FAIL triggers when trigger phrase regresses back. Commit TBD.
+Resolved 2026-05-08: #9 (P3) rewrote §V3 SKIP/FAIL logic: removed `managed_block_present` gate; SKIP now triggers when `TEAMAGENT:START` is absent from CLAUDE.md (deletion confirmed, expected path); FAIL triggers when trigger phrase regresses back. Commit fee007b.
