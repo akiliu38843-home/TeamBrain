@@ -71,8 +71,12 @@ stderr to `evidence_dir = .judge/<run_id>/evidence/`.
       > evidence_dir/dogfood-files.txt
 3.  cat docs/plans/issue-84/v1-dogfood/README.md \
       > evidence_dir/recording-protocol.md 2>&1
-4.  ls -la scripts/dogfood/tthw-record.sh \
-      > evidence_dir/recorder-script.txt 2>&1
+4.  ls -la docs/plans/issue-84/v1-dogfood/template-comment.md \
+      > evidence_dir/template-ledger.txt 2>&1
+    # NOTE: original draft of this step referenced scripts/dogfood/tthw-record.sh,
+    # which was never in scope for this PR (docs-only scaffold; the tthw-record.sh
+    # script is a future deliverable, not gated by issue #122). Step rewritten to
+    # check the actual ledger template that ships with this PR.
 ```
 
 ### §V1.D — Repo green gate (must remain green)
@@ -102,6 +106,17 @@ stderr to `evidence_dir = .judge/<run_id>/evidence/`.
 CLI) **or** `pnpm --filter landing build` (if scope stays in
 `apps/landing`). The implementing agent picks one and writes it back
 into this file before §V2.
+
+**As-built note (PR #177):** Slice E selected `pnpm teamagent --help`
+(resolved to `node_modules/.bin/tsx packages/cli/src/bin.ts --help`)
+because the planned `pnpm --filter landing build` script is `cp -r src/. dist/`
+with no `--help` to canonicalise. The §V1.E evidence under
+`.judge/2026-05-08-issue-122-E/evidence/` reflects this substitution.
+Codex was further substituted with direct shell exec because
+`OPENAI_API_KEY` was not set in the worker's environment (HTTP 401);
+hardmatch on the substituted artefact is byte-clean (0 bytes diff).
+Future re-runs of §V1.E should mirror this choice unless the landing
+build adds a deterministic JSON-emitting subcommand.
 
 ## §V2 DUMP — canonical JSON
 

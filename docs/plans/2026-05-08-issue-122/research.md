@@ -145,3 +145,34 @@ a #122 gate in the issue body.
 
 The TTHW probe lives at `.fastprobe/issue84/p7.json` per the issue;
 plan re-references rather than re-running it.
+
+## Operational note — Pages env-policy maintenance
+
+The fix for the Pages 404 is a GitHub repo Settings change applied
+via `gh api`, not a workflow file edit. It lives outside the repo, so
+a fresh clone has no automatic record of it. **If a repo admin
+reverts the policy via the GitHub UI** (Settings → Environments →
+`github-pages` → Deployment branches), all subsequent `main` pushes
+to Pages will silently fail at the deploy job with the same
+"Branch 'main' is not allowed to deploy to github-pages…" rejection.
+
+**Re-apply command** (admin scope required):
+
+```
+gh api -X POST \
+  /repos/libz-renlab-ai/TeamBrain/environments/github-pages/deployment-branch-policies \
+  -F name=main -F type=branch
+```
+
+**Verify**:
+
+```
+gh api /repos/libz-renlab-ai/TeamBrain/environments/github-pages/deployment-branch-policies
+```
+
+The response should list both `gh-pages` and `main` under
+`branch_policies`. If only `gh-pages` is present, re-apply.
+
+This is also captured in `judge.md` §V1.A — every harness run
+re-checks the policy state, so a regression would be caught the next
+time someone runs the §V1 RUN block of the dogfood judge.

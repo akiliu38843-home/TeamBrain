@@ -39,9 +39,15 @@
       │
       ▼
   [TTHW 完成]
-      总计 ≤ 300 s → PASS
-      任一步 > 90 s 或 总计 > 280 s → ABORT
+      总计 ≤ 300 s 且无 abort 触发 → PASS
+      触发任一 abort 信号 (见下方表) → STOP, 标记 PARTIAL/FAIL
 ```
+
+> **阈值出处**：abort 信号（包括步骤 4 的 180 s 安装超时特例和总计
+> 280 s 的早停线）以下方"Abort 信号 / Abort signals"表为准；本 ASCII
+> 概览仅作流程示意，不替代该表。Stopwatch hook 章节的"60 s/90 s
+> 无输出"用语指步骤 4 安装阶段的**无任何 stdout 输出**判据，与"任一
+> 单步 > 90 s 总用时"是互补关系，不冲突。
 
 # V1 真用户 Dogfood 执行协议
 
