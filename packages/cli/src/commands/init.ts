@@ -254,8 +254,22 @@ export async function executeInit(opts: InitOptions = {}): Promise<InitResult> {
       try {
         const req = createRequire(here);
         const home = os.homedir();
+        // Wave-9 P3 fix: walk up from `here` to the nearest enclosing
+        // package.json so the first knownRoot points at the actual install
+        // (npm hoisted, pnpm symlinked, custom prefix, etc.) instead of
+        // dirname(here)=dist/commands which can never contain @xenova.
+        const pkgRoot = (() => {
+          let cur = path.dirname(here);
+          for (let i = 0; i < 16; i++) {
+            if (fs.existsSync(path.join(cur, "package.json"))) return cur;
+            const parent = path.dirname(cur);
+            if (parent === cur) return path.dirname(here);
+            cur = parent;
+          }
+          return path.dirname(here);
+        })();
         const knownRoots = [
-          path.dirname(here),
+          pkgRoot,
           path.join(home, ".local", "share", "pnpm"),
           path.join(home, ".npm-global"),
           path.join(home, ".pnpm-global"),

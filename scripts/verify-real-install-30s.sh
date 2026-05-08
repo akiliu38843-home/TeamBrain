@@ -167,7 +167,20 @@ fi
 
 # Summary
 printf '\n=== verify-real-install-30s run %s ===\n' "${RUN_ID}"
+ANY_FAIL=0
 for f in "${JUDGE_DIR}"/*.json; do
   node -e "const j=require('${WORKTREE}/${f}'); console.log(JSON.stringify(j))"
+  ec=$(node -e "const j=require('${WORKTREE}/${f}'); console.log(j.exit_code ?? 0)")
+  if [ "${ec}" != "0" ]; then ANY_FAIL=1; fi
 done
 echo "evidence dir: ${EVIDENCE_DIR}"
+
+# Wave-9 P3 fix: propagate any non-zero install exit so the orchestrator's
+# `if ! bash scripts/verify-real-install-30s.sh` guard actually fires when
+# Phase 1 install fails. Per-run JSON still records the exit code for LLM
+# judging; this exit code is the orchestrator-facing signal.
+if [ "${ANY_FAIL}" = "1" ]; then
+  echo "verify-real-install-30s: at least one install run had non-zero exit_code (see *.json)" >&2
+  exit 1
+fi
+exit 0
