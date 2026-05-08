@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import {
   DualLayerStore,
   SqliteKnowledgeStore,
@@ -242,6 +243,34 @@ export async function executeInit(opts: InitOptions = {}): Promise<InitResult> {
         const parent = path.dirname(dir);
         if (parent === dir) break;
         dir = parent;
+      }
+      // Third strategy: pnpm content-addressable store puts deps at
+      // ~/.local/share/pnpm/global/<N>/.pnpm/<dep>@<ver>/node_modules/<dep>/.
+      // The fs.existsSync walk above misses that layout because pkgDir/../<dep>
+      // does not resolve into the CAS tree. Use createRequire so Node's own
+      // module-resolution (which follows pnpm's symlinks) does the work.
+      // Constrain the resolved path to known global roots to avoid
+      // false-positiving on the user's unrelated nvm/system @xenova install.
+      try {
+        const req = createRequire(here);
+        const home = os.homedir();
+        const knownRoots = [
+          path.dirname(here),
+          path.join(home, ".local", "share", "pnpm"),
+          path.join(home, ".npm-global"),
+          path.join(home, ".pnpm-global"),
+        ];
+        const isUnderKnownRoot = (resolved: string) =>
+          knownRoots.some((root) => resolved.startsWith(root + path.sep) || resolved === root);
+        let rxResolved: string | undefined;
+        try { rxResolved = req.resolve("@xenova/transformers/package.json"); } catch { /* not found */ }
+        let onnxResolved: string | undefined;
+        try { onnxResolved = req.resolve("onnxruntime-node/package.json"); } catch { /* not found */ }
+        if (rxResolved && onnxResolved && isUnderKnownRoot(rxResolved) && isUnderKnownRoot(onnxResolved)) {
+          return true;
+        }
+      } catch {
+        // createRequire path is best-effort
       }
       return false;
     } catch {

@@ -160,8 +160,14 @@ echo "  project: ${P2_PROJ}"
 # Channel #2: fs_usage trace spans the install.
 echo ""
 echo "── Channel #2: fs_usage (sudo) ─────────────────────────────"
-FSUSAGE_PID=$(RUN_ID="${RUN_ID}" DURATION=180 bash scripts/verify-fs-usage.sh)
-echo "  fs_usage pid: ${FSUSAGE_PID}  log: ${EVIDENCE_DIR}/fs_usage.log"
+FSUSAGE_PID=""
+if FSUSAGE_PID=$(RUN_ID="${RUN_ID}" DURATION=180 bash scripts/verify-fs-usage.sh); then
+  echo "  fs_usage pid: ${FSUSAGE_PID}  log: ${EVIDENCE_DIR}/fs_usage.log"
+else
+  echo "  ✗ verify-fs-usage.sh failed (mandatory channel #2)" >&2
+  CHANNEL_FAILURES+=("2:fs-usage")
+  FSUSAGE_PID=""
+fi
 
 # Sleep so fs_usage dtrace kernel probe attaches before install starts.
 sleep 3
@@ -179,8 +185,8 @@ awk '/^real |^user |^sys /{print; next}' "${INSTALL_TIME}.raw" > "${INSTALL_TIME
 INSTALL_WALL=$(awk '/^real /{print $2}' "${INSTALL_TIME}" | head -1)
 echo "  exit=${INSTALL_EXIT}  wall=${INSTALL_WALL}s"
 
-# Stop fs_usage now that install is done.
-${SUDO} kill "${FSUSAGE_PID}" 2>/dev/null || true
+# Stop fs_usage now that install is done (skip if spawn failed).
+[ -n "${FSUSAGE_PID:-}" ] && ${SUDO} kill "${FSUSAGE_PID}" 2>/dev/null || true
 sleep 1
 echo "  fs_usage stopped"
 

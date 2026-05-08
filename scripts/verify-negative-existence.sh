@@ -50,4 +50,10 @@ assert_absent \
   "PASS no-warmup-state" \
   "FAIL .warmup-state.json present at"
 
+# Final exit: non-zero if any assertion file starts with "FAIL "
+FAIL_COUNT=$(grep -lE '^FAIL ' "${EVDIR}"/neg-* 2>/dev/null | wc -l | tr -d ' ')
+if [ "${FAIL_COUNT}" -gt 0 ]; then
+  echo "verify-negative-existence: ${FAIL_COUNT} negative-existence assertion(s) failed" >&2
+  exit 1
+fi
 exit 0

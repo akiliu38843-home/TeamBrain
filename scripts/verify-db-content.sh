@@ -49,4 +49,19 @@ else
   echo "(absent)" > "${EVDIR}/warmup-state.kv"
 fi
 
+# Final exit: ensure mandatory evidence is present and meaningful.
+TABLES_TXT="${EVDIR}/db-tables.txt"
+COUNT_TXT="${EVDIR}/db-rule-count.txt"
+if [ ! -f "${TABLES_TXT}" ] || grep -q '^(absent)$' "${TABLES_TXT}" || ! grep -q 'knowledge' "${TABLES_TXT}"; then
+  echo "verify-db-content: knowledge.db missing or schema invalid" >&2
+  exit 1
+fi
+COUNT=$(cat "${COUNT_TXT}" 2>/dev/null || echo 0)
+case "${COUNT}" in
+  ''|*[!0-9]*) echo "verify-db-content: rule count is non-numeric: ${COUNT}" >&2; exit 1 ;;
+esac
+if [ "${COUNT}" -lt 1 ]; then
+  echo "verify-db-content: rule count is 0 (seed not loaded)" >&2
+  exit 1
+fi
 exit 0
