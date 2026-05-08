@@ -9,7 +9,7 @@
 - Phase 1 实现计划（已归档）：`docs/backup/phase1/specs/2026-04-14-teamagent-phase1-plan.md`
 - **多工具适配**：`docs/features/multi-tool.md` — 4 通道（PreToolUse / UserPromptSubmit / Stop analyze / AttributionBus）已实现；MCP Server / Cursor compiler **NOT YET**。
 - **如何为一个 PR 写计划 / how to plan for a PR**：`docs/HOWTO-PLAN-PR.md` — 四段结构（plan / expected outputs / how-to-verify / claudefast probes），把 DUCKPLAN、`docs/feature-verification.md` 1+2+3 门禁、`docs/FASTPROBE.md` 三步探针、`docs/POSTPR.md` 循环串成一条 PR 工作流。
-- **PR 已经开了之后才发现 issue 怎么修 / what to do when issues found post-PR**：`docs/PR-PLAN.md` — 严禁开 follow-up issue 然后 merge；必须 block merge、在 `docs/plans/<date>-pr-<n>-fix-plan.md` 写 PR-PLAN（task / expected outputs / judge harness 三段），用 `docs/TEAMWORK.md` 的 N+1+(2N) 模式并行修，push 到同一个 PR branch，POSTPR loop 直到 Codex 👍。
+- **PR 已经开了之后才发现 issue 怎么修 / what to do when issues found post-PR**：`docs/PR-PLAN.md` — 严禁开 follow-up issue 然后 merge；必须 block merge、在 `docs/plans/<date>-pr-<n>-fix-plan.md` 写 PR-PLAN（task / expected outputs / judge harness 三段），用 `docs/TEAMWORK.md` 的 N+1+(2N) 模式并行修，push 到同一个 PR branch，POSTPR loop 直到 `/review` PASS（ADR-0007 把 Codex bot 替换为本地 `/review` skill）。
 
 ---
 
