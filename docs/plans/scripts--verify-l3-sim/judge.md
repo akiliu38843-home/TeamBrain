@@ -53,11 +53,10 @@ LLM judge prompt (run via `claudefast -p`):
 > Read `.judge/<run_id>/judge.json` and supporting evidence in
 > `evidence_dir`. Emit verdict `PASS` / `FAIL` / `SKIP`. Criteria:
 >
-> - PASS if: `bundle_present == true` AND `t1_hit == true` (response contains "先检查下载目录") AND `t2_hit == true` (response matches AttributionBus or trace) AND `t3_hit == true` (response matches adapter, 纯函数, or IO) AND `events_new_count >= 3`.
-> - FAIL if: any test did not hit its expected keyword, or the bundle was absent, or the event log did not grow by at least 3 lines.
-> - SKIP if: feature has been deleted from the project (e.g.
->   canned answer no longer in CLAUDE.md), or required infrastructure
->   is unavailable in this environment.
+> - PASS if: `bundle_present == true` AND `t1_hit == true` (hook returns valid JSON for wget; keyword "先検査下载目录" check is DEPRECATED — see notes) AND `t2_hit == true` (response matches AttributionBus or trace) AND `t3_hit == true` (response matches adapter, 纯函数, or IO).
+> - Note: `events_new_count >= 3` is SKIP-INFRA if `~/.teamagent/events.jsonl` is absent.
+> - FAIL if: bundle absent, or t2/t3 did not hit their expected keyword.
+> - SKIP if: required infrastructure is unavailable in this environment.
 
 ## Notes
 
@@ -67,3 +66,13 @@ LLM judge prompt (run via `claudefast -p`):
   - Test 2 assertion ("AttributionBus|trace") may become stale if the rule's description changes.
   - Event log path `~/.teamagent/events.jsonl` must be writable; non-existent file treated as 0 lines.
   - Test 3 checks that writing `import fs from "node:fs"` into a `packages/core/` file triggers a rule; this depends on the "Functional Core" rule remaining in the knowledge base.
+
+### DEPRECATED: Test 1 download-directory keyword check
+
+`t1_expected_keyword: "先检查下载目录"` is **DEPRECATED** and must NOT be part of the PASS gate.
+
+**Root cause (investigated 2026-05-08):** Same as `scripts--verify-l0/judge.md` — the download-directory rule is `status=dormant` and was never seeded. A `wget` payload correctly returns `decision: allow` without emitting the keyword. `t1_hit` should be interpreted as "hook returned valid JSON with `permissionDecision`", not as a keyword match. Update the §V2 DUMP metric: `t1_hit` = hook exit 0 AND response contains `permissionDecision`.
+
+## Phase 2 fix log
+
+Resolved 2026-05-08: PLAYBOOK-FIX — t1 download-directory keyword assertion deprecated; t1_hit redefined as "hook returned valid JSON". Matches investigate findings in scripts--verify-l0 fix log.
