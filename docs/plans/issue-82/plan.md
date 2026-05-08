@@ -97,11 +97,11 @@ Issue #82 的 5 个原始设计问题里，**前 4 个已被 M5 viral sync (PR #
    - SessionStart auto-pull（默认 on）
    - 团队边界：`team_id = SHA256(normalize(git remote))[:16]`
    - 4 通道拦截（PreToolUse / UserPromptSubmit / Stop / AttributionBus）
-   - Calibration via Claude Code subagent（ADR-0004：`RuleBasedCalibrator` 只更新 `confidence`，不写 `tier`、不写 `demerit`；`tier` 是 `KnowledgeEntry` 一等字段，由人或 Claude Code subagent 通过 `teamagent set-tier <rule-id> <tier> --reason "..."` 外部写入）
+   - Calibration via Claude Code subagent（ADR-0004：`RuleBasedCalibrator` 只更新 `confidence`，不写 `tier`、不写 `demerit`；`tier` 是 `KnowledgeEntry` 一等字段，按 ADR-0004 设计**应**由人或 Claude Code subagent 通过 `teamagent set-tier <rule-id> <tier> --reason "..."` 外部写入——但 ⚠ **`set-tier` CLI 命令目前 NOT YET shipped**：`packages/cli/src/commands/set-tier.ts` 不存在，ADR-0004 §"New CLI surface" 描述的是设计意图、由独立 follow-up impl PR 实施。当前实际 tier 写法是直接 `DualLayerStore.add` 时设 `current_tier` 字段或 SQL 改写）
 
-   这些不在本 plan 工作量内。本 plan 把它们当作既成事实，引用而不重写。
+   这些不在本 plan 工作量内。本 plan 把它们当作既成事实（已 shipped 部分）+ 设计意图（`set-tier` CLI 等 NOT YET 部分）混合引用，不重写。
 
-   **注意**：issue #82 第 4 个设计问题（"怎么避免噪声爆炸？投票 / 校准 / hit-count decay / team owner 审批"）M5 + ADR-0004 **部分回答**——`confidence` 由 `RuleBasedCalibrator` 持续校准、低分规则进入 compile gate 黑名单、`team-owner-only enforcement` 由 reviewer 角色（人 + subagent）通过 `set-tier` 与 `review-candidates --approve-scope=team` 把关。**未回答**：自动 demote 到 dormant 的策略（ADR-0004 把 auto-tier 列为 rejected alternative d，明确不做闭环自动降权）。本 plan 不补这条；如果未来 noise 爆炸成真，开新 issue 单独评估是否引入手动批量 demote 工具。
+   **注意**：issue #82 第 4 个设计问题（"怎么避免噪声爆炸？投票 / 校准 / hit-count decay / team owner 审批"）M5 + ADR-0004 **部分回答**——`confidence` 由 `RuleBasedCalibrator` 持续校准、低分规则进入 compile gate 黑名单、`team-owner-only enforcement` 由 reviewer 角色（人 + subagent）通过未来的 `set-tier` 与现有的 `review-candidates --approve-scope=team` 把关。**未回答 / NOT YET**：(a) `set-tier` CLI 自身（ADR-0004 follow-up impl PR）；(b) 自动 demote 到 dormant 的策略（ADR-0004 把 auto-tier 列为 rejected alternative d，明确不做闭环自动降权）。本 plan 不补这两条；如果未来 noise 爆炸成真，开新 issue 单独评估是否引入手动批量 demote 工具。
 
 2. **新增 cross-machine e2e teaching rig**（本 plan 主交付物之一）：
    - Rig 形态：`packages/cli/src/__tests__/m5-e2e-teaching.test.ts` 或 `tests/e2e/m5-teaching/` 目录。
@@ -163,7 +163,7 @@ Playbook 6 步：
    - `positive_trigger_rate == 1.0`
    - `false_positive_rate == 0.0`
    - `attribution_present == true`
-   - `attribution.source_commit_sha != ""`
+   - `source_commit_sha != ""`（顶层平铺；与 plan §② row、judge.md Step 3 / Step 4 同款 flat schema，与 `packages/types/src/attribution.ts` 现有 `AttributionEvent` 形状一致——**不**写 `attribution.source_commit_sha` 这种嵌套形态）
    全部满足才 pass。
 4. **Attribution chain completeness**：sub-agent 读 `attribution.jsonl` 每条事件，校验 4 个 source_* 字段全部 non-empty。emit per-event `{event_id, fields_complete}`。
 5. **Dependency check**：sub-agent 读当前仓库 `docs/research/` 是否含 ≥1 份 issue #81 follow-up impl PR 产出的 redacted personal-use evidence subdir。如无，emit `dependency_satisfied: false`，本 plan 的 follow-up impl PR fail（但本 docs-only PR 不 fail——本 PR 只 close issue + commit plan，不跑 e2e rig）。
