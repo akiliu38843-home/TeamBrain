@@ -46,9 +46,21 @@ LLM judge prompt (run via `claudefast -p`):
 > Read `.judge/<run_id>/judge.json` and supporting evidence in
 > `evidence_dir`. Emit verdict `PASS` / `FAIL` / `SKIP`. Criteria:
 >
-> - PASS if: `managed_block_present == true` AND `teambrain_visible_in_response == true`. This combination is only achievable if the managed block was explicitly regenerated with `--legacy-claude-md`.
-> - FAIL if: `managed_block_present == true` but `teambrain_visible_in_response == false`.
-> - SKIP if: `managed_block_present == false` (default state since commit d341da8 removed the managed block as the default output of `pnpm teamagent compile`). The managed block no longer appears in CLAUDE.md by default; SKIP is the expected verdict. Feature deleted at commit d341da8.
+> This playbook is DEPRECATED (feature deleted at commit d341da8). The correct verdicts are:
+>
+> - **SKIP** (expected / good) if the canned-answer trigger phrase `TEAMAGENT:START` is **absent**
+>   from `CLAUDE.md`. This confirms the deletion is intact; the deprecated feature has not
+>   regressed. `managed_block_present` is irrelevant — do NOT use it as the SKIP gate.
+>   Check: `grep -qc 'TEAMAGENT:START' CLAUDE.md` returns 0.
+>
+> - **FAIL** (regression detected) if `TEAMAGENT:START` has regressed back into `CLAUDE.md`
+>   (e.g. someone ran `pnpm teamagent compile --legacy-claude-md` accidentally). When the
+>   trigger phrase is present, the deprecated raw-chat behavior may become observable again.
+>   Check: `grep -qc 'TEAMAGENT:START' CLAUDE.md` returns > 0.
+>
+> Do NOT use `managed_block_present` as a criterion — that field always reflects the actual
+> block content and is normally `false` since M4 regardless of whether a regression occurred.
+> The canned-answer trigger phrase (`TEAMAGENT:START`) is the correct regression signal.
 
 ## Notes
 
@@ -58,3 +70,6 @@ LLM judge prompt (run via `claudefast -p`):
   - The managed block (`TEAMAGENT:START` ... `TEAMAGENT:END`) is no longer written to CLAUDE.md by default; `pnpm teamagent compile --legacy-claude-md` would restore it.
   - PASS is unreachable in current default state; SKIP is the correct verdict per current project configuration.
   - Model name `gpt-5.4-mini` used in original may not exist; use `gpt-4o-mini` or current Codex default.
+
+## Phase 2 fix log
+Resolved 2026-05-08: #9 (P3) rewrote §V3 SKIP/FAIL logic: removed `managed_block_present` gate; SKIP now triggers when `TEAMAGENT:START` is absent from CLAUDE.md (deletion confirmed, expected path); FAIL triggers when trigger phrase regresses back. Commit TBD.
