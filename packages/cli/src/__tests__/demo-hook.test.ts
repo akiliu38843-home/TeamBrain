@@ -51,6 +51,60 @@ describe("parseDemoHookArgs", () => {
     ]);
     expect(out?.toolInput!.url).toBe("https://x.com");
   });
+
+  // Issue 174 — multi-form input parsing
+  it("Form 1 (space): parses Write file_path=... content=... across argv slots", () => {
+    const out = parseDemoHookArgs([
+      "Write",
+      "file_path=test.js",
+      "content=console.log(1)",
+    ]);
+    expect(out).not.toBeNull();
+    expect(out!.toolName).toBe("Write");
+    expect(out!.toolInput).toMatchObject({
+      file_path: "test.js",
+      content: "console.log(1)",
+    });
+  });
+
+  it("Form 2 (semi): parses ';'-separated pairs in a single slot", () => {
+    const out = parseDemoHookArgs([
+      "Write",
+      "file_path=test.js;content=console.log(1)",
+    ]);
+    expect(out).not.toBeNull();
+    expect(out!.toolName).toBe("Write");
+    expect(out!.toolInput).toMatchObject({
+      file_path: "test.js",
+      content: "console.log(1)",
+    });
+  });
+
+  it("Form 3 (amp): parses '&'-separated pairs in a single slot", () => {
+    const out = parseDemoHookArgs([
+      "Write",
+      "file_path=test.js&content=console.log(1)",
+    ]);
+    expect(out).not.toBeNull();
+    expect(out!.toolName).toBe("Write");
+    expect(out!.toolInput).toMatchObject({
+      file_path: "test.js",
+      content: "console.log(1)",
+    });
+  });
+
+  it("Form 4 (json): parses single JSON object slot as toolInput", () => {
+    const out = parseDemoHookArgs([
+      "Write",
+      '{"file_path":"test.js","content":"console.log(1)"}',
+    ]);
+    expect(out).not.toBeNull();
+    expect(out!.toolName).toBe("Write");
+    expect(out!.toolInput).toMatchObject({
+      file_path: "test.js",
+      content: "console.log(1)",
+    });
+  });
 });
 
 describe("executeDemoHook", () => {
