@@ -42,11 +42,14 @@ Commands MAIN agent dispatches; capture stdout/stderr to `evidence_dir = .judge/
   # with run_id=$RUN_ID
   # Record exit code to .judge/<run_id>/step4-exit.txt
   ```
-- Step 6: Dispatch `hardmatch-regression` check (if `test-hardmatch-regression.sh` logic has a corresponding playbook; otherwise run as `claudefast -p` probe checking that the fixture still matches the schema).
-  ```
-  # MAIN agent invokes the hardmatch-regression playbook or inline probe
+- Step 6 (REQUIRED — hardmatch regression): Dispatch the `hardmatch-features` playbook a second time with a fresh `claudefast -p` extraction to confirm the fixture is stable across consecutive runs. This step is **mandatory**, not optional — the original `run-all.sh` treated `test-hardmatch-regression.sh` as the required 5th gate that catches fixture-level regressions the single-pass hardmatch can miss. If a dedicated regression-only playbook is later authored, swap to it; until then, re-run `hardmatch-features` with a freshly captured `claude-features.json` and assert byte-equality with the prior run.
+  ```text
+  # MAIN agent: re-invoke the verify-claude-stream-json playbook with run_id=$RUN_ID-regression
+  # then re-invoke the hardmatch-features playbook against both captures.
+  # The regression check fails if claude-features.json from the two runs differ.
   # Record exit code to .judge/<run_id>/step5-exit.txt
   ```
+  Codex P2 review on PR #148 commit dc87a19 surfaced that earlier wording made this step optional ("if there is a corresponding playbook; otherwise inline probe"), which weakened the contract — flow could PASS with a substitute that misses fixture regressions. The wording above restores the required-gate behavior.
 - Step 7: Aggregate all step exit codes into the orchestration summary.
   ```
   cat .judge/<run_id>/step{1,2,3,4,5}-exit.txt > .judge/<run_id>/all-exits.txt
@@ -85,6 +88,10 @@ Canonical JSON to `.judge/<run_id>/judge.json`:
 - Original logic summary: The original `run-all.sh` was a trivial sequential shell script: it called each sub-verifier in order using `bash "$(dirname "$0")/...sh"` and relied on `set -euo pipefail` to abort on the first failure. Order mattered because `hardmatch-features.sh` depends on the output of `verify-claude-stream-json.sh`. The five sub-scripts were: stream-json extraction, hardmatch fixture comparison, dashboard health check, tmux interactive export, and hardmatch regression test. This playbook replaces that linear orchestration with a MAIN-agent-dispatched sequence where each step corresponds to an independent sub-playbook, enabling the MAIN agent to report partial failures with granularity rather than a single pipeline abort.
 - Known dependencies / limitations:
   - Execution order is constrained: step 2 (hardmatch) must follow step 1 (stream-json extraction); steps 3, 4, and 5 are independent and may be dispatched in parallel if MAIN agent supports it.
-  - `test-hardmatch-regression.sh` does not have an explicit archived script in the nine assigned files; MAIN agent should check `docs/legacy/judge-scripts/docs/feature-verify-kit/test-hardmatch-regression.sh` for a corresponding entry or treat step 5 as a re-run of the hardmatch with a fresh `claudefast -p` extraction to confirm the fixture is stable across two consecutive runs.
+  - Step 5 (hardmatch regression) is REQUIRED — if a dedicated `hardmatch-regression` playbook is later authored, dispatch it; until then, re-run `hardmatch-features` with a fresh `claudefast -p` capture and require byte-equality between the two captures. Skipping or substituting this step is not allowed.
   - Running all steps in one `run_id` directory means any file naming collision between sub-playbooks must be resolved by prefixing outputs with the step number.
   - Total wall-clock time is dominated by the tmux interactive step (up to ~4 min); MAIN agent should set a 10-minute timeout for the full orchestration.
+
+## Phase 2 fix log
+
+- Resolved 2026-05-08 (Codex P2 on PR #148 commit `dc87a19b2a`): step 5 (hardmatch regression) made REQUIRED with explicit fallback (re-run `hardmatch-features` with a fresh capture) so the gate cannot be bypassed by absence of a dedicated regression playbook. Earlier "optional inline probe" wording allowed PASS with a weaker substitute.
