@@ -1,0 +1,20 @@
+{
+  "ci": {
+    "collect": {
+      "startServerCommand": "pnpm --filter @teamagent/landing preview",
+      "url": [
+        "http://localhost:3000"
+      ],
+      "numberOfRuns": 3
+    },
+    "assert": {
+      "assertions": {
+        "performance": ["error", { "minScore": 0.85 }],
+        "accessibility": ["error", { "minScore": 0.90 }],
+        "seo": ["error", { "minScore": 0.90 }],
+        "first-contentful-paint": ["error", { "maxNumericValue": 2500 }],
+        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }]
+      }
+    }
+  }
+}
