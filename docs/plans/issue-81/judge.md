@@ -113,16 +113,18 @@ Sub-agent randomly picks 3 entries across all three subjects' `hooks.redacted.js
 1. **Rule existence**: resolve via direct SQLite lookup using `DualLayerStore.getById(knowledge_id)` at `packages/adapters/src/storage/sqlite/dual-layer-store.ts:78` (searches project DB then global DB; returns matching `KnowledgeEntry` or `undefined`). **Do NOT** call `teamagent review --scope=personal --id=<id>` — the `review` CLI parser at `packages/cli/src/commands/review.ts` only accepts `--limit` and `--scope`, so an `--id` argument is silently ignored.
 2. **Existence check**: `entry !== undefined`. Failure here means the hook fired against a `knowledge_id` no longer in the DB (rule deleted, evaluation tampered).
 3. **Provenance trail using ACTUAL fields the SDK emits**. The PreToolUse SDK at `pre-tool-use-sdk.ts:91-94` only writes `{ id, kind, knowledge_id, tool_use_id, tool_name, timestamp, schema_version }` to the event log — not `session_id`, not `cwd`, not `intercepted_at`. The plan's redact-export pipeline (which produces `hooks.redacted.jsonl`) is responsible for **enriching each raw SDK event** with two extra fields drawn from sibling artifacts:
-   - `session_id` from the StopHook payload's `session_id` (Claude Code SDK provides it on Stop events; the redact tool joins by tool_use_id sequence or by `started_at/ended_at` window).
-   - `cwd` from the subject's `recruitment.md` codebase root (one cwd per subject; constant per evaluation run).
+   - `session_id` from the StopHook payload's `session_id`. StopHook payload is `{session_id, transcript_path, cwd, hook_event_name}` — it does **not** carry `tool_use_id` sequence info, so the only realistic join is by **time window**: bind a PreToolUse `event.timestamp` to a StopHook session whose `started_at ≤ event.timestamp ≤ ended_at`.
+   - `cwd` from the subject's `recruitment.md` `codebase_root_cwd` field (one cwd per subject; constant per evaluation run; recruitment.md is required to encode this field per plan §②).
 
    With those two fields enriched, verify per event:
    - `event.kind == "hook-pre.blocked"`.
    - `event.timestamp` parses as ISO and falls within `stats-start.json.window_start ≤ event.timestamp ≤ stats-end.json.window_end`.
-   - `event.session_id` (enriched from Stop hook) is present and well-formed.
-   - `event.cwd` (enriched from recruitment.md) matches the subject's recorded codebase root.
+   - `event.session_id` (enriched from Stop hook by time window) is present and well-formed.
+   - `event.cwd` (enriched from `recruitment.md.codebase_root_cwd`) matches the subject's recorded codebase root.
    - The resolved rule entry's `created_at ≤ event.timestamp` (rule existed before firing).
-   - The resolved rule entry's `source` is one of the **real** `KnowledgeEntrySchema` enum values (`packages/types/src/knowledge-entry.ts:103-110`): `preset` (seed pack) or `accumulated` (live use) or `ingested` (multi-source ingest) or `imported` (from another rule store). **Forbid** `team-shared` for #81 personal-use evaluation — its presence means a team-scope rule leaked into the L1 evaluation, which violates the personal-use scope.
+   - The resolved rule entry's `source` is on the **personal-use evaluation whitelist**: `preset` (seed pack) or `accumulated` (live use) or `ingested` (multi-source ingest) or `imported` (from another rule store). The full `KnowledgeEntrySchema` enum (`packages/types/src/knowledge-entry.ts:103-110`) is `preset|imported|accumulated|ingested|team-shared|internet`; this whitelist deliberately excludes:
+     - **`team-shared`** — team-scope rules are out of scope for #81 personal-use evaluation. If a subject's repo already has team-shared rules (from prior viral sync before evaluation began), filter such events out of the sample at the redact stage and report the filtered count in `hooks.redacted.jsonl`'s sidecar metadata; **do not** fail step 3 just because the repo had pre-existing team-shared content.
+     - **`internet`** — Phase 4 internet-sourced content; this plan does not yet scope evaluation criteria for it. Re-extend the whitelist when Phase 4 lands.
 
 Emits:
 

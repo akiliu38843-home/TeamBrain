@@ -107,7 +107,7 @@ Issue #82 的 5 个原始设计问题里，**前 4 个已被 M5 viral sync (PR #
    - Rig 形态：`packages/cli/src/__tests__/m5-e2e-teaching.test.ts` 或 `tests/e2e/m5-teaching/` 目录。
    - Rig 用 2 个临时 worktree 模拟 M1 / M2，临时 git remote 用 `git --bare`。
    - Rig 跑完整链：M1 pitfall → 双闸门 → push → M2 pull → m5-sync --apply → M2 PreToolUse intercept → 输出 raw JSON。
-   - Rig 输出 fixed schema：`{positive_trigger_count, false_positive_count, attribution_present, attribution_source_commit_sha, ...}`，由 judge harness 读。
+   - Rig 输出 fixed schema 落 `summary.json`：`{positive_trigger_rate, false_positive_rate, attribution_present, dependency_check_ok}`（与 §② Probe summary row 完全一致；source_commit_sha 等 4 个 source_* 字段在每条 attribution.jsonl 事件**顶层平铺**记录，judge.md Step 3 直接读 attribution.jsonl 不读 summary.json）。
 3. **Attribution chain UI**：
    - AttributionBus 已有结构化事件（`docs/features/multi-tool.md` 第 4 通道）；本 plan 验证 4 个 source_* 字段在 team-scope 拦截事件里**确实被 emit + 可读 + 显示给用户**。
    - 如发现 emit 缺字段，本 plan 的 follow-up impl PR 补 emit 路径；显示路径如缺，补 Renderer 段。
@@ -130,7 +130,7 @@ Issue #82 的 5 个原始设计问题里，**前 4 个已被 M5 viral sync (PR #
 |---|---|---|
 | Cross-machine e2e teaching rig | `packages/cli/src/__tests__/m5-e2e-teaching.test.ts` 或 `tests/e2e/m5-teaching/` 目录 | 跑通：pitfall → 双闸门 → push → pull → apply → PreToolUse intercept；rig 退出码 0 |
 | E2E rig 原始输出 | `tests/e2e/m5-teaching/.evidence/<run-id>/{m1.log, m2.log, intercepts.jsonl, attribution.jsonl}` | M1 push commit message 含 `[teamagent-sync]`；M2 attribution 事件**顶层** `source_commit_sha == <M1's commit>`（与 4 字段平铺约定一致） |
-| AttributionBus 结构化事件 schema 扩展 | 扩展现有 `packages/types/src/attribution.ts` 的 `AttributionEvent` 类型（**不**新建 `packages/core/src/m5/attribution-event.schema.json`，避免与现有类型分裂——参考 M0 元约束 "Port 接口冻结于 M0、不分叉类型"） | team-scope 拦截事件**顶层平铺**含 `source_author`、`source_machine_id`、`source_commit_sha`、`source_rule_id` 4 字段（不嵌套在 `attribution.*` 子对象下），每字段 non-empty |
+| AttributionBus 结构化事件 schema 扩展 | 扩展现有 `packages/types/src/attribution.ts` 的 `AttributionEvent` 类型（**不**新建 `packages/core/src/m5/attribution-event.schema.json`，避免与现有类型分裂——参考 M0 元约束 "Port 接口冻结于 M0、不分叉类型"） | 现有 `AttributionEvent` 已有 `target.{id,file,count}` 嵌套子对象用于"被规则影响的对象"语义；本 plan 在 team-scope 路径**新增 4 个顶层字段**：`source_author`、`source_machine_id`、`source_commit_sha`、`source_rule_id`，每字段 non-empty。这是**对现有 schema 的扩展（net-new top-level fields），不是模仿 `target.*` 嵌套形态**——选择平铺以减少 follow-up impl PR 在 PreToolUse SDK 端 emit 路径的嵌套 / 解构成本，且 4 个字段是规则**触发源**而不是 `target.*`（被影响对象），语义上不是同一类，分开较合理。如 follow-up impl PR 评审认为应嵌套统一为 `source: { author, machine_id, commit_sha, rule_id }`，由该 PR 改动并同步 plan + judge。 |
 | Renderer 展示 evidence | `tests/e2e/m5-teaching/.evidence/<run-id>/m2-banner.txt` | M2 用户能在 banner / TUI 文本里看到"this rule came from A's commit <sha>" |
 | Probe summary | `tests/e2e/m5-teaching/.evidence/<run-id>/summary.json` | `{positive_trigger_rate: 1.0, false_positive_rate: 0.0, attribution_present: true, dependency_check_ok: true}` |
 | Product features 增量 | `docs/PRODUCT-FEATURES.md` 增 1 行 VERIFIED：`team-scope-viral-sync-teaching-e2e` | 状态字段 VERIFIED；指针回 e2e rig 路径 |

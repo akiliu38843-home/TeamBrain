@@ -118,6 +118,7 @@
 |---|---|---|
 | 录制器 CLI | `packages/cli/src/commands/record-session.ts`（与现有 `recording.ts` 区分命名） | `teamagent record-session --help` 列出子命令；wrap asciinema 落 cast 文件 |
 | Ingest pipeline | `packages/core/src/m5/recording-ingest.ts`（pure，纯函数）+ `packages/adapters/src/m5/recording-uploader.ts`（IO） | 解析 cast → 脱敏 → 上传 gbrain；失败降级；契约测试覆盖 |
+| **team_id 共享 helper** | `packages/core/src/m5/team-id.ts`（**新建**——从 `packages/cli/src/commands/m5-sync.ts:95` 现有 `computeTeamId` 提炼） | 两个 call site（`m5-sync.ts` 与 `recording-ingest.ts`）都从此 helper import；不再各自重写算法；judge step 6 (judge.md:193-201) 强制核对 |
 | Page schema | `packages/core/src/recording/page-schema.ts` | frontmatter 含 `team_id` / `session_id` / `user` / `started_at` / `ended_at` / `attribution_link_to_rule_id?`；序列化 round-trip 测试 |
 | Spec 文档 | `docs/specs/<DATE>-team-scope-session-recording.md` | 6 个原 issue 设计问题逐题回答；canonical 命名；frame-level 脱敏 OUT OF SCOPE 标注 |
 | PoC evidence | `docs/plans/issue-83/poc-evidence/<run-id>/{cast,transcript.md,page.md,timeline.json,query-result.json,banner.txt}` | 5–10 min 真实 CC session 录制 + gbrain ingest + query 命中 |

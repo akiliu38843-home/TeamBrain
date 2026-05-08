@@ -78,7 +78,7 @@ Sub-agent simulates the actual matcher logic at `packages/core/src/matcher/legac
   - `valid_token_count > 0` (a rule with all sub-3-char tokens silently falls back to whole-string match — risky drift from author intent).
   - For multi-token rules, every kept token is ≥3 chars (otherwise the rule's coverage is narrower than the author thinks).
 
-The matcher uses `String.prototype.includes()` after splitting, so regex-like characters (`.()[]*+?{}^$\\`) are **literal substring** chars and are perfectly valid in `wrong_pattern` — `eval(`, `dangerouslySetInnerHTML`, `np.float`, `git push --force`, `--no-verify` all match cleanly. Do not flag those.
+After splitting, the matcher's per-token logic forks: plain alphanumeric-only tokens (`/^[a-z0-9_-]+$/i`) go through `plainTokenMatches` with word-boundary semantics (e.g., `var` does NOT match `variable`); tokens with any punctuation go through `String.prototype.includes()` substring (with anti-extending guards) (e.g., `eval(` matches `eval(` literally inside `eval(payload)`). Either way, regex-like characters (`.()[]*+?{}^$\\`) are literal chars and `eval(`, `dangerouslySetInnerHTML`, `np.float`, `git push --force`, `--no-verify` all match cleanly. Do not flag those.
 
 Emit:
 
