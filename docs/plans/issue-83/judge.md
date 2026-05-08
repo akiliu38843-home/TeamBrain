@@ -15,7 +15,7 @@
 
 # Judge harness — issue #83
 
-This is the **MD playbook** dispatched by the main agent (or maintainer) when verifying that the follow-up impl PR for #83 has shipped a real `teamagent record` + gbrain ingest pipeline that actually re-finds the recording via team-scope query — and doesn't leak secrets in transcripts.
+This is the **MD playbook** dispatched by the main agent (or maintainer) when verifying that the follow-up impl PR for #83 has shipped a real `teamagent record-session` + gbrain ingest pipeline that actually re-finds the recording via team-scope query — and doesn't leak secrets in transcripts.
 
 ## Inputs
 
@@ -64,7 +64,7 @@ Pass condition: `hits_in_prose == 0`.
 
 Sub-agent runs:
 
-1. `teamagent record --session-id=poc-<rid> --duration=600` against a synthetic CC session that intentionally includes ≥3 prompts that should match team-scope rules.
+1. `teamagent record-session --session-id=poc-<rid> --duration=600` against a synthetic CC session that intentionally includes ≥3 prompts that should match team-scope rules.
 2. Wait for ingest to complete; record `cast_file_path`, `transcript_md_path`, `gbrain_page_id`, `timeline_entries_count`.
 3. Issue `mcp__gbrain__query "<one of the synthetic prompt phrases>"`; record top result.
 

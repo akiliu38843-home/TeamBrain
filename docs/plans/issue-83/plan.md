@@ -19,7 +19,7 @@
    │                    │                    │
    └────────────────────┴────────────────────┘
                         ▼
-   teamagent record session → asciinema → transcript
+   teamagent record-session → asciinema → transcript
        → redact → file_upload + page chunks + timeline
        → query "上次 fly.io 部署失败" → timestamped link back
                         ▼
@@ -132,7 +132,7 @@ Judge harness 是 **MD playbook**：`docs/plans/issue-83/judge.md`（与本 plan
 Playbook 7 步：
 
 1. **Glossary lint**：与 #82 同款逻辑（仅 prose 命中即 fail；ASCII art / backtick / quoted issue title / `## Glossary mapping` / 风险表 meta row 白名单）。
-2. **PoC ingest**：sub-agent 跑 `teamagent record` 录制一段 5–10 min 合成 CC session（含 ≥3 个能命中 team-scope rule 的 prompt）→ 自动 ingest → gbrain query 命中。emit `{cast_file, transcript_file, page_id, timeline_entries_count, query_top_result_id, query_top_score}`。pass 条件：query 返回的 top result page_id 与刚 ingest 的一致，score > 0.5。
+2. **PoC ingest**：sub-agent 跑 `teamagent record-session` 录制一段 5–10 min 合成 CC session（含 ≥3 个能命中 team-scope rule 的 prompt）→ 自动 ingest → gbrain query 命中。emit `{cast_file, transcript_file, page_id, timeline_entries_count, query_top_result_id, query_top_score}`。pass 条件：query 返回的 top result page_id 与刚 ingest 的一致，score > 0.5。
 3. **Multi-subject e2e**：sub-agent 模拟 2 个临时 user（不同 git author）在同一 team_id 下各录一段 → 各自 ingest → cross-query。emit `{subject_a_query_top_subject_b_id, subject_b_query_top_subject_a_id}`。pass 条件：双向 query 各自命中对方录像。
 4. **Redaction integrity**：sub-agent 用合成 cast（含 fake `sk-...` 长 token / fake `aws_access_key_id=...` 行 / fake `/Users/foobar/...` 路径）跑 ingest，读 page content + transcript markdown + cast 上传副本，grep redact regex 全表。emit `{token_leak_count, path_leak_count, key_leak_count}`。pass 条件：所有 leak count == 0。
 5. **Attribution link**：sub-agent 让 PoC session 在录制中触发 1 条 team-scope rule 命中 → 检查 AttributionBus event 含 `recording_session_id` + 该 page frontmatter 含 `attribution_link_to_rule_id`。emit `{event_has_session_id, page_has_rule_id, link_resolves}`。pass 条件：三项均 true。
@@ -187,7 +187,7 @@ Judge harness **不**评：
 ## Quick checklist (PR 描述粘贴)
 
 - [ ] 全文（除 Glossary 节）零 `group video` / `group brain` / `cross-user` / `federated` 字样
-- [ ] `teamagent record` CLI 跑通，落 cast 文件
+- [ ] `teamagent record-session` CLI 跑通，落 cast 文件
 - [ ] Ingest pipeline 把 cast → transcript → page + timeline + file_upload 全部完成
 - [ ] PoC evidence ≥1 份 5–10 min session 录制；query 命中
 - [ ] Multi-subject evidence 含 ≥2 user 同 team_id 双向 query 命中
