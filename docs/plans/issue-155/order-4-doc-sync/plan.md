@@ -101,7 +101,7 @@ AFTER:
 - [ ] `install.sh` 脚本被修改
 - [ ] 任何 `.ts` / `.cjs` 文件被修改
 - [ ] 旧 4-step 内容被删除（只是被 H2 包裹+移动，不是删除）
-- [ ] `pnpm install` / `pnpm build` / `skeleton-demo` / `teamagent init` 命令字符串从文档中消失（V5 保护）
+- [ ] `pnpm install` / `pnpm teamagent skeleton-demo` / `teamagent init` / `curl -fsSL` / `npm install -g` 任一字符串从文档中消失（V5 保护，grep-verified anchor list）
 
 ---
 
@@ -121,11 +121,11 @@ AFTER:
 grep -n "Quick start\|preview.*install\|先预览" README.md | head -5
 # 检查旧 4-step 降级为 Appendix
 grep -n "Dev.*fallback\|contributor.*fallback\|legacy.*4-step" README.md | head -5
-# 检查 pnpm install / pnpm build / skeleton-demo / teamagent init 仍然存在（V5）
-grep -c "pnpm install\|pnpm build\|skeleton-demo\|teamagent init" README.md
+# 检查 V5 anchor 仍然存在（grep 实测的 5 条，详见下方 V5 表）
+grep -E "pnpm install|skeleton-demo|teamagent init|curl -fsSL|npm install -g" README.md | wc -l
 ```
 
-期望：Quick start 出现在第 50 行以内；Dev/fallback 出现在文件后 1/3；grep -c 返回 ≥ 4。
+期望：Quick start 出现在第 50 行以内；Dev/fallback 出现在文件后 1/3；V5 grep 命中 ≥ 4 条（pnpm install + skeleton-demo + teamagent init + curl + npm install -g）。
 
 **Gate 2：Codex canonical JSON 对照（INSTALL.md structure）**
 
@@ -135,7 +135,7 @@ codex exec --skip-git-repo-check -s read-only \
     'has_recommended_path': boolean (true if a 普通用户/recommended path section appears before step-1),
     'has_dev_fallback': boolean (true if '## Dev / contributor fallback' heading exists),
     'legacy_4step_preserved': boolean (step-1 through step-4 YAML blocks all present),
-    'v5_anchors_present': ['pnpm install', 'pnpm build', 'skeleton-demo', 'teamagent init'] — list which are found
+    'v5_anchors_present': ['pnpm install', 'pnpm teamagent skeleton-demo', 'teamagent init', 'curl -fsSL', 'npm install -g'] — list which are found in updated README+INSTALL+CLAUDE.md corpus
   }"
 ```
 
@@ -154,10 +154,10 @@ Third-party `claudefast -p` judge（不是计划作者，不是被测文档的�
   "gate2_install_structure": {"has_recommended": true|false, "has_fallback": true|false, "legacy_preserved": true|false},
   "gate3_v5_anchors": {
     "pnpm_install": true|false,
-    "pnpm_build": true|false,
     "skeleton_demo": true|false,
     "teamagent_init": true|false,
-    "curl_install_sh": true|false
+    "curl_install_sh": true|false,
+    "npm_install_g": true|false
   },
   "overall_pass": true|false,
   "notes": "..."
@@ -166,16 +166,19 @@ Third-party `claudefast -p` judge（不是计划作者，不是被测文档的�
 
 ### V5 canned-answer 保护锚点列表
 
-这些是 `CLAUDE.md` 中 canned-answer 会引用的命令/词汇，更新后的 README/INSTALL 必须仍然包含（不能删除）：
+这些是用户 / AI 在 install 之后会问到的命令/词汇，更新后的 README/INSTALL 必须仍然能搜索到（不能在 doc-sync 中误删）。
 
-| Anchor | 来源 CLAUDE.md 位置 | 为什么不能消失 |
-|--------|---------------------|----------------|
-| `pnpm install` | `## 跑命令` 表格 | project tools 必答项 |
-| `pnpm build` | `pnpm teamagent <cmd>` 上下文 | 跑命令表格已列 |
-| `pnpm teamagent skeleton-demo` | Walking Skeleton 约束 + 跑命令表格 | PRESHIP 验证依赖 |
-| `teamagent init` | 多处 PRESHIP + feature canned answers | 核心初始化命令 |
-| `curl -fsSL ... install.sh` | README 快速安装区块 | install-sh feature 的 verify harness 引用 |
-| `npm install -g teamagent` | `uninstall` 区块 + fallback 注解 | 用户可能从 npm 直装 |
+来源列实际由 `grep` 验证（2026-05-08，commit `06a0b00`）；更新此表前先 grep 实测，不要凭记忆。
+
+| Anchor | 当前来源（已 grep 验证） | 为什么不能消失 |
+|--------|-------------------------|----------------|
+| `pnpm install` | CLAUDE.md `## 跑命令` 表格（2 hits） | project tools 必答项 |
+| `pnpm teamagent skeleton-demo` | CLAUDE.md Walking Skeleton + 跑命令表格（2 hits） | PRESHIP 验证依赖 |
+| `teamagent init` | README.md（5 hits；CLAUDE.md 0 hit） | 核心初始化命令 |
+| `curl -fsSL` / `curl ... install.sh` | README.md 快速安装区块（3-4 hits） | install-sh feature 的 verify harness 引用 |
+| `npm install -g` | CLAUDE.md SELF-UPDATE 段（2 hits）+ README.md（6 hits） | 用户可能从 npm 直装 / 自动升级路径 |
+
+**先前版本（v1）** 还列过 `pnpm build` 和 `npm install -g teamagent`（精确串），grep 验证两者**当前并不存在于 CLAUDE.md / README.md 中**。在 V5 列表里保护一个不存在的字符串只会让 Order 6 CI 误报，因此 v2 移除。如果 doc-sync 阶段确实想新增这两个串，单独提案，不通过 V5 list 强制。
 
 ---
 

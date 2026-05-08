@@ -103,12 +103,15 @@ These are minor naming / API-surface mismatches between adjacent orders. They
 do NOT block independent ship of any single order, but the implementing PR
 must pick a winner before merging the second of each pair.
 
-| Δ | Slice A | Slice B | Conflict | Recommendation |
-|--:|:--------|:--------|:---------|:---------------|
-| 1 | Order 1 (preview)        | Order 3 (install merge) | Skip-flag name: `--skip-model` (Order 1) vs `--skip-vector-model` (Order 3) | Adopt **`--skip-vector-model`** uniformly. Issue #155 body says "120MB 的向量模型 (vector model)"; the longer name is unambiguous. Order 1's PR should align before merge. |
-| 2 | Order 2 (resume-state)   | Order 3 (install merge) | Resume-state public API: Order 2 exposes `markStepDone / isStepDone / pendingSteps`; Order 3 calls `installState.checkpoint(stepId)` | Order 2 already plans a thin imperative-shell layer. Add a `checkpoint(store, projectId, step)` convenience function in `packages/core/src/install-state/` that wraps `markStepDone + save` into one call. Order 3's stub matches that shape. |
+| Δ | Slice A | Slice B | Conflict | Recommendation | Status |
+|--:|:--------|:--------|:---------|:---------------|:-------|
+| 1 | Order 1 (preview)        | Order 3 (install merge) | Skip-flag name: `--skip-model` (Order 1) vs `--skip-vector-model` (Order 3) | Adopt **`--skip-vector-model`** uniformly. Issue #155 body says "120MB 的向量模型 (vector model)"; the longer name is unambiguous. Order 1's PR should align before merge. | open (impl-time) |
+| 2 | Order 2 (resume-state)   | Order 3 (install merge) | Resume-state public API: Order 2 exposes `markStepDone / isStepDone / pendingSteps`; Order 3 calls `installState.checkpoint(stepId)` | Order 2 already plans a thin imperative-shell layer. Add a `checkpoint(store, projectId, step)` convenience function in `packages/core/src/install-state/` that wraps `markStepDone + save` into one call. Order 3's stub matches that shape. | open (impl-time) |
+| 3 | Order 3 (install merge)  | Order 5 (CI V1-V4)      | V4 metric ownership: Order 3's judge schema field was named `v4_health_check_present` but Order 3's anti-goals say V4 is owned by orders 5/6, and Order 5 actually defines V4 as `timing ≤+20%` + UX-noise (split). Order 3's `v4_*`-prefixed field misled. | Renamed `v4_health_check_present` → `auto_health_check_present` in Order 3, with explicit note that V4 metrics live in Order 5. | **resolved in this PR** (commit after `82fcbad`) |
+| 4 | Order 4 (doc sync)       | (self)                  | V5 anchor table claimed 6 anchors are in CLAUDE.md, but `grep` showed `pnpm build` and `npm install -g teamagent` (exact phrase) don't exist anywhere; `teamagent init` and `curl ... install.sh` are in README.md not CLAUDE.md. Column header was misleading. | Replaced with grep-verified table (5 anchors), correct per-row source, removed the 2 non-existent strings, relaxed `npm install -g teamagent` → `npm install -g` (broad pattern that exists). | **resolved in this PR** (commit after `82fcbad`) |
 
-Neither delta requires re-planning. Both are 1-line edits in the PR that lands second.
+Δ1 and Δ2 are open (implementation-time fixes; the second-landing PR resolves them in 1 line).
+Δ3 and Δ4 were caught by `/review` (Step 4 + 4.5 adversarial probes via `claudefast`) and fixed inline before this planning PR merges — they would have caused Order 6 V5 CI to false-positive on a regression that wasn't actually present.
 
 ### 3c. ✅ Cross-slice load-bearing assumptions verified
 

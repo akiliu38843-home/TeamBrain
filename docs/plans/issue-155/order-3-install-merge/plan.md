@@ -255,7 +255,7 @@ jq -n \
     "v1_prompt_count_strict_mode": $prompt_count,
     "v2_manifest_before_prompt": $manifest_before_prompt,
     "v3_resume_result": $resume,
-    "v4_health_check_present": $health_check_present,
+    "auto_health_check_present": $health_check_present,
     "sections_emitted": ["[config]","[skills]","[kb]","[download]","[refusal]"],
     "skip_vector_model_flag_exists": true,
     "evidence_dir": $evidence_dir,
@@ -272,7 +272,7 @@ echo "Evidence written to ${EVIDENCE}/judge.json"
   "v1_prompt_count_strict_mode": 1,
   "v2_manifest_before_prompt": true,
   "v3_resume_result": "resumed-from-checkpoint" | "manual-attestation-required",
-  "v4_health_check_present": true,
+  "auto_health_check_present": true,
   "sections_emitted": ["[config]", "[skills]", "[kb]", "[download]", "[refusal]"],
   "skip_vector_model_flag_exists": true,
   "evidence_dir": ".judge/<run_id>/",
@@ -286,7 +286,8 @@ echo "Evidence written to ${EVIDENCE}/judge.json"
 - `v2_manifest_before_prompt == true` (manifest appears before prompt)
 - `v3_resume_result` is `"resumed-from-checkpoint"` OR documented manual
   attestation is attached to the PR
-- `v4_health_check_present == true`
+- `auto_health_check_present == true` (the install command's tail health-check ran;
+  this is NOT V4 — V4 metrics (timing ≤+20% + UX-noise) are owned by Order 5)
 - `sections_emitted` contains all 5 headers
 - `skip_vector_model_flag_exists == true`
 
@@ -295,7 +296,7 @@ echo "Evidence written to ${EVIDENCE}/judge.json"
 ```bash
 claudefast -p "Read .judge/<run_id>/judge.json and .judge/<run_id>/v1_stdout.txt.
 Verify: (a) v1_prompt_count_strict_mode == 1; (b) v2_manifest_before_prompt is true;
-(c) v4_health_check_present is true; (d) sections_emitted contains all 5 headers;
+(c) auto_health_check_present is true (note: this is the install tail health-check, NOT V4 — V4 metrics live in Order 5); (d) sections_emitted contains all 5 headers;
 (e) skip_vector_model_flag_exists is true.
 Output ONE LINE of strict JSON: {\"pass\": true|false, \"failures\": [...], \"notes\": \"<=140 chars\"}"
 ```
