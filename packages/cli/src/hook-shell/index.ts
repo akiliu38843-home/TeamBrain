@@ -28,6 +28,7 @@ import {
   DualLayerStore,
   InMemoryAttributionBus,
   SqliteEventLog,
+  StdoutRenderer,
   normalizeCwd,
   openDb,
 } from "@teamagent/adapters";
@@ -177,6 +178,19 @@ export async function runHook<TInput, TOutput>(
     const visibility = parseVisibility(rt.env);
     const mirror = makeMirror(rt.env);
 
+    // Wire StdoutRenderer to the bus so handler-emitted AttributionEvents
+    // become user-visible stderr lines (per visibility). bin handlers can
+    // emit `bus.emit({ kind, ... })` and trust the rendering reaches the
+    // terminal — no need for each bin to wire its own renderer.
+    const renderer = new StdoutRenderer();
+    const unsubscribeRenderer = bus.subscribe((event) => {
+      if (visibility === "silent") return;
+      const text = renderer.render([event], visibility);
+      if (text && text.length > 0) {
+        try { process.stderr.write(`${text}\n`); } catch { /* best-effort */ }
+      }
+    });
+
     const ctx: DefaultHookContext<TInput> = {
       input,
       cwd: rt.cwd,
@@ -190,9 +204,13 @@ export async function runHook<TInput, TOutput>(
       mirrorSystemMessage: mirror,
     };
 
-    const out = await opts.handler(ctx);
-    const wrapped = opts.envelope && out !== undefined ? opts.envelope(out) : out;
-    writeStdout(wrapped);
+    try {
+      const out = await opts.handler(ctx);
+      const wrapped = opts.envelope && out !== undefined ? opts.envelope(out) : out;
+      writeStdout(wrapped);
+    } finally {
+      unsubscribeRenderer();
+    }
   } catch (err) {
     logFallback(opts.channel, "handler", err);
   } finally {
@@ -292,6 +310,19 @@ export async function runAdvancedHook<
   const bus = new InMemoryAttributionBus();
   const visibility = parseVisibility(rt.env);
   const mirror = makeMirror(rt.env);
+
+  // Wire StdoutRenderer to the bus (same pattern as default layer). bin-stop
+  // emits ~12 user-visible AttributionEvents through ctx.bus; the renderer
+  // ensures each lands on stderr per visibility mode without each handler
+  // managing its own subscription.
+  const renderer = new StdoutRenderer();
+  const unsubscribeRenderer = bus.subscribe((event) => {
+    if (visibility === "silent") return;
+    const text = renderer.render([event], visibility);
+    if (text && text.length > 0) {
+      try { process.stderr.write(`${text}\n`); } catch { /* best-effort */ }
+    }
+  });
   const teamagentHome = (rt.env.TEAMAGENT_HOME ?? rt.home);
   const errorLogPath = path.join(teamagentHome, ".teamagent", `${channel}-errors.log`);
   const logError = (step: string, err: unknown): void => {
@@ -339,6 +370,7 @@ export async function runAdvancedHook<
     logError("handler", err);
     logFallback(channel, "handler", err);
   } finally {
+    unsubscribeRenderer();
     closeIfPresent(store);
     closeIfPresent(eventLog);
     if (lockAbsPath) {
