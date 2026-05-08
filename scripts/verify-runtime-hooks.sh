@@ -39,14 +39,23 @@ DEBUG_FILE="${EVIDENCE_DIR}/hooks.debug.log"
 STREAM_LOG="${EVIDENCE_DIR}/streamjson.log"
 EXIT_CODE_FILE="${EVIDENCE_DIR}/hooks-exit-code.txt"
 
-# ── Invoke claudefast from PROJECT_DIR with overridden HOME ───────────────────
+# ── Invoke claudefast from PROJECT_DIR ────────────────────────────────────────
 # Prompt is engineered to trigger a PreToolUse Read event (Channel #3 target).
 # SessionStart fires automatically on session open.
 # claudefast is wrapped in a 120-second portable timeout (macOS has no GNU timeout).
 # Exit code 137 means killed by the timeout watchdog.
+#
+# IMPORTANT: do NOT override HOME. claudefast at ~/.local/bin/claudefast is a
+# thin wrapper that exec's `zsh -ic 'claudefast "$@"'` — it sources the user's
+# real .zshrc to load the claudefast shell function (which configures the
+# MiniMax token + ANTHROPIC_BASE_URL etc). With HOME overridden to a tmp dir,
+# zsh -i sources an empty .zshrc, the function is undefined, and the wrapper
+# fails silently. The hook we care about was registered to PROJECT_DIR/.claude/
+# settings.local.json (verified in teamagent init output), so claudefast picks
+# it up via project-local discovery from cwd, not via HOME.
 cd "${PROJECT_DIR}"
 
-HOME="${HOMEDIR}" claudefast -p \
+claudefast -p \
     --output-format stream-json \
     --include-partial-messages \
     --verbose \

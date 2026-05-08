@@ -12,7 +12,7 @@ set -eu
 mkdir -p ".judge/${RUN_ID}/evidence"
 
 EVDIR=".judge/${RUN_ID}/evidence"
-DB="${HOMEDIR}/.teamagent/knowledge.db"
+DB="${HOMEDIR}/.teamagent/global.db"
 STATE="${HOMEDIR}/.teamagent/.warmup-state.json"
 
 # Require sqlite3 and jq

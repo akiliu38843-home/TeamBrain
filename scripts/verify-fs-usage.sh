@@ -16,15 +16,27 @@ if ! command -v fs_usage >/dev/null 2>&1; then
   exit 1
 fi
 
-# Verify cached sudo credentials (no password prompt)
-if ! sudo -n true 2>/dev/null; then
-  echo "fs_usage requires sudo; run 'sudo -v' first" >&2
-  exit 2
+# Pick sudo invocation: SUDO env wins (set by orchestrator to "sudo -A" in
+# askpass mode, or "sudo" in cached/interactive modes). Default to bare sudo
+# if not set (caller invoked us standalone).
+SUDO_CMD="${SUDO:-sudo}"
+
+# Verify sudo authentication works under the chosen mode (no actual prompt).
+if [ "${SUDO_CMD}" = "sudo -A" ]; then
+  if ! sudo -A true 2>/dev/null; then
+    echo "fs_usage: sudo -A failed (SUDO_ASKPASS=${SUDO_ASKPASS:-<unset>})" >&2
+    exit 2
+  fi
+else
+  if ! sudo -n true 2>/dev/null; then
+    echo "fs_usage requires sudo; run 'sudo -v' first or set SUDO_ASKPASS" >&2
+    exit 2
+  fi
 fi
 
 # Spawn background trace; redirect stdout to log, stderr merged in.
 # $! after sudo is the sudo wrapper pid; the real fs_usage is its child.
-sudo fs_usage -w -f filesys -t "${DURATION}" node \
+${SUDO_CMD} fs_usage -w -f filesys -t "${DURATION}" node \
   > ".judge/${RUN_ID}/evidence/fs_usage.log" 2>&1 &
 SUDO_PID=$!
 sleep 0.5

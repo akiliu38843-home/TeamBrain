@@ -68,12 +68,27 @@ fi
 echo "  tarball: ${TGZ}"
 
 # ─── Sudo pause ───────────────────────────────────────────────────────────
+# We support three sudo modes; orchestrator picks the first that works.
+#   1. SUDO_ASKPASS already set (caller built an askpass helper).
+#   2. Sudo already cached (sudo -n true succeeds).
+#   3. Interactive TTY (we run sudo -v, it prompts the user).
+# In askpass mode the harness uses `sudo -A`; in cached/interactive modes it
+# uses bare `sudo`. macOS tty_tickets defaults make cached creds non-portable
+# across nested subshells, so askpass is the most reliable mode for CI /
+# Claude Code Bash tool / non-TTY contexts.
 echo ""
 echo "── Sudo (channel #2 fs_usage requires it) ─────────────────"
-if sudo -n true 2>/dev/null; then
+SUDO="sudo"
+if [ -n "${SUDO_ASKPASS:-}" ]; then
+  SUDO="sudo -A"
+  if ! sudo -A -v 2>/dev/null; then
+    echo "FATAL: SUDO_ASKPASS=${SUDO_ASKPASS} did not authenticate." >&2
+    exit 2
+  fi
+  echo "  ok   sudo authenticated via SUDO_ASKPASS"
+elif sudo -n true 2>/dev/null; then
   echo "  ok   sudo already cached (no prompt needed)"
 elif [ -t 0 ] && [ -t 1 ]; then
-  # Interactive TTY available — let sudo prompt the user.
   echo "Running 'sudo -v' — your shell will prompt for your password if not cached."
   echo "(Cached credentials last ~5 minutes; we keep them alive throughout the run.)"
   if ! sudo -v; then
@@ -82,7 +97,6 @@ elif [ -t 0 ] && [ -t 1 ]; then
   fi
   echo "  ok   sudo cached"
 else
-  # No TTY (e.g. invoked from a non-interactive subprocess) and no cached creds.
   cat >&2 <<EOF
 FATAL: no TTY available for sudo prompt and no cached sudo credentials.
 
@@ -95,11 +109,12 @@ Channel #2 (fs_usage) is mandatory. To proceed, either:
        ! sudo -v && bash scripts/verify-all-channels.sh
 
   3. Configure SUDO_ASKPASS to point at an askpass helper, then:
-       sudo -A -v && bash scripts/verify-all-channels.sh
+       SUDO_ASKPASS=/path/to/askpass.sh bash scripts/verify-all-channels.sh
 
 EOF
   exit 2
 fi
+export SUDO
 
 # Keep sudo alive in background.
 ( while true; do sudo -n true 2>/dev/null || break; sleep 50; done ) &
@@ -161,7 +176,7 @@ INSTALL_WALL=$(awk '/^real /{print $2}' "${INSTALL_TIME}" | head -1)
 echo "  exit=${INSTALL_EXIT}  wall=${INSTALL_WALL}s"
 
 # Stop fs_usage now that install is done.
-sudo kill "${FSUSAGE_PID}" 2>/dev/null || true
+${SUDO} kill "${FSUSAGE_PID}" 2>/dev/null || true
 sleep 1
 echo "  fs_usage stopped"
 

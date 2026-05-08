@@ -35,8 +35,9 @@ if ! command -v tmux >/dev/null 2>&1; then
     exit 1
 fi
 
-# ── Prepare evidence directory ────────────────────────────────────────────────
-EVIDENCE_DIR=".judge/${RUN_ID}/evidence"
+# ── Prepare evidence directory (absolute, robust to any cd) ──────────────────
+WORKTREE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+EVIDENCE_DIR="${WORKTREE_ROOT}/.judge/${RUN_ID}/evidence"
 mkdir -p "${EVIDENCE_DIR}"
 
 SNAPSHOT_FILE="${EVIDENCE_DIR}/tmux-statusline.snapshot"
@@ -52,9 +53,12 @@ trap cleanup EXIT
 
 # ── Spawn detached claudefast inside tmux ────────────────────────────────────
 # -x 200 -y 60 gives enough columns/rows for statusline to render.
-# claudefast runs with HOME=$HOMEDIR so it loads the wired settings.json.
+# IMPORTANT: do NOT override HOME here. claudefast wraps `zsh -ic` to load its
+# function from the user's real .zshrc; an empty tmp HOME breaks the wrapper.
+# Project-local hook at PROJECT_DIR/.claude/settings.local.json is picked up
+# via cwd-based discovery (claudefast walks up from cwd).
 if ! tmux new-session -d -s "${SESSION}" -x 200 -y 60 \
-        "cd \"${PROJECT_DIR}\" && HOME=\"${HOMEDIR}\" claudefast"; then
+        "cd \"${PROJECT_DIR}\" && claudefast"; then
     echo "ERROR: tmux new-session failed — cannot spawn Channel #4 session" >&2
     exit 1
 fi

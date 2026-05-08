@@ -212,8 +212,11 @@ Read .judge/${RUN_ID}/evidence/neg-no-xenova, neg-no-onnx, neg-no-state, and the
 PASS iff:
   1. Each neg-* file starts with "PASS " (not "FAIL ").
   2. For each (label).cache-pre.size / (label).cache-post.size pair, the delta
-     (post − pre) in kB is < 20000 — i.e. less than ~20 MB downloaded — proving
-     no @xenova / onnxruntime fetch happened.
+     (post − pre) in kB is < 30000 — i.e. less than ~30 MB downloaded — proving
+     no @xenova / onnxruntime fetch happened. (Default install of teamagent +
+     9 transitive deps is ~19 MB; threshold 30 MB leaves headroom for fswatch
+     overhead and minor cache variance. Opt-in path delta is > 50 MB so the
+     two paths remain distinguishable.)
 Output JSON: {"pass":bool,"negatives":{"xenova":str,"onnx":str,"state":str},"cache_deltas_kb":[num],"reasons":[str]}.
 ```
 

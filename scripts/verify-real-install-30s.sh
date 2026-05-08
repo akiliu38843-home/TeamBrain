@@ -65,9 +65,16 @@ run_install() {
   du -sk "${cach}" | awk '{print $1}' > "${cache_pre_file}"
 
   # Start fswatch in background.
-  fswatch -0 -t -x "${home}/.teamagent" "${cach}" "${pref}/lib/node_modules" \
+  # --latency 0.1 forces fswatch to emit events as they happen rather than the
+  # default 1-second batch cadence; without this a fast install (~3-15s) may
+  # finish and the SIGTERM below fires before the first batch flushes, leaving
+  # an empty log. -0 NUL-separated, -t timestamps, -x event flags.
+  fswatch --latency 0.1 -0 -t -x \
+    "${home}/.teamagent" "${cach}" "${pref}/lib/node_modules" \
     > "${fswatch_log}" 2>&1 &
   FSWATCH_PID=$!
+  # Brief pause so FSEvents attach completes before npm starts firing events.
+  sleep 0.3
 
   echo ">>> ${label}: prefix=${pref} cache=${cach} home=${home}" | tee -a "${EVIDENCE_DIR}/run.log"
   HOME="${home}" "$@" \
@@ -78,7 +85,11 @@ run_install() {
     >"${out}" 2>"${timing}.raw" || exit_code=$?
 
   # Stop fswatch now that install is done.
+  # Tiny sleep gives fswatch time to flush its --latency 0.1 buffer to disk
+  # before SIGTERM aborts the process.
+  sleep 0.3
   kill "${FSWATCH_PID}" 2>/dev/null || true
+  wait "${FSWATCH_PID}" 2>/dev/null || true
   FSWATCH_PID=""
 
   # Cache-size AFTER install.
