@@ -22,15 +22,18 @@ set -eu
 : "${HOMEDIR:?ERROR: HOMEDIR is required}"
 : "${PROJECT_DIR:?ERROR: PROJECT_DIR is required}"
 
+# ── Compute absolute paths up front (before any cd) ──────────────────────────
+# Bug fix: EVIDENCE_DIR must be absolute so writes land in the worktree root
+# regardless of any subsequent cd into PROJECT_DIR.
+WORKTREE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+EVIDENCE_DIR="${WORKTREE_ROOT}/.judge/${RUN_ID}/evidence"
+mkdir -p "${EVIDENCE_DIR}"
+
 # ── Validate claudefast is on PATH ────────────────────────────────────────────
 if ! command -v claudefast >/dev/null 2>&1; then
     echo "ERROR: claudefast not found on PATH — install it before running Channel #3" >&2
     exit 1
 fi
-
-# ── Prepare evidence directory ────────────────────────────────────────────────
-EVIDENCE_DIR=".judge/${RUN_ID}/evidence"
-mkdir -p "${EVIDENCE_DIR}"
 
 DEBUG_FILE="${EVIDENCE_DIR}/hooks.debug.log"
 STREAM_LOG="${EVIDENCE_DIR}/streamjson.log"
@@ -39,11 +42,10 @@ EXIT_CODE_FILE="${EVIDENCE_DIR}/hooks-exit-code.txt"
 # ── Invoke claudefast from PROJECT_DIR with overridden HOME ───────────────────
 # Prompt is engineered to trigger a PreToolUse Read event (Channel #3 target).
 # SessionStart fires automatically on session open.
-# We capture exit code separately so that claudefast's own failure doesn't
-# cause this script to exit non-zero (the orchestrator reads logs to judge).
+# claudefast is wrapped in a 120-second portable timeout (macOS has no GNU timeout).
+# Exit code 137 means killed by the timeout watchdog.
 cd "${PROJECT_DIR}"
 
-claudefast_exit=0
 HOME="${HOMEDIR}" claudefast -p \
     --output-format stream-json \
     --include-partial-messages \
@@ -52,13 +54,19 @@ HOME="${HOMEDIR}" claudefast -p \
     --debug-file "${DEBUG_FILE}" \
     --permission-mode acceptEdits \
     "Read the file package.json in this directory and tell me one fact about it." \
-    > "${STREAM_LOG}" 2>&1 \
-    || claudefast_exit=$?
+    > "${STREAM_LOG}" 2>&1 &
+CLAUDEFAST_PID=$!
+( sleep 120 && kill "${CLAUDEFAST_PID}" 2>/dev/null ) &
+KILLER_PID=$!
+wait "${CLAUDEFAST_PID}" 2>/dev/null
+CF_EXIT=$?
+kill "${KILLER_PID}" 2>/dev/null || true
 
 # Record claudefast's own exit code for the orchestrator to inspect
-printf '%s\n' "${claudefast_exit}" > "${EXIT_CODE_FILE}"
+# (137 = killed by 120s timeout watchdog)
+printf '%s\n' "${CF_EXIT}" > "${EXIT_CODE_FILE}"
 
-echo "Channel #3 evidence collected — claudefast exit=${claudefast_exit}"
+echo "Channel #3 evidence collected — claudefast exit=${CF_EXIT}"
 echo "  stream-json : ${STREAM_LOG}"
 echo "  hook debug  : ${DEBUG_FILE}"
 echo "  exit code   : ${EXIT_CODE_FILE}"

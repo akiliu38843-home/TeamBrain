@@ -27,8 +27,10 @@ done
 if [ -f "${DB}" ]; then
   sqlite3 "${DB}" ".tables" > "${EVDIR}/db-tables.txt"
 
-  # SELECT count(*) FROM rules; handle missing table
-  rule_count=$(sqlite3 "${DB}" "SELECT count(*) FROM rules;" 2>/dev/null || echo "0")
+  # SELECT count(*) FROM knowledge; handle missing table
+  # "knowledge" is the table created by SqliteKnowledgeStore (doLoadSeed inserts rows here).
+  # No "rules" table exists post-init; using "rules" always returns 0 or errors.
+  rule_count=$(sqlite3 "${DB}" "SELECT count(*) FROM knowledge;" 2>/dev/null || echo "0")
   # sqlite3 exits non-zero when table missing; strip any error text
   case "${rule_count}" in
     ''|*[!0-9]*) rule_count=0 ;;

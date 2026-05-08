@@ -59,7 +59,7 @@ Acceptance:
 | 3 | **hook called** | `claudefast -p --output-format stream-json --debug hooks` | SessionStart hook fires after install in any project; PreToolUse fires for Read | none (claudefast on PATH) | `verify-runtime-hooks.sh` (Phase 2) |
 | 4 | **statusline rendered** | `tmux capture-pane` | teamagent-statusline.cjs output appears in pane scrollback | none (tmux session) | `verify-statusline.sh` (Phase 2) |
 | 5 | **lifecycle** | `/usr/bin/time -p`, `ps`, exit | wall-clock ≤30s; exit 0; opt-in detached pid alive | none | inside `verify-real-install-30s.sh` (Phase 1) |
-| 6 | **content** | `sqlite3` / `jq` | `knowledge.db` post-`teamagent init` has rules table; `.warmup-state.json` schema valid (or absent) | none | `verify-db-content.sh` (Phase 2) |
+| 6 | **content** | `sqlite3` / `jq` | `knowledge.db` post-`teamagent init` has `knowledge` table; `.warmup-state.json` schema valid (or absent) | none | `verify-db-content.sh` (Phase 2) |
 | 7 | **network** | npm cache size diff | default install delta < 20 MB; opt-in delta > 50 MB | none | inside `verify-real-install-30s.sh` (Phase 1) |
 | 8 | **negative existence** | `[ ! -d ... ]` | `<prefix>/lib/node_modules/@xenova` absent default; warmup-state.json absent default | none | `verify-negative-existence.sh` (Phase 2) |
 
@@ -126,7 +126,7 @@ Input: `.judge/${RUN_ID}/evidence/02-detached.out` (postinstall stdout from Phas
 You are an install-fix judge.
 Read .judge/${RUN_ID}/evidence/02-detached.out and p2-install.out.
 PASS iff at least one of these files contains BOTH of:
-  1. anchor "vector-deps-absent" OR "语义匹配: 未安装" OR "未安装".
+  1. "语义匹配: 未安装" (stdout banner) OR "vector deps 未安装" (stderr from postinstall.mjs).
   2. anchor "TEAMAGENT_INCLUDE_OPTIONAL=1".
 Output JSON: {"pass":bool,"banner_anchor":bool,"optin_hint":bool,"source_file":str,"reasons":[str]}.
 ```
@@ -195,7 +195,7 @@ Input: `.judge/${RUN_ID}/evidence/{db-tables.txt,db-rule-count.txt,warmup-state.
 You are an install-fix judge.
 Read .judge/${RUN_ID}/evidence/db-tables.txt, db-rule-count.txt, warmup-state.kv.
 PASS iff:
-  1. db-tables.txt contains the substring "rules" (table created by teamagent init).
+  1. db-tables.txt contains the substring "knowledge" (the knowledge table created by teamagent init; SqliteKnowledgeStore is the schema owner).
   2. db-rule-count.txt is a non-negative integer string (a "0" is acceptable on first init before seed; non-zero is preferred).
   3. warmup-state.kv either is the literal "(absent)" (default install — vector deps absent so init wrote no state file) OR contains both "status=" and "model=" keys.
 Output JSON: {"pass":bool,"db_tables":[str],"rule_count":int,"warmup_state_keys":[str],"reasons":[str]}.
@@ -278,7 +278,7 @@ Each commit on `worktree-fix-install` (or any future install-related branch) mus
 | Probe E: hooks-exit-code != 0 | `teamagent init` failed to wire hooks | inspect `~/.claude/settings.json` post-init |
 | Probe E: no SessionStart/PreToolUse | hook scripts not registered or claudefast bypass | re-check `init.ts` hook registration logic |
 | Probe F snapshot empty | tmux session died before capture; claudefast crashed at startup | inspect tmux server, increase WAIT_SECS |
-| Probe G rule_count == 0 AND db-tables doesn't contain "rules" | seed loader regressed | check `init.ts` `doLoadSeed` step |
+| Probe G rule_count == 0 AND db-tables doesn't contain "knowledge" | seed loader regressed | check `init.ts` `doLoadSeed` step |
 | Probe H neg-* file says FAIL | npm pulled a forbidden dep | inspect `<prefix>/lib/node_modules/` directly |
 
 When any stop condition fires, the MAIN agent halts, dumps the full evidence path to the user, and does NOT proceed to PR merge.

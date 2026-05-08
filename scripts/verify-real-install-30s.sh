@@ -90,6 +90,9 @@ run_install() {
   cache_post=$(cat "${cache_post_file}")
   cache_delta=$((cache_post - cache_pre))
 
+  # /usr/bin/time -p writes "real <s>" / "user <s>" / "sys <s>" on stderr (POSIX).
+  # macOS implementation matches; GNU time on Linux is also -p compliant. If
+  # porting to a host with a different time(1), retest this awk filter.
   awk '/^real |^user |^sys /{print > "/dev/stderr"; next} {print}' "${timing}.raw" 2>"${timing}" 1>>"${out}"
   rm -f "${timing}.raw"
 
@@ -108,13 +111,19 @@ run_install() {
     cp "${statefile}" "${EVIDENCE_DIR}/${label}.warmup-state.json"
   fi
 
+  # Build JSON-safe fragments for optional numeric fields (bare null, not quoted "null").
+  local wall_s_json user_s_json sys_s_json
+  if [ -n "${wall_s:-}" ]; then wall_s_json="\"${wall_s}\""; else wall_s_json="null"; fi
+  if [ -n "${user_s:-}" ]; then user_s_json="\"${user_s}\""; else user_s_json="null"; fi
+  if [ -n "${sys_s:-}" ]; then sys_s_json="\"${sys_s}\""; else sys_s_json="null"; fi
+
   cat > "${JUDGE_DIR}/${label}.json" <<JSON_EOF
 {
   "label": "${label}",
   "exit_code": ${exit_code},
-  "wallclock_s": "${wall_s:-null}",
-  "user_s": "${user_s:-null}",
-  "sys_s": "${sys_s:-null}",
+  "wallclock_s": ${wall_s_json},
+  "user_s": ${user_s_json},
+  "sys_s": ${sys_s_json},
   "warmup_state_status": "${state_status}",
   "warmup_state_pid": "${state_pid}",
   "tarball_size_bytes": ${TGZ_SIZE},

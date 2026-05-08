@@ -121,8 +121,8 @@ echo "── Channel #2: fs_usage (sudo) ─────────────
 FSUSAGE_PID=$(RUN_ID="${RUN_ID}" DURATION=180 bash scripts/verify-fs-usage.sh)
 echo "  fs_usage pid: ${FSUSAGE_PID}  log: ${EVIDENCE_DIR}/fs_usage.log"
 
-# Sleep briefly so fs_usage attaches before install starts.
-sleep 1
+# Sleep so fs_usage dtrace kernel probe attaches before install starts.
+sleep 3
 
 # Real install (default path; should be ~3s).
 echo ""
@@ -229,6 +229,13 @@ Quick template (run from worktree root):
 
 EOF
 
+# Build a JSON-safe fragment for wallclock_s (bare null, not quoted "null").
+if [ -n "${INSTALL_WALL:-}" ]; then
+  INSTALL_WALL_JSON="\"${INSTALL_WALL}\""
+else
+  INSTALL_WALL_JSON="null"
+fi
+
 # Write a manifest for the orchestrator phase.
 cat > "${JUDGE_DIR}/master-manifest.json" <<JSON_EOF
 {
@@ -243,7 +250,7 @@ cat > "${JUDGE_DIR}/master-manifest.json" <<JSON_EOF
   },
   "install_default": {
     "exit_code": ${INSTALL_EXIT},
-    "wallclock_s": "${INSTALL_WALL:-null}",
+    "wallclock_s": ${INSTALL_WALL_JSON},
     "stdout_path": "${INSTALL_OUT}",
     "timing_path": "${INSTALL_TIME}"
   },
