@@ -1,4 +1,4 @@
-import type { AttributionEvent, VisibilityMode } from "@teamagent/types";
+import { sanitizeUserFacingText, type AttributionEvent, type VisibilityMode } from "@teamagent/types";
 import type { Renderer } from "@teamagent/ports";
 
 const DIVIDER = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
@@ -157,11 +157,16 @@ export class StdoutRenderer implements Renderer {
       const target = describeTarget(e);
       if (target) lines.push(`▸ 传播到: ${target}`);
 
+      // sanitize before stderr write — security-specialist /review on PR #152
+      // (B-126/B-130 cousin): rule content can carry ANSI escapes / surrogate
+      // halves / control bytes that would otherwise hijack the user's terminal.
+      // pre-tool-use-handler.ts already sanitizes its rendered systemMessage;
+      // this path covers all 8 hook channels' AttributionEvent renders.
       if (e.userFacingValue) {
-        lines.push(`▸ 下次体验: ${e.userFacingValue}`);
+        lines.push(`▸ 下次体验: ${sanitizeUserFacingText(e.userFacingValue)}`);
       }
       if (mode === "verbose" && e.counterfactual) {
-        lines.push(`▸ 如果没有 TeamAgent: ${e.counterfactual}`);
+        lines.push(`▸ 如果没有 TeamAgent: ${sanitizeUserFacingText(e.counterfactual)}`);
       }
     }
 
