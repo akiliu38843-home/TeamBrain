@@ -37,7 +37,7 @@ TeamBrain 当前的 issue tracker 上有两类 issue 在并存：
    `docs/POSTPR.md` 与 `docs/PR-PLAN.md` 已明确：在已开 PR 的反馈循环里发现的新问题，**禁止开 follow-up issue 然后 merge** ——必须 block merge、在 `docs/plans/<date>-pr-<n>-fix-plan.md` 落 PR-PLAN、用 `docs/TEAMWORK.md` 的 N+1+(2N) 模式并行修在同一 PR 分支。这条 "no punt" 规则是项目硬约束，不在本 ADR 讨论范围内。
 
 2. **未分配的、独立的 feature issue。**
-   例如 #81 (3 同事 dogfood research)、#82 (group sharing → team-scope viral sync teaching)、#83 (group video + gbrain)、#89 (5 个 stack packs)、#117 (terminal 主题)。这些 issue 不是从某个 PR 长出来的，没人正在做、没人 assigned，本质是"将来要做的事"的清单。它们一旦堆积超过个位数，就开始：
+   例如 #81 (3 同事 dogfood research)、#82 (issue 标题写作 "group sharing"，canonical 名 team-scope viral sync teaching)、#83 (issue 标题 "group video recording"，canonical 名 team-scope session recording + gbrain index)、#89 (5 个 stack packs)、#117 (terminal 主题)。这些 issue 不是从某个 PR 长出来的，没人正在做、没人 assigned，本质是"将来要做的事"的清单。它们一旦堆积超过个位数，就开始：
 
    - 让 issue tracker 的 OPEN 列表失真（看上去"很多事在做"，实际没人在做）
    - 让任何人想给这些 issue 写真正的实施计划时，找不到入口（在 issue 评论里写嫌长，在 PR 里写没 issue 上下文）
