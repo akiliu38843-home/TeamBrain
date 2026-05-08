@@ -53,6 +53,13 @@ export interface InitOptions {
   skipImport?: boolean;
   /** 跳过 hook 安装（测试环境下 dist bundle 可能不存在）。 */
   skipHook?: boolean;
+  /**
+   * Issue #161 — Layer 1 viral install. When `true` (default), `installHook`
+   * also writes the TeamAgent hook entries to `~/.claude/settings.json` so
+   * Claude Code launched from any cwd (including sub-directories) registers
+   * the project's hooks. CLI escape hatch: `--no-user-level-hook`.
+   */
+  userLevelHook?: boolean;
   /** 跳过打包 seed 注入（测试环境隔离 dev 产物；正常安装应保持 false）。 */
   skipSeed?: boolean;
   /** 跳过向量模型预热（测试 / 离线环境；正常安装应保持 false）。 */
@@ -189,7 +196,9 @@ export async function executeInit(opts: InitOptions = {}): Promise<InitResult> {
   steps.push(...importStep.steps);
 
   if (targetIncludesClaude(target) && !opts.skipHook) {
-    steps.push(doInstallHook(paths.cwd, opts.hookEntry, dryRun));
+    steps.push(
+      doInstallHook(paths.cwd, opts.hookEntry, dryRun, opts.userLevelHook ?? true),
+    );
   } else if (targetIncludesCodex(target) && !targetIncludesClaude(target)) {
     steps.push({
       step: "install-hook",
@@ -946,17 +955,27 @@ function doInstallHook(
   cwd: string,
   hookEntry: string | undefined,
   dryRun: boolean,
+  userLevel: boolean,
 ): InitStepResult {
   if (dryRun) {
-    return okStep(
-      "install-hook",
-      `(dry-run) 会写入 ${path.join(cwd, ".claude", "settings.local.json")}`,
-    );
+    const dest = userLevel
+      ? `${path.join(cwd, ".claude", "settings.local.json")} + ~/.claude/settings.json`
+      : path.join(cwd, ".claude", "settings.local.json");
+    return okStep("install-hook", `(dry-run) 会写入 ${dest}`);
   }
   try {
-    const r = installHook({ cwd, ...(hookEntry ? { hookEntry } : {}) });
+    const r = installHook({
+      cwd,
+      ...(hookEntry ? { hookEntry } : {}),
+      userLevel,
+    });
     const parts: string[] = [];
     parts.push(r.alreadyInstalled ? `已安装 (无变化): ${r.settingsPath}` : `已注册: ${r.settingsPath}`);
+    if (userLevel) {
+      // Issue #161 — viral install path also writes ~/.claude/settings.json so
+      // Claude Code launched from sub-directories still picks up project hooks.
+      parts.push("已写入用户级 ~/.claude/settings.json (Issue #161 viral install)");
+    }
     if (r.statusLineSkipped) {
       parts.push("⚠️  statusLine bundle 缺失，未注册");
     } else if (r.statusLineMergedScope) {
@@ -1188,6 +1207,7 @@ export function parseInitArgs(argv: string[]): InitOptions {
     if (a === "--dry-run") opts.dryRun = true;
     else if (a === "--skip-import") opts.skipImport = true;
     else if (a === "--skip-hook") opts.skipHook = true;
+    else if (a === "--no-user-level-hook") opts.userLevelHook = false;
     else if (a === "--skip-warmup") opts.skipWarmup = true;
     else if (a === "--install-plugins") opts.installPlugins = true;
     else if (a === "--codex") opts.target = "codex";

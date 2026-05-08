@@ -23,6 +23,16 @@ export interface InstallHookOptions {
   statusLineEntry?: string;
   /** 显式指定 user-level home（默认 os.homedir()）。测试用。 */
   homeDir?: string;
+  /**
+   * Issue #161 — Layer 1 viral install. When `true` (default), additionally
+   * write the same TeamAgent hook entries (PreToolUse / PostToolUse /
+   * UserPromptSubmit / Stop) into `<homeDir>/.claude/settings.json` so
+   * Claude Code launched from any cwd (including sub-directories of an
+   * already-initialized project) registers the project's hooks. The
+   * project-level write to `<cwd>/.claude/settings.local.json` is unchanged
+   * either way. When `false`, behaviour is unchanged from before #161.
+   */
+  userLevel?: boolean;
 }
 
 interface ClaudeSettings {
@@ -303,6 +313,23 @@ export function installHook(opts: InstallHookOptions = {}): {
   }
 
   writeSettings(settingsPath, settings);
+
+  // Issue #161 — Layer 1 viral install. Default `userLevel: true` so Claude
+  // Code launched from a sub-directory of an initialized project still has
+  // the TeamAgent hooks registered. The user-level write is additive and
+  // idempotent — existing TeamAgent-tagged entries are replaced in place,
+  // foreign entries are preserved untouched.
+  const userLevel = opts.userLevel ?? true;
+  if (userLevel) {
+    const homeDir = opts.homeDir ?? os.homedir();
+    mergeUserLevelHooks(homeDir, {
+      hookEntry,
+      postHookEntry,
+      userPromptEntry,
+      stopEntry,
+    });
+  }
+
   return {
     settingsPath,
     hookEntry,
@@ -312,6 +339,106 @@ export function installHook(opts: InstallHookOptions = {}): {
     statusLineSkipped,
     statusLineMergedScope,
   };
+}
+
+/**
+ * Issue #161 — write TeamAgent hook entries to `<homeDir>/.claude/settings.json`.
+ *
+ * Idempotent + additive:
+ * - For each hook channel (PreToolUse / PostToolUse / UserPromptSubmit / Stop),
+ *   we look up the existing TeamAgent-tagged entry and *replace it in place*.
+ *   Foreign (non-TeamAgent-tagged) entries are preserved untouched.
+ * - If the bundle for a given channel does not exist on disk we skip writing
+ *   that channel (matches project-level behaviour).
+ * - If `<homeDir>/.claude/settings.json` does not exist, the file is created
+ *   with the minimal `{ "hooks": { ... } }` shape.
+ *
+ * NB: we deliberately do NOT touch `statusLine` here — that's the project's
+ * project-level concern (#104) and the user-level statusLine is consulted as
+ * a *read* by `readUserLevelStatusLine` above; rewriting it user-level would
+ * conflict with that read path.
+ */
+function mergeUserLevelHooks(
+  homeDir: string,
+  entries: {
+    hookEntry: string;
+    postHookEntry: string;
+    userPromptEntry: string;
+    stopEntry: string;
+  },
+): void {
+  const userSettingsPath = path.join(homeDir, ".claude", "settings.json");
+  const settings = readSettings(userSettingsPath);
+  if (!settings.hooks) settings.hooks = {};
+
+  const channelOps: Array<{
+    channel: "PreToolUse" | "PostToolUse" | "UserPromptSubmit" | "Stop";
+    tag: string;
+    bundlePath: string;
+    matcher?: string;
+    timeout: number;
+  }> = [
+    {
+      channel: "PreToolUse",
+      tag: HOOK_TAG,
+      bundlePath: entries.hookEntry,
+      matcher: "Bash|Write|Edit|WebFetch",
+      timeout: 30,
+    },
+    {
+      channel: "PostToolUse",
+      tag: POST_HOOK_TAG,
+      bundlePath: entries.postHookEntry,
+      matcher: "Bash|Write|Edit|WebFetch",
+      timeout: 30,
+    },
+    {
+      channel: "UserPromptSubmit",
+      tag: USER_PROMPT_TAG,
+      bundlePath: entries.userPromptEntry,
+      timeout: 10,
+    },
+    {
+      channel: "Stop",
+      tag: STOP_HOOK_TAG,
+      bundlePath: entries.stopEntry,
+      timeout: 60,
+    },
+  ];
+
+  for (const op of channelOps) {
+    if (!fs.existsSync(op.bundlePath)) continue;
+
+    if (!settings.hooks[op.channel]) settings.hooks[op.channel] = [];
+    const list = settings.hooks[op.channel] as HookEntry[];
+
+    const command = `node ${shellQuote(toForwardSlash(op.bundlePath))}`;
+    const newEntry: HookEntry = {
+      _teamagentTag: op.tag,
+      hooks: [{ type: "command", command, timeout: op.timeout }],
+    };
+    if (op.matcher) newEntry.matcher = op.matcher;
+
+    const existingIdx = list.findIndex((h) => h._teamagentTag === op.tag);
+    if (existingIdx >= 0) {
+      // Replace in place — keeps array order stable and avoids duplicates.
+      list[existingIdx] = newEntry;
+    } else {
+      list.push(newEntry);
+    }
+  }
+
+  // Drop any channels that ended up empty (preserves prior structure when we
+  // never had to touch them).
+  for (const ch of ["PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop"] as const) {
+    const list = settings.hooks[ch] as HookEntry[] | undefined;
+    if (Array.isArray(list) && list.length === 0) delete settings.hooks[ch];
+  }
+  if (settings.hooks && Object.keys(settings.hooks).length === 0) {
+    delete settings.hooks;
+  }
+
+  writeSettings(userSettingsPath, settings);
 }
 
 /**

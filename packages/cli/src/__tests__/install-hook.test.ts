@@ -28,7 +28,7 @@ describe("installHook", () => {
   });
 
   it("creates settings.local.json with PreToolUse hook entry", () => {
-    const r = installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY });
+    const r = installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, userLevel: false });
     expect(r.alreadyInstalled).toBe(false);
 
     const content = JSON.parse(fs.readFileSync(r.settingsPath, "utf-8"));
@@ -54,7 +54,7 @@ describe("installHook", () => {
       }),
     );
 
-    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY });
+    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, userLevel: false });
 
     const content = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
     expect(content.someUserSetting).toBe("preserved");
@@ -64,8 +64,8 @@ describe("installHook", () => {
   });
 
   it("idempotent: second install detects already-installed", () => {
-    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY });
-    const r2 = installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY });
+    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, userLevel: false });
+    const r2 = installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, userLevel: false });
     expect(r2.alreadyInstalled).toBe(true);
 
     const content = JSON.parse(
@@ -92,7 +92,7 @@ describe("uninstallHook", () => {
   });
 
   it("removes only TeamAgent entry, preserves user hooks", () => {
-    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY });
+    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, userLevel: false });
 
     // 注入一条用户自己的 hook
     const settingsPath = path.join(tmp.cwd, ".claude", "settings.local.json");
@@ -112,7 +112,7 @@ describe("uninstallHook", () => {
   });
 
   it("returns removed=false on second uninstall", () => {
-    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY });
+    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, userLevel: false });
     uninstallHook({ cwd: tmp.cwd });
     const r2 = uninstallHook({ cwd: tmp.cwd });
     expect(r2.removed).toBe(false);
@@ -129,6 +129,7 @@ describe("installHook — UserPromptSubmit + Stop", () => {
       cwd: tmp.cwd,
       hookEntry: FAKE_HOOK_ENTRY,
       userPromptEntry: FAKE_HOOK_ENTRY,
+      userLevel: false,
     });
     const content = JSON.parse(
       fs.readFileSync(path.join(tmp.cwd, ".claude", "settings.local.json"), "utf-8")
@@ -144,6 +145,7 @@ describe("installHook — UserPromptSubmit + Stop", () => {
       cwd: tmp.cwd,
       hookEntry: FAKE_HOOK_ENTRY,
       stopEntry: FAKE_HOOK_ENTRY,
+      userLevel: false,
     });
     const content = JSON.parse(
       fs.readFileSync(path.join(tmp.cwd, ".claude", "settings.local.json"), "utf-8")
@@ -155,8 +157,8 @@ describe("installHook — UserPromptSubmit + Stop", () => {
   });
 
   it("idempotent: second install of UserPromptSubmit not duplicated", () => {
-    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, userPromptEntry: FAKE_HOOK_ENTRY });
-    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, userPromptEntry: FAKE_HOOK_ENTRY });
+    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, userPromptEntry: FAKE_HOOK_ENTRY, userLevel: false });
+    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, userPromptEntry: FAKE_HOOK_ENTRY, userLevel: false });
     const content = JSON.parse(
       fs.readFileSync(path.join(tmp.cwd, ".claude", "settings.local.json"), "utf-8")
     );
@@ -169,6 +171,7 @@ describe("installHook — UserPromptSubmit + Stop", () => {
       hookEntry: FAKE_HOOK_ENTRY,
       userPromptEntry: FAKE_HOOK_ENTRY,
       stopEntry: FAKE_HOOK_ENTRY,
+      userLevel: false,
     });
     uninstallHook({ cwd: tmp.cwd });
     const content = JSON.parse(
@@ -189,6 +192,7 @@ describe("installHook — statusLine", () => {
       cwd: tmp.cwd,
       hookEntry: FAKE_HOOK_ENTRY,
       statusLineEntry: FAKE_HOOK_ENTRY,
+      userLevel: false,
     });
     expect(r.statusLineSkipped).toBe(false);
 
@@ -203,8 +207,8 @@ describe("installHook — statusLine", () => {
   });
 
   it("updates tagged teamagent statusLine (idempotent)", () => {
-    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, statusLineEntry: FAKE_HOOK_ENTRY });
-    const r2 = installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, statusLineEntry: FAKE_HOOK_ENTRY });
+    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, statusLineEntry: FAKE_HOOK_ENTRY, userLevel: false });
+    const r2 = installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, statusLineEntry: FAKE_HOOK_ENTRY, userLevel: false });
     expect(r2.statusLineSkipped).toBe(false);
 
     const content = JSON.parse(
@@ -229,6 +233,7 @@ describe("installHook — statusLine", () => {
       hookEntry: FAKE_HOOK_ENTRY,
       statusLineEntry: FAKE_HOOK_ENTRY,
       homeDir: tmp.cwd, // 测试用空 home，避免读到本机真 ~/.claude
+      userLevel: false,
     });
     expect(r.statusLineSkipped).toBe(false);
     expect(r.statusLineMergedScope).toBe("project");
@@ -262,6 +267,7 @@ describe("installHook — statusLine", () => {
         hookEntry: FAKE_HOOK_ENTRY,
         statusLineEntry: FAKE_HOOK_ENTRY,
         homeDir: fakeHome,
+        userLevel: false,
       });
       expect(r.statusLineMergedScope).toBe("user");
 
@@ -303,6 +309,7 @@ describe("installHook — statusLine", () => {
         hookEntry: FAKE_HOOK_ENTRY,
         statusLineEntry: FAKE_HOOK_ENTRY,
         homeDir: fakeHome,
+        userLevel: false,
       });
       expect(r.statusLineMergedScope).toBe("project");
       const content = JSON.parse(fs.readFileSync(projectPath, "utf-8"));
@@ -329,6 +336,7 @@ describe("installHook — statusLine", () => {
       hookEntry: FAKE_HOOK_ENTRY,
       statusLineEntry: FAKE_HOOK_ENTRY,
       homeDir: tmp.cwd,
+      userLevel: false,
     });
 
     const content = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
@@ -346,8 +354,8 @@ describe("installHook — statusLine", () => {
         statusLine: { type: "command", command: "USER_CMD" },
       }),
     );
-    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, statusLineEntry: FAKE_HOOK_ENTRY, homeDir: tmp.cwd });
-    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, statusLineEntry: FAKE_HOOK_ENTRY, homeDir: tmp.cwd });
+    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, statusLineEntry: FAKE_HOOK_ENTRY, homeDir: tmp.cwd, userLevel: false });
+    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, statusLineEntry: FAKE_HOOK_ENTRY, homeDir: tmp.cwd, userLevel: false });
     const content = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
     expect(content.statusLine._teamagentOriginalCommand).toBe("USER_CMD");
     // chain 中只出现一次原 cmd
@@ -356,7 +364,7 @@ describe("installHook — statusLine", () => {
   });
 
   it("uninstall removes teamagent statusLine when no backup", () => {
-    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, statusLineEntry: FAKE_HOOK_ENTRY, homeDir: tmp.cwd });
+    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, statusLineEntry: FAKE_HOOK_ENTRY, homeDir: tmp.cwd, userLevel: false });
     uninstallHook({ cwd: tmp.cwd });
     const content = JSON.parse(
       fs.readFileSync(path.join(tmp.cwd, ".claude", "settings.local.json"), "utf-8"),
@@ -373,7 +381,7 @@ describe("installHook — statusLine", () => {
         statusLine: { type: "command", command: "user-status.sh" },
       }),
     );
-    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, statusLineEntry: FAKE_HOOK_ENTRY, homeDir: tmp.cwd });
+    installHook({ cwd: tmp.cwd, hookEntry: FAKE_HOOK_ENTRY, statusLineEntry: FAKE_HOOK_ENTRY, homeDir: tmp.cwd, userLevel: false });
     uninstallHook({ cwd: tmp.cwd });
     const content = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
     expect(content.statusLine.command).toBe("user-status.sh");
@@ -397,6 +405,7 @@ describe("installHook — statusLine", () => {
         hookEntry: FAKE_HOOK_ENTRY,
         statusLineEntry: FAKE_HOOK_ENTRY,
         homeDir: fakeHome,
+        userLevel: false,
       });
       uninstallHook({ cwd: tmp.cwd });
 
@@ -411,5 +420,178 @@ describe("installHook — statusLine", () => {
     } finally {
       fs.rmSync(fakeHome, { recursive: true, force: true });
     }
+  });
+});
+
+// ─── Issue #161 — Layer 1 viral install (userLevel option) ──────────────────
+describe("installHook — userLevel (issue #161)", () => {
+  let tmp: ReturnType<typeof mkTmp>;
+  let fakeHome: string;
+
+  beforeEach(() => {
+    tmp = mkTmp();
+    fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), "fake-home-uh-"));
+  });
+
+  afterEach(() => {
+    tmp.cleanup();
+    fs.rmSync(fakeHome, { recursive: true, force: true });
+  });
+
+  it("userLevel: true writes ~/.claude/settings.json with the same hook shape", () => {
+    installHook({
+      cwd: tmp.cwd,
+      hookEntry: FAKE_HOOK_ENTRY,
+      postHookEntry: FAKE_HOOK_ENTRY,
+      userPromptEntry: FAKE_HOOK_ENTRY,
+      stopEntry: FAKE_HOOK_ENTRY,
+      homeDir: fakeHome,
+      userLevel: true,
+    });
+
+    const userSettingsPath = path.join(fakeHome, ".claude", "settings.json");
+    expect(fs.existsSync(userSettingsPath)).toBe(true);
+    const content = JSON.parse(fs.readFileSync(userSettingsPath, "utf-8"));
+
+    // Same shape as project-level: PreToolUse / PostToolUse / UserPromptSubmit / Stop
+    expect(content.hooks).toBeDefined();
+    expect(content.hooks.PreToolUse).toBeDefined();
+    expect(content.hooks.PreToolUse[0]._teamagentTag).toBe("teamagent-pre-tool-use");
+    expect(content.hooks.PreToolUse[0].matcher).toContain("Bash");
+    expect(content.hooks.PreToolUse[0].hooks[0].command).toContain("node");
+
+    expect(content.hooks.PostToolUse).toBeDefined();
+    expect(content.hooks.PostToolUse[0]._teamagentTag).toBe("teamagent-post-tool-use");
+    expect(content.hooks.PostToolUse[0].matcher).toContain("Bash");
+
+    expect(content.hooks.UserPromptSubmit).toBeDefined();
+    expect(content.hooks.UserPromptSubmit[0]._teamagentTag).toBe("teamagent-user-prompt-submit");
+    expect(content.hooks.UserPromptSubmit[0].hooks[0].timeout).toBe(10);
+
+    expect(content.hooks.Stop).toBeDefined();
+    expect(content.hooks.Stop[0]._teamagentTag).toBe("teamagent-stop");
+    expect(content.hooks.Stop[0].hooks[0].timeout).toBe(60);
+  });
+
+  it("userLevel: true is idempotent — running twice produces a single entry", () => {
+    installHook({
+      cwd: tmp.cwd,
+      hookEntry: FAKE_HOOK_ENTRY,
+      postHookEntry: FAKE_HOOK_ENTRY,
+      userPromptEntry: FAKE_HOOK_ENTRY,
+      stopEntry: FAKE_HOOK_ENTRY,
+      homeDir: fakeHome,
+      userLevel: true,
+    });
+    installHook({
+      cwd: tmp.cwd,
+      hookEntry: FAKE_HOOK_ENTRY,
+      postHookEntry: FAKE_HOOK_ENTRY,
+      userPromptEntry: FAKE_HOOK_ENTRY,
+      stopEntry: FAKE_HOOK_ENTRY,
+      homeDir: fakeHome,
+      userLevel: true,
+    });
+
+    const userSettingsPath = path.join(fakeHome, ".claude", "settings.json");
+    const content = JSON.parse(fs.readFileSync(userSettingsPath, "utf-8"));
+
+    // Each TeamAgent-tagged channel must contain exactly ONE entry after two installs.
+    const preTagged = content.hooks.PreToolUse.filter(
+      (h: { _teamagentTag?: string }) => h._teamagentTag === "teamagent-pre-tool-use",
+    );
+    expect(preTagged).toHaveLength(1);
+
+    const postTagged = content.hooks.PostToolUse.filter(
+      (h: { _teamagentTag?: string }) => h._teamagentTag === "teamagent-post-tool-use",
+    );
+    expect(postTagged).toHaveLength(1);
+
+    const upTagged = content.hooks.UserPromptSubmit.filter(
+      (h: { _teamagentTag?: string }) => h._teamagentTag === "teamagent-user-prompt-submit",
+    );
+    expect(upTagged).toHaveLength(1);
+
+    const stopTagged = content.hooks.Stop.filter(
+      (h: { _teamagentTag?: string }) => h._teamagentTag === "teamagent-stop",
+    );
+    expect(stopTagged).toHaveLength(1);
+  });
+
+  it("userLevel: true preserves existing non-TeamAgent entries in ~/.claude/settings.json", () => {
+    // Pre-seed user-level settings.json with foreign entries + an unrelated top-level setting.
+    const userSettingsPath = path.join(fakeHome, ".claude", "settings.json");
+    fs.mkdirSync(path.dirname(userSettingsPath), { recursive: true });
+    fs.writeFileSync(
+      userSettingsPath,
+      JSON.stringify({
+        someUserGlobalSetting: "preserved",
+        hooks: {
+          PreToolUse: [
+            { matcher: "Bash", hooks: [{ type: "command", command: "user-global-pre.sh" }] },
+          ],
+          SessionStart: [
+            { hooks: [{ type: "command", command: "user-session.sh" }] },
+          ],
+        },
+      }),
+    );
+
+    installHook({
+      cwd: tmp.cwd,
+      hookEntry: FAKE_HOOK_ENTRY,
+      postHookEntry: FAKE_HOOK_ENTRY,
+      userPromptEntry: FAKE_HOOK_ENTRY,
+      stopEntry: FAKE_HOOK_ENTRY,
+      homeDir: fakeHome,
+      userLevel: true,
+    });
+
+    const content = JSON.parse(fs.readFileSync(userSettingsPath, "utf-8"));
+
+    // Top-level non-hook setting preserved.
+    expect(content.someUserGlobalSetting).toBe("preserved");
+
+    // Foreign PreToolUse entry preserved AND TeamAgent entry appended.
+    expect(content.hooks.PreToolUse).toHaveLength(2);
+    const foreignPre = content.hooks.PreToolUse.find(
+      (h: { _teamagentTag?: string; hooks: { command: string }[] }) =>
+        h.hooks?.[0]?.command === "user-global-pre.sh",
+    );
+    expect(foreignPre).toBeDefined();
+    expect(foreignPre._teamagentTag).toBeUndefined();
+
+    const taggedPre = content.hooks.PreToolUse.find(
+      (h: { _teamagentTag?: string }) => h._teamagentTag === "teamagent-pre-tool-use",
+    );
+    expect(taggedPre).toBeDefined();
+
+    // SessionStart channel completely untouched (not one we manage here).
+    expect(content.hooks.SessionStart).toBeDefined();
+    expect(content.hooks.SessionStart).toHaveLength(1);
+    expect(content.hooks.SessionStart[0].hooks[0].command).toBe("user-session.sh");
+  });
+
+  it("userLevel: false does NOT touch ~/.claude/settings.json", () => {
+    const userSettingsPath = path.join(fakeHome, ".claude", "settings.json");
+
+    installHook({
+      cwd: tmp.cwd,
+      hookEntry: FAKE_HOOK_ENTRY,
+      postHookEntry: FAKE_HOOK_ENTRY,
+      userPromptEntry: FAKE_HOOK_ENTRY,
+      stopEntry: FAKE_HOOK_ENTRY,
+      homeDir: fakeHome,
+      userLevel: false,
+    });
+
+    // No user-level settings.json should be created.
+    expect(fs.existsSync(userSettingsPath)).toBe(false);
+
+    // Project-level write happened (sanity check — userLevel:false didn't break the old path).
+    const projectPath = path.join(tmp.cwd, ".claude", "settings.local.json");
+    expect(fs.existsSync(projectPath)).toBe(true);
+    const proj = JSON.parse(fs.readFileSync(projectPath, "utf-8"));
+    expect(proj.hooks.PreToolUse[0]._teamagentTag).toBe("teamagent-pre-tool-use");
   });
 });
