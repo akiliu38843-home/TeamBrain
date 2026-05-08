@@ -125,7 +125,25 @@ function resolveRuntime(rawCwd: unknown): ResolvedRuntime {
   const home = (env.TEAMAGENT_HOME && env.TEAMAGENT_HOME.length > 0)
     ? env.TEAMAGENT_HOME
     : os.homedir();
-  const cwdInput = typeof rawCwd === "string" && rawCwd.length > 0 ? rawCwd : process.cwd();
+  // cwd resolution priority (Codex P2 fix on PR #152):
+  //   1. raw.cwd from stdin payload — Claude Code SDK populates this for
+  //      tool-use channels (PreToolUse, PostToolUse, Stop, ...).
+  //   2. CLAUDE_PROJECT_DIR env — Claude Code sets this before *every* hook
+  //      invocation regardless of channel. Channels that accept empty/minimal
+  //      stdin (SessionStart, UserPromptSubmit) rely on this fallback when
+  //      no raw.cwd is sent. Hook processes can also be launched from a
+  //      non-project working directory while project root is conveyed via
+  //      this env — without the fallback we'd read/write `.teamagent` state
+  //      under the wrong path.
+  //   3. process.cwd() — last-resort, matches legacy bin-*.ts behavior for
+  //      manual / test invocations where neither signal is present.
+  const claudeProjectDir = env.CLAUDE_PROJECT_DIR;
+  const cwdInput =
+    typeof rawCwd === "string" && rawCwd.length > 0
+      ? rawCwd
+      : claudeProjectDir && claudeProjectDir.length > 0
+        ? claudeProjectDir
+        : process.cwd();
   const cwd = normalizeCwd(cwdInput);
   const paths = resolvePaths(cwd, home);
   return { cwd, home, env, paths };

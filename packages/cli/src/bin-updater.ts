@@ -17,11 +17,19 @@
  *      `session-start-logic.ts` 的 `maybeShowPendingBanner` 在下一次 SessionStart
  *      读取 `pending_banner` 时打印，这条路径不在本 bin 内。
  *
- *   3. **store / eventLog 由 shell 自动开关，但 handler 不使用** ——
- *      `runHook` 默认 layer 会无条件 open `DualLayerStore` 和 `SqliteEventLog`、
- *      并在 finally 里 close。updater 自身的状态走 `~/.teamagent/update-state.json`
- *      （UpdateState JSON），不写 sqlite。这点 overhead 是为了保持与其它 7 个
- *      channel 的 lifecycle 一致 —— 任何人维护 HookShell 时一份 mental model。
+ *   3. **store / eventLog 完全不开** —— Codex review on PR #152 (P1) 指出：
+ *      默认的 `runHook` layer 会无条件 open `DualLayerStore` 和
+ *      `SqliteEventLog`，而 `DualLayerStore` 的 ctor 会**创建**
+ *      `<cwd>/.teamagent/knowledge.db`（即使无写入）。后果：updater 在后台跑
+ *      时会副作用地为当前 cwd 建出 `knowledge.db`，下一次 SessionStart 的
+ *      `decideAction` 检测到该文件，直接 `skip-already-initialized`，
+ *      把"应该 auto-init 的新项目"误判成"已初始化"。
+ *
+ *      因此本 bin **必须**走 `runAdvancedHook` + `escape.manualResources: true`
+ *      —— shell 只提供 lazy resource getter，handler 不调用 `ctx.store()` /
+ *      `ctx.eventLog()`，sqlite 句柄就完全不开、`knowledge.db` 不被创建。
+ *      与 bin-session-start 同形（SessionStart 也用 manualResources 处理同样
+ *      的 detection-vs-creation 时序问题）。
  *
  *   4. **HTTP / npm install / migrate 子进程逻辑全部留在 handler 内** ——
  *      shell 只管 lifecycle（stdin parse、resource open/close、exit 0），
@@ -44,7 +52,7 @@ import {
 } from "@teamagent/core";
 import { runUpdater } from "./updater-logic.js";
 import { fetchRemoteSha } from "./github-api.js";
-import { runHook } from "./hook-shell/index.js";
+import { runAdvancedHook } from "./hook-shell/index.js";
 
 function teamagentHome(): string {
   return process.env["TEAMAGENT_HOME"] ?? path.join(os.homedir(), ".teamagent");
@@ -230,9 +238,25 @@ async function main(): Promise<void> {
   // stdout return type. `parseInput` ignores stdin entirely and returns `{}` so
   // the shell never fast-exits before invoking the handler — see file header
   // note 1.
-  await runHook<Record<string, never>, undefined>({
+  //
+  // `escape.manualResources: true` (Codex P1 fix on PR #152): updater is
+  // stdout/stderr-silent and does not write sqlite. The default `runHook`
+  // layer eagerly opens `DualLayerStore` + `SqliteEventLog` which has the
+  // side effect of creating `<cwd>/.teamagent/knowledge.db`, which would
+  // flip later `SessionStart.decideAction` to `skip-already-initialized`
+  // (because that decision keys off `knowledge.db` existence). With
+  // manualResources the shell never opens sqlite handles unless the
+  // handler explicitly calls `ctx.store()` / `ctx.eventLog()` — which the
+  // updater handler does not. Same shape as bin-session-start.
+  await runAdvancedHook<Record<string, never>, undefined, {
+    channel: "Updater";
+    parseInput: () => Record<string, never>;
+    escape: { manualResources: true };
+    handler: () => Promise<undefined>;
+  }>({
     channel: "Updater",
     parseInput: () => ({}),
+    escape: { manualResources: true },
     handler: async () => {
       log("updater started");
       await runUpdater({
