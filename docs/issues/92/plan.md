@@ -37,7 +37,7 @@
 2. **`docs/features/install-sh/run-judge.sh`** (bash harness, `set -euo pipefail`; utility, retained per docs/legacy/judge-scripts/README.md exemption):
    - Six scenarios: `syntax`, `node_missing`, `node_old`, `node_ok_install`, `idempotent_rerun`, `dash_portability`.
    - Stub PATH dirs with controlled `node`/`npm` binaries; capture install argv to verify tarball URL was actually invoked.
-   - Emit `judge.json` at `tmp/.judge/install-sh/<run_id>/judge.json` with fixed schema (mirrors `docs/features/doctor-install/run-judge.sh:280-321`).
+   - Emit `judge.json` at `tmp/.judge/install-sh/<run_id>/judge.json` with fixed schema (mirrors `docs/legacy/judge-scripts/docs/features/doctor-install/run-judge.sh:280-321`).
    - Exit 0 only if `all_passed: true`.
 
 3. **`.github/workflows/release-branch.yml`** patch:
@@ -149,6 +149,9 @@ sh -n release/install.sh
 gh api repos/libz-renlab-ai/TeamBrain/contents/install.sh?ref=release --jq '.path'
 curl -fsSL https://raw.githubusercontent.com/libz-renlab-ai/TeamBrain/release/install.sh | sh -n
 ```
+
+## Phase 2 fix log
+Resolved 2026-05-08 (iter-4 P3): line 40 citation updated from `docs/features/doctor-install/run-judge.sh:280-321` to `docs/legacy/judge-scripts/docs/features/doctor-install/run-judge.sh:280-321` so the cited line range resolves on disk. Commit see iter-4 fix commit.
 
 ## Risks & mitigations
 
