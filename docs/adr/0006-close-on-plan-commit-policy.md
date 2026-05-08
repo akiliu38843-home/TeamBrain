@@ -1,6 +1,6 @@
 ```text
    ┌──────────────────────────────────────────────────────────────┐
-   │   ADR-0005: Close-on-plan-commit policy                      │
+   │   ADR-0006: Close-on-plan-commit policy                      │
    │                                                              │
    │   未分配的 feature issue                                     │
    │        │                                                     │
@@ -15,7 +15,13 @@
    └──────────────────────────────────────────────────────────────┘
 ```
 
-# ADR-0005: Close-on-plan-commit policy for unassigned feature issues
+# ADR-0006: Close-on-plan-commit policy for unassigned feature issues
+
+> **Note (2026-05-08):** Originally numbered 0005. Renumbered to 0006 after PR #142 merged
+> `docs/adr/0005-archive-hypothetical-port-seams.md` to main while this PR was open. The
+> close-comments on issues #81 / #82 / #83 / #89 / #117 cite the original "ADR-0005" and
+> the path `docs/adr/0005-close-on-plan-commit-policy.md`; that link is now stale, but the
+> ADR's content and effect are unchanged — only the file name moved to 0006-.
 
 - **Date:** 2026-05-08
 - **Status:** Accepted

@@ -34,7 +34,7 @@
 
 ## CHANGELOG
 
-- **v1 (2026-05-08)** — 初版 plan，配合 ADR-0005 close issue #81。
+- **v1 (2026-05-08)** — 初版 plan，配合 ADR-0006 close issue #81。
 
 ---
 
@@ -44,7 +44,7 @@
 - **Branch:** `worktree-clean-issues` (this docs-only PR); follow-up impl PR 自起分支
 - **Owner:** unassigned at plan time; 接手者请在 follow-up PR 起 owner
 - **Date:** 2026-05-08
-- **Reference:** `docs/HOWTO-PLAN-PR.md`、`docs/PRESHIP.md`、`docs/feature-verification.md`、ADR-0005
+- **Reference:** `docs/HOWTO-PLAN-PR.md`、`docs/PRESHIP.md`、`docs/feature-verification.md`、ADR-0006
 
 ## ① Plan — task description
 
@@ -153,7 +153,7 @@ Judge harness **不**对：
 本 docs-only PR 完成后：
 
 1. POSTPR loop 直到 Codex silent / 👍（参考 `docs/POSTPR.md`）。
-2. Issue #81 close with cite-back comment（ADR-0005）：plan 路径 + PR 链接 + 一句 "ready for impl PR; impl PR 将在招齐 3 同事后启动"。
+2. Issue #81 close with cite-back comment（ADR-0006）：plan 路径 + PR 链接 + 一句 "ready for impl PR; impl PR 将在招齐 3 同事后启动"。
 3. Follow-up impl PR 反向引用 `docs/plans/issue-81/plan.md` + 本 PR；不重开 #81。
 
 ## 风险与回滚

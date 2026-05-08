@@ -34,7 +34,7 @@
 
 ## CHANGELOG
 
-- **v1 (2026-05-08)** — 初版 plan，配合 ADR-0005 close issue #83。Reframe "group video" → "team-scope session recording" 对齐 CONTEXT.md。
+- **v1 (2026-05-08)** — 初版 plan，配合 ADR-0006 close issue #83。Reframe "group video" → "team-scope session recording" 对齐 CONTEXT.md。
 
 ---
 
@@ -51,7 +51,7 @@
   - `~/.gbrain/config.json`（gbrain 已 setup 状态，参考 CLAUDE.md GBrain Configuration 节）
   - 现有 gbrain MCP tools（`file_upload`、`file_list`、`file_url`、`put_page`、`add_timeline_entry`、`get_timeline`、`query`、`search`、`put_raw_data`、`get_raw_data`）
   - `packages/core/src/m5/secret-scanner.ts`（transcript 脱敏复用）
-  - ADR-0005
+  - ADR-0006
 
 ## Glossary mapping — issue 用语 → CONTEXT.md canonical
 
@@ -169,7 +169,7 @@ Judge harness **不**评：
 ## After-PR — POSTPR loop
 
 1. POSTPR loop 直到 Codex silent / 👍。
-2. Issue #83 close with cite-back comment（ADR-0005）：plan 路径 + PR 链接 + 一句 "ready for impl PR pending #82 follow-up impl PR shipping team-scope viral sync teaching e2e; canonical naming per CONTEXT.md is team-scope session recording, mapped to issue title 'group video recording' inside Glossary section; v1 covers asciinema text stream end-to-end via M5 secret scanner (any leak = fail); frame-level visual redaction OUT OF SCOPE for v1 because v1 does not record the screen"。
+2. Issue #83 close with cite-back comment（ADR-0006）：plan 路径 + PR 链接 + 一句 "ready for impl PR pending #82 follow-up impl PR shipping team-scope viral sync teaching e2e; canonical naming per CONTEXT.md is team-scope session recording, mapped to issue title 'group video recording' inside Glossary section; v1 covers asciinema text stream end-to-end via M5 secret scanner (any leak = fail); frame-level visual redaction OUT OF SCOPE for v1 because v1 does not record the screen"。
 3. Follow-up impl PR 反向引用本 plan；不重开 #83。
 
 ## 风险与回滚

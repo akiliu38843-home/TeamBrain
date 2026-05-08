@@ -119,7 +119,7 @@ Any missing-field event lists the offending event ID and which fields are missin
 
 Sub-agent reads `docs/research/` to find any subdir matching `*-personal-use-*people/subject-*` with redacted evidence files. Counts how many `subject-*` subdirs are present.
 
-Pass condition: `personal_use_subjects_present >= 1` (per ADR-0005 hardness condition that #82's impl is gated on #81's impl having produced at least 1 redacted personal-use evidence subdir).
+Pass condition: `personal_use_subjects_present >= 1` (per ADR-0006 hardness condition that #82's impl is gated on #81's impl having produced at least 1 redacted personal-use evidence subdir).
 
 If the impl PR fires before any subject-* exists, this step fails; the impl PR is asked to wait, and #82 is **not** reopened.
 

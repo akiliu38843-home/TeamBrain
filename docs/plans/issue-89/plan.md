@@ -36,7 +36,7 @@
 
 ## CHANGELOG
 
-- **v1 (2026-05-08)** — 初版 plan，配合 ADR-0005 close issue #89。
+- **v1 (2026-05-08)** — 初版 plan，配合 ADR-0006 close issue #89。
 
 ---
 
@@ -135,7 +135,7 @@ Judge harness **不**评：
 ## After-PR — POSTPR loop
 
 1. POSTPR loop 直到 Codex silent / 👍。
-2. Issue #89 close with cite-back comment（ADR-0005）：plan 路径 + PR 链接 + 一句 "ready for impl PR; depends on existing universal.jsonl + #90 pack CLI"。
+2. Issue #89 close with cite-back comment（ADR-0006）：plan 路径 + PR 链接 + 一句 "ready for impl PR; depends on existing universal.jsonl + #90 pack CLI"。
 3. Follow-up impl PR 反向引用本 plan；不重开 #89。
 
 ## 风险与回滚

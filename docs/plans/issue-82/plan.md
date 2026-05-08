@@ -40,7 +40,7 @@
 
 ## CHANGELOG
 
-- **v1 (2026-05-08)** — 初版 plan，配合 ADR-0005 close issue #82。Reframe 为 M5 delta + canonical 术语对齐 CONTEXT.md。
+- **v1 (2026-05-08)** — 初版 plan，配合 ADR-0006 close issue #82。Reframe 为 M5 delta + canonical 术语对齐 CONTEXT.md。
 
 ---
 
@@ -56,7 +56,7 @@
   - `docs/superpowers/specs/2026-05-06-m5-team-viral-sync-design.md`（M5 viral sync 设计）
   - `docs/features/team-share.md`（M5 已 ship 现状清单）
   - `docs/features/multi-tool.md`（PreToolUse / UserPromptSubmit / Stop / AttributionBus 4 通道现状）
-  - ADR-0005
+  - ADR-0006
 
 ## Glossary mapping — issue 用语 → CONTEXT.md canonical
 
@@ -86,7 +86,7 @@ Issue #82 的 5 个原始设计问题里，**前 4 个已被 M5 viral sync (PR #
    - Machine M2 上 SessionStart 自动 pull → post-merge hook 触发 `m5-sync --apply` → 规则进入 M2 的本地 KB（`scope.level=team`）。
    - Machine M2 接下来在同类 prompt 上必须由 PreToolUse 拦截命中（命中率 = 100%），或在 UserPromptSubmit 显示提示。无关 prompt 不应误触发（误触率 ≈ 0）。
 2. **Attribution chain 可见性**：拦截事件在 AttributionBus 上发出的结构化事件里必须包含 `source_author`、`source_machine_id`、`source_commit_sha`、`source_rule_id`，并在 Renderer 处把这条链显式呈现给 M2 的用户（让 B 看见 "this rule came from A's commit <sha>"）。
-3. **依赖把关**：本 plan 的 follow-up impl PR **必须** 在 #81 plan 的 follow-up impl PR 走到 ≥1 份 personal-use raw evidence 后启动。前置阻塞条件由 ADR-0005 第 3 条强制（plan 必须显式列依赖）。
+3. **依赖把关**：本 plan 的 follow-up impl PR **必须** 在 #81 plan 的 follow-up impl PR 走到 ≥1 份 personal-use raw evidence 后启动。前置阻塞条件由 ADR-0006 第 3 条强制（plan 必须显式列依赖）。
 
 ### 怎么做
 
@@ -193,7 +193,7 @@ Judge harness **不**评：
 ## After-PR — POSTPR loop
 
 1. POSTPR loop 直到 Codex silent / 👍。
-2. Issue #82 close with cite-back comment（ADR-0005）：plan 路径 + PR 链接 + 一句 "ready for impl PR pending #81 follow-up impl PR producing ≥1 redacted personal-use evidence; canonical naming per CONTEXT.md is team-scope viral sync teaching, mapped to issue title 'group sharing' inside plan's Glossary mapping section"。
+2. Issue #82 close with cite-back comment（ADR-0006）：plan 路径 + PR 链接 + 一句 "ready for impl PR pending #81 follow-up impl PR producing ≥1 redacted personal-use evidence; canonical naming per CONTEXT.md is team-scope viral sync teaching, mapped to issue title 'group sharing' inside plan's Glossary mapping section"。
 3. Follow-up impl PR 反向引用本 plan；不重开 #82。
 
 ## 风险与回滚
@@ -202,7 +202,7 @@ Judge harness **不**评：
 |---|---|---|
 | AttributionBus team-scope 路径缺 source_* 字段 | Probe-2 提前发现；follow-up impl PR 在跑 e2e rig 前补 | 不回滚 plan；follow-up impl PR 多 1 个 commit 补 emit |
 | E2E rig 在 CI 上不稳（git push/pull 慢、文件锁） | 用 `git --bare` 临时 remote + 仅本机两个 worktree；不依赖网络 | rig flaky 时重试 ≤3 次；仍 fail 则进 follow-up bug report 流程 |
-| #81 follow-up impl PR 长期未启动 | ADR-0005 第 3 条强制依赖；本 plan close 时显式声明依赖 | 不回滚 plan；team 决定是否重开 #82（重开走人手） |
+| #81 follow-up impl PR 长期未启动 | ADR-0006 第 3 条强制依赖；本 plan close 时显式声明依赖 | 不回滚 plan；team 决定是否重开 #82（重开走人手） |
 | M5 spec 后续被改（multi-variant 等 NOT YET 项 ship 后） | 本 plan 锁定当前 M5 现状作为基线 | follow-up impl PR 启动时核对 M5 现状是否仍匹配本 plan；不匹配先更新 plan |
 | 用户在 issue body 看到"group sharing"以为本 plan 没回答 | Glossary mapping 节明确映射；close comment 重申 | 用户疑问时指向 Glossary mapping 节 |
 
