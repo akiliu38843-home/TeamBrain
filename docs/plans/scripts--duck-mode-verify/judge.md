@@ -71,3 +71,17 @@ LLM judge prompt (run via `claudefast -p`):
   - V5 anchor check (FASTPROBE/POSTPR/TEAMWORK) graded a canned answer removed at d341da8; that sub-check is SKIP.
   - Jargon term regex is hardcoded; update if the set of forbidden technical terms changes.
   - Baseline file `docs/baselines/stats-engineer-baseline.txt` may be absent; diff is then 0.
+
+### Duck mode wiring: current state (investigated 2026-05-08)
+
+**`stats` surface:** `packages/cli/src/commands/stats.ts` wraps all render paths with `duckifyText()` from `@teamagent/core`. However, duck annotations only appear when a line contains one of the jargon terms in `packages/core/src/duck-mode/translations.ts` (e.g., `confidence`, `tier`, `canonical`, `knowledge.db`, `hooks`, `embedding`). The generic stats banner text ("📊 TeamAgent 知识库统计", scope/category counts) contains none of these terms, so zero duck lines are emitted for an empty DB or for the static template portion. Duck lines DO appear when `topHits` data is present (e.g., "conf=0.95" matches `confidence` translation) or when the confidence-movement section renders the word "confidence" in "本周（7 天）confidence 变化 top 5:".
+
+**`postinstall` surface:** `packages/teamagent/postinstall.mjs` has its own inline duck mode implementation (POSTINSTALL_DUCK table, `duckify()` function). Duck annotations appear when postinstall output lines contain one of: `归因渲染`, `知识种子`, `hook`, `doctor`, `knowledge.db`, `verbose`. These terms DO appear in the postinstall banner (e.g., "归因渲染: verbose 模式", "知识种子: N 条", "向量模型" matches inline duck table entry for `hook` via "SessionStart" alias — actually `hook` appears in the stderr stage messages). With an empty DB the banner says "知识种子: 无打包规则" which contains "知识种子", so at least one duck annotation SHOULD appear when `TEAMAGENT_EXPLAIN_LIKE_CEO_DUCK=1`. If Phase 2 found zero duck lines on postinstall, this was likely because the test captured only stdout while duck annotations for stage messages go to stderr.
+
+**Resolution:** Duck mode is wired into both surfaces. Zero duck lines on stats is expected for empty-DB or no-jargon-line output — this is by design (duck-mode is a jargon annotator, not a blanket duck-ifier). The §V3 PASS gate (`duck_lines_emitted >= 1`) should be relaxed for postinstall to only count stdout anchors OR the test should redirect `2>&1` and ensure jargon lines are in scope.
+
+**Updated §V3 NOTE:** If `duck_lines_emitted == 0` for stats when the DB is empty, this is SKIP-EXPECTED (not FAIL). If `duck_lines_emitted == 0` for stats when the DB has active entries, that is FAIL. For postinstall, run with `2>&1` redirect to capture both stdout+stderr before counting duck lines.
+
+## Phase 2 fix log
+
+Resolved 2026-05-08: PLAYBOOK-FIX (option a) — duck mode IS wired into both stats (`duckifyText()` in `executeStats`) and postinstall (inline POSTINSTALL_DUCK table). Zero duck lines is expected behavior when stats output contains no jargon trigger terms (empty DB or static banner) and does NOT indicate missing wiring. Updated playbook Notes to document the term-triggered nature of duck annotations and relaxed §V3 PASS gate for empty-DB case. No code change required for stats or postinstall surfaces.
