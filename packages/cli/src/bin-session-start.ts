@@ -61,18 +61,44 @@ import { runM5Session, renderM5SessionBanner } from "./m5-session-hook.js";
 import { runAdvancedHook } from "./hook-shell/index.js";
 
 /**
- * SessionStart accepts effectively any input shape (including missing /
- * empty stdin). The handler doesn't read input fields — `ctx.cwd` is the
- * source of truth, and HookShell's own `pickRawCwd` already seeds it from
- * `raw.cwd` when the SDK supplies one. We return a typed-but-permissive
- * sentinel so empty stdin still drives the cleanup + auto-init pipeline
- * (legacy behavior).
+ * SessionStart accepts a Claude Code SessionStart payload (or empty stdin
+ * when invoked from a real Claude Code session that hasn't piped one).
+ *
+ * B-145 (preserved through merge): validate the input is a real Claude
+ * Code SessionStart payload before running side-effecting auto-init / M5
+ * bootstrap. Any tool / cron / typo that pipes garbage to this binary
+ * will otherwise trigger heavy work and can write to ~/.claude/settings.json.
+ * We accept the call only when at least one of these signals is present:
+ *   1. CLAUDE_PROJECT_DIR env var set (Claude Code sets this before hooks)
+ *   2. stdin contains a JSON object with hook_event_name === "SessionStart"
+ *   3. stdin is empty AND TEAMAGENT_ALLOW_BARE_SESSIONSTART=1 (manual dogfood)
+ * Returning `null` from parseInput fast-exits the shell without side effects.
  */
 type SessionStartInput = Partial<SessionStartHookInput>;
 
-function parseInput(raw: unknown): SessionStartInput {
-  if (raw && typeof raw === "object") return raw as SessionStartInput;
-  return {};
+function parseInput(raw: unknown): SessionStartInput | null {
+  const isObject = raw && typeof raw === "object";
+  const hookEventName = isObject
+    ? (raw as { hook_event_name?: unknown }).hook_event_name
+    : undefined;
+
+  const claudeProjectDir = process.env["CLAUDE_PROJECT_DIR"];
+  const allowBare = process.env["TEAMAGENT_ALLOW_BARE_SESSIONSTART"] === "1";
+
+  // Signal 2: documented Claude Code SessionStart hook payload shape.
+  if (isObject && hookEventName === "SessionStart") {
+    return raw as SessionStartInput;
+  }
+  // Signal 1: CLAUDE_PROJECT_DIR set + stdin is an object (or empty).
+  if (claudeProjectDir && (isObject || raw === null)) {
+    return isObject ? (raw as SessionStartInput) : ({} as SessionStartInput);
+  }
+  // Signal 3: empty stdin + manual dogfood opt-in.
+  if (raw === null && allowBare) {
+    return {} as SessionStartInput;
+  }
+  // No signal — silently fast-exit (do not run auto-init).
+  return null;
 }
 
 async function main(): Promise<void> {
