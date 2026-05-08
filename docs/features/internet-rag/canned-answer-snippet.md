@@ -36,8 +36,8 @@ This feature ranks external internet sources (papers, documentation, blog posts)
 ## Verification
 
 ```text
-# Run-judge (utility, retained per docs/legacy/judge-scripts/README.md exemption):
-bash docs/features/internet-rag/run-judge.sh
+# Run-judge md playbook (script archived to docs/legacy/judge-scripts/...; use playbook):
+docs/plans/docs--features--internet-rag--run-judge/judge.md
 # Verify-canned-answer (utility, retained per docs/legacy/judge-scripts/README.md exemption):
 bash docs/features/internet-rag/verify-canned-answer.sh
 ```
