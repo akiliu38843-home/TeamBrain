@@ -3,7 +3,7 @@
  *
  * 自 PR `teamwork/hookshell-attribution-fused` commit 4 起，AttributionEvent
  * 是按 `kind` 区分的 discriminated union（之前是 `{ source, action: string, ... }`
- * 的 free-string 形态）。改动动机见 ADR-0007：让 StdoutRenderer 可以做
+ * 的 free-string 形态）。改动动机见 ADR-0008：让 StdoutRenderer 可以做
  * exhaustive switch by kind 在编译期捕获遗漏的 emit point。
  *
  * 命名约定：`kind` 用 `domain.action` 或 `verb-noun` 风格，与
@@ -13,9 +13,11 @@
  * `timestamp`（ISO 8601）+ `source`（聚合 channel 标签，便于在 Renderer 里
  * 按 source 分组）。每个 kind 自己的 payload 字段是 typed，不再用泛 `target`。
  *
- * 可选字段：`userFacingValue`（人话："下次遇到 X 会改用 Y"）和
- * `counterfactual`（反事实："没有 TeamAgent 你会 Z"）保持 optional——
- * 不是每条 kind 都有人话。
+ * 可选字段：`userFacingValue`（人话："下次遇到 X 会改用 Y"）、
+ * `counterfactual`（反事实："没有 TeamAgent 你会 Z"，仅 verbose 显示）和
+ * `delivery`（audience+blocking 标签，per ADR-0009，metadata only 不映射
+ * 退码）都保持 optional——不是每条 kind 都有人话/不是每条都需要明示
+ * audience 意图。
  *
  * 添加新 kind 是 type-additive change（不破坏既有 callsite），但必须
  * 同步在 StdoutRenderer 的 switch 里加分支，否则 `_exhaustive: never` 会
@@ -32,12 +34,12 @@ interface AttributionEventBase {
   /** 反事实："没有 TeamAgent 你会 Z"，仅 verbose 模式显示 */
   counterfactual?: string;
   /**
-   * audience+blocking 复合标签 (metadata only, per ADR-0008)：
+   * audience+blocking 复合标签 (metadata only, per ADR-0009)：
    * - "log"     仅用户看 (默认)
    * - "context" 意图让 Claude 当上下文 (当前不映射退码)
    * - "block"   意图阻断 (当前不映射退码)
    *
-   * 当前 HookShell 始终 exit 0 (per ADR-0007), delivery 不影响退码。
+   * 当前 HookShell 始终 exit 0 (per ADR-0008), delivery 不影响退码。
    * 未来若放宽 always-exit-0 约束, 该字段可作 hook 退码聚合依据。
    */
   delivery?: "log" | "context" | "block";

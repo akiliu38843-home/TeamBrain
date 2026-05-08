@@ -79,8 +79,8 @@ export function runAttributionBusContract(factory: () => AttributionBus): void {
       expect(b).toEqual(["x"]);
     });
 
-    it("delivery field roundtrips through emit + drain (ADR-0008)", () => {
-      // delivery 字段是 metadata only (per ADR-0008, α2 决议保留 ADR-0007 always-exit-0)
+    it("delivery field roundtrips through emit + drain (ADR-0009)", () => {
+      // delivery 字段是 metadata only (per ADR-0009, α2 决议保留 ADR-0008 always-exit-0)
       // 但 bus 必须保证字段经 emit + drain 不丢失，否则 future Renderer 装饰 / 退码扩展失效
       bus.emit(makeEvent({ delivery: "log" }));
       bus.emit(makeEvent({ delivery: "context" }));
@@ -88,6 +88,17 @@ export function runAttributionBusContract(factory: () => AttributionBus): void {
       bus.emit(makeEvent({})); // delivery undefined → 默认 "log" 语义
       const drained = bus.drain();
       expect(drained.map((e) => e.delivery)).toEqual(["log", "context", "block", undefined]);
+    });
+
+    it("subscribe handler receives delivery field (ADR-0009)", () => {
+      // delivery roundtrip 用例只覆盖 emit→drain；future Renderer 装饰会走 subscribe
+      // 路径，因此 subscribe handler 也必须能拿到 delivery 不丢字段。
+      const seen: Array<AttributionEvent["delivery"]> = [];
+      bus.subscribe((e) => seen.push(e.delivery));
+      bus.emit(makeEvent({ delivery: "context" }));
+      bus.emit(makeEvent({ delivery: "block" }));
+      bus.emit(makeEvent({})); // undefined 默认语义
+      expect(seen).toEqual(["context", "block", undefined]);
     });
   });
 }
