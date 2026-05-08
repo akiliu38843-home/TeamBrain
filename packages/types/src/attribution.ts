@@ -428,3 +428,36 @@ export function parseVisibilityMode(raw: string | undefined): VisibilityMode {
   if (raw === "silent" || raw === "smart" || raw === "verbose") return raw;
   return DEFAULT_VISIBILITY;
 }
+
+/**
+ * Sanitize a string before rendering it on stderr / stdout.
+ *
+ * Originally lived as `sanitizeRuleText` in `pre-tool-use-handler.ts` for the
+ * Pre-tool-use systemMessage path; lifted here per security-specialist
+ * /review on PR #152 so `StdoutRenderer` (which renders every
+ * `AttributionEvent.userFacingValue` and `.counterfactual` to stderr) can
+ * apply the same hardening. Without this, attacker-influenced rule content
+ * (B-126: corrupt UTF-8 surrogate halves; B-130: ANSI cursor moves /
+ * terminal-title rewrites embedded in user transcripts) would be echoed to
+ * the user's terminal verbatim every time the rule fires.
+ *
+ * Strips:
+ *   - CSI (`\x1b[...`) and OSC (`\x1b]...\x07`) ANSI escape sequences
+ *   - ASCII control bytes `\x00-\x08`, `\x0b-\x1f`, `\x7f` (newline + tab
+ *     preserved so multiline AttributionEvent fields still render correctly)
+ *   - lone UTF-16 surrogate halves (mojibake from broken UTF-8 round-trips)
+ *
+ * Returns "" for non-string input so callers don't have to guard.
+ */
+export function sanitizeUserFacingText(s: unknown): string {
+  if (typeof s !== "string") return "";
+  // strip CSI / OSC ANSI escape sequences
+  let out = s.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "").replace(/\x1b\][^\x07]*\x07/g, "");
+  // strip control bytes except newline/tab
+  // eslint-disable-next-line no-control-regex
+  out = out.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "");
+  // strip lone surrogate halves (mojibake from corrupt UTF-8 round-trips)
+  out = out.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, "");
+  out = out.replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
+  return out;
+}
