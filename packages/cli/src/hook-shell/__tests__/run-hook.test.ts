@@ -284,6 +284,47 @@ describe("runHook lifecycle (default layer)", () => {
 
     expect(constructorSpy).not.toHaveBeenCalled();
     expect(exitCode).toBe(0);
+    // Belt-and-suspenders: lock in the no-filesystem-side-effect guarantee at
+    // the OS level. If ensureDirsOnce is ever decoupled from the DualLayerStore
+    // constructor path (e.g. called eagerly by the bus), the spy still passes
+    // but these fs assertions would catch the regression.
+    expect(fs.existsSync(path.join(tmpCwd, ".teamagent"))).toBe(false);
+    expect(fs.existsSync(path.join(tmpHome, ".teamagent"))).toBe(false);
+  });
+
+  it("does NOT open DualLayerStore via {...ctx} spread", async () => {
+    // Regression guard for the enumerable:false property descriptor on ctx.store
+    // and ctx.eventLog. If either getter is ever made enumerable, spreading ctx
+    // (e.g. in a logging or serialisation path) would fire the getter as a side
+    // effect and open SQLite on disk — defeating the lazy-open guarantee.
+    feedStdin(JSON.stringify({ x: 1, cwd: tmpCwd }));
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const constructorSpy = vi
+      .spyOn(adapters as Record<string, unknown> as any, "DualLayerStore")
+      .mockImplementation(function (this: unknown) {
+        throw new Error("DualLayerStore unexpectedly constructed via spread");
+      } as never);
+
+    try {
+      await runUntilExit(() =>
+        runHook<unknown, undefined>({
+          channel: "PostToolUse",
+          parseInput: (raw: unknown) => raw,
+          handler: (ctx: DefaultHookContext<unknown>) => {
+            // Spread ctx — must NOT trigger the store/eventLog getters.
+            const _ = { ...ctx };
+            void _;
+            return undefined;
+          },
+        }),
+      );
+    } finally {
+      constructorSpy.mockRestore();
+    }
+
+    expect(constructorSpy).not.toHaveBeenCalled();
+    expect(exitCode).toBe(0);
   });
 
   // ── cwd resolution priority chain (Codex P2 fix on PR #152) ──────────────

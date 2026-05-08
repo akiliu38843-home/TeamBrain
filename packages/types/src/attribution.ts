@@ -442,7 +442,12 @@ export function parseVisibilityMode(raw: string | undefined): VisibilityMode {
  * the user's terminal verbatim every time the rule fires.
  *
  * Strips:
- *   - CSI (`\x1b[...`) and OSC (`\x1b]...\x07`) ANSI escape sequences
+ *   - 7-bit CSI (`\x1b[...`) ANSI escape sequences
+ *   - 8-bit CSI (`\x9b[...`) ANSI escape sequences (C1 controls)
+ *   - 7-bit OSC ending in BEL (`\x1b]...\x07`) — applied after ST variant
+ *   - 7-bit OSC ending in ST (`\x1b]...\x1b\`) — applied before BEL variant
+ *     to prevent BEL regex consuming across the ST terminator
+ *   - 8-bit OSC ending in ST (`\x9d...\x9c`) or BEL (`\x9d...\x07`)
  *   - ASCII control bytes `\x00-\x08`, `\x0b-\x1f`, `\x7f` (newline + tab
  *     preserved so multiline AttributionEvent fields still render correctly)
  *   - lone UTF-16 surrogate halves (mojibake from broken UTF-8 round-trips)
@@ -451,8 +456,24 @@ export function parseVisibilityMode(raw: string | undefined): VisibilityMode {
  */
 export function sanitizeUserFacingText(s: unknown): string {
   if (typeof s !== "string") return "";
-  // strip CSI / OSC ANSI escape sequences
-  let out = s.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "").replace(/\x1b\][^\x07]*\x07/g, "");
+  // strip 7-bit CSI escape sequences
+  let out = s.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
+  // strip 8-bit CSI escape sequences (C1 \x9b)
+  out = out.replace(/\x9b[0-9;?]*[ -/]*[@-~]/g, "");
+  // strip 7-bit OSC with ST terminator (\x1b\) BEFORE BEL variant to avoid
+  // BEL regex consuming across the ST terminator
+  out = out.replace(/\x1b\][^\x1b]*\x1b\\/g, "");
+  // strip 7-bit OSC with BEL terminator
+  out = out.replace(/\x1b\][^\x07]*\x07/g, "");
+  // strip 8-bit OSC (C1 \x9d) ending in ST (\x9c) or BEL (\x07)
+  out = out.replace(/\x9d[^\x9c\x07]*[\x9c\x07]/g, "");
+  // strip ALL remaining C1 control bytes (\x80-\x9f). Unterminated 8-bit OSC
+  // (`\x9d` without `\x9c`/`\x07`) and bare `\x9b` / other C1 controls escape
+  // the per-sequence regexes above; this blanket pass catches them. C1 has
+  // no legitimate use in user-facing rule text — Latin-1-supplement printable
+  // chars start at \xa0.
+  // eslint-disable-next-line no-control-regex
+  out = out.replace(/[\x80-\x9f]/g, "");
   // strip control bytes except newline/tab
   // eslint-disable-next-line no-control-regex
   out = out.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "");

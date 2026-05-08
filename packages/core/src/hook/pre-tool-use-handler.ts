@@ -123,7 +123,7 @@ export function createPreToolUseHandler(deps: PreToolUseDeps) {
         const hitSummary = hits.length > 0 ? `, 语义命中 ${hits.length} 条` : "";
         const lines = [`◈ TeamAgent: ✓ ${tool_name} 放行 (检查 ${n} 条规则${hitSummary})`];
         for (const h of hits) {
-          lines.push(`  · [${h.id}] ${h.trigger.slice(0, 40)} (score ${h.score.toFixed(2)})`);
+          lines.push(`  · [${h.id}] ${sanitizeUserFacingText(h.trigger).slice(0, 40)} (score ${h.score.toFixed(2)})`);
         }
         return { permissionDecision: "allow", systemMessage: lines.join("\n") };
       }
@@ -249,9 +249,9 @@ function formatHumaneBlock(rule: any, now: Date, severity: "warn" | "block"): st
 function formatLegacyWarnBox(rule: any, now: Date): string {
   const age = rule.created_at ? relativeTime(rule.created_at as string, now) : "未知";
   const conf = typeof rule.confidence === "number" ? rule.confidence.toFixed(2) : "?";
-  const correct = rule.correct_pattern ?? rule.trigger ?? "";
-  const wrong = rule.wrong_pattern ?? "";
-  const reasoning = rule.reasoning ?? "";
+  const correct = sanitizeUserFacingText(rule.correct_pattern ?? rule.trigger ?? "");
+  const wrong = sanitizeUserFacingText(rule.wrong_pattern ?? "");
+  const reasoning = sanitizeUserFacingText(rule.reasoning ?? "");
   const lines = [`置信度 ${conf} · ${age}学到`];
   if (wrong) lines.push(...formatRuleField("避免", wrong));
   if (correct) lines.push(...formatRuleField("使用", correct));
@@ -263,9 +263,9 @@ function formatLegacyBlockBox(rule: any, now: Date): string {
   const age = rule.created_at ? relativeTime(rule.created_at as string, now) : "未知";
   const conf = typeof rule.confidence === "number" ? rule.confidence.toFixed(2) : "?";
   const hitCount = typeof rule.hit_count === "number" ? rule.hit_count : 0;
-  const correct = rule.correct_pattern ?? rule.trigger ?? "";
-  const wrong = rule.wrong_pattern ?? "";
-  const reasoning = rule.reasoning ?? "";
+  const correct = sanitizeUserFacingText(rule.correct_pattern ?? rule.trigger ?? "");
+  const wrong = sanitizeUserFacingText(rule.wrong_pattern ?? "");
+  const reasoning = sanitizeUserFacingText(rule.reasoning ?? "");
   const lines = [`置信度 ${conf} · 已触发 ${hitCount} 次 · ${age}学到`];
   if (wrong) lines.push(...formatRuleField("避免", wrong));
   if (correct) lines.push(...formatRuleField("使用", correct));

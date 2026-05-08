@@ -230,8 +230,9 @@ export async function runHook<TInput, TOutput>(
       mirrorSystemMessage: mirror,
     } as unknown as DefaultHookContext<TInput>;
 
+    // non-enumerable: prevents accidental eager-open via {...ctx} spread / JSON.stringify
     Object.defineProperty(ctx, "store", {
-      enumerable: true,
+      enumerable: false,
       configurable: false,
       get(): HookKnowledgeStore {
         if (store === null) {
@@ -245,8 +246,9 @@ export async function runHook<TInput, TOutput>(
       },
     });
 
+    // non-enumerable: prevents accidental eager-open via {...ctx} spread / JSON.stringify
     Object.defineProperty(ctx, "eventLog", {
-      enumerable: true,
+      enumerable: false,
       configurable: false,
       get(): HookEventLog {
         if (eventLog === null) {

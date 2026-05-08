@@ -53,6 +53,14 @@ vi.mock("@teamagent/adapters", () => {
     render(_events: unknown[], _vis: unknown): string { return ""; }
   }
   function normalizeCwd(cwd: string): string { return cwd; }
+  // `satisfies Partial<typeof import("@teamagent/adapters")>` would be ideal
+  // to catch future key renames on the real adapters barrel at compile time.
+  // However the mock stubs are intentionally minimal (missing the full instance
+  // interfaces of DualLayerStore, SqliteEventLog, etc.), so TypeScript rejects
+  // both `satisfies` and a direct `as Partial<...>` cast with TS2352.
+  // We use `as unknown as Partial<...>` to escape for the factory return while
+  // still documenting the intended shape. Key renames in the barrel will be
+  // caught first by the import in index.ts failing typecheck.
   return {
     DualLayerStore: MockDualLayerStore,
     SqliteEventLog: MockSqliteEventLog,
@@ -60,7 +68,7 @@ vi.mock("@teamagent/adapters", () => {
     InMemoryAttributionBus: MockInMemoryAttributionBus,
     StdoutRenderer: MockStdoutRenderer,
     normalizeCwd,
-  };
+  } as unknown as Partial<typeof import("@teamagent/adapters")>;
 });
 
 import { runAdvancedHook } from "../index.js";
@@ -351,18 +359,18 @@ describe("runAdvancedHook — manualResources: true", () => {
 
 describe("runAdvancedHook — pipelineTimeoutMs", () => {
   it("handler that never resolves → timeout → no stdout written → exit 0", async () => {
-    // Strategy: use a very short real timeout (10ms) and a handler that stalls
-    // via a never-resolving promise. We don't use fake timers here because
-    // vi.useFakeTimers() interferes with the async-iteration of process.stdin
-    // (readStdinJson uses `for await...of`), causing the test to deadlock.
-    // A 10ms real timeout is fast enough to keep the suite quick.
+    // Real 50ms timeout (not fake timers) — vi.advanceTimersByTime deadlocks
+    // against readStdinJson's for-await on process.stdin. 50ms is the lower
+    // bound that's reliable on a heavily-loaded CI host (10ms occasionally
+    // raced with handler-coroutine scheduling). Total test runtime stays
+    // well under the 5000ms vitest default.
     feedStdin(makePayload(tmpCwd));
 
     await runUntilExit(() =>
       runAdvancedHook({
         channel: "Stop",
         parseInput: parseAny,
-        escape: { pipelineTimeoutMs: 10 },
+        escape: { pipelineTimeoutMs: 50 },
         handler: () =>
           // A promise that never resolves — simulates a stuck pipeline.
           new Promise<{ result: string }>(() => { /* never */ }),
@@ -401,7 +409,7 @@ describe("runAdvancedHook — pipelineTimeoutMs", () => {
         channel: "Stop",
         parseInput: parseAny,
         // Combine manualResources + pipelineTimeoutMs to verify both interact correctly.
-        escape: { pipelineTimeoutMs: 10, manualResources: true },
+        escape: { pipelineTimeoutMs: 50, manualResources: true },
         handler: (ctx: AdvancedHookContext<Record<string, unknown>>) => {
           ctx.store(); // trigger lazy open so finally has something to close
           return new Promise<undefined>(() => { /* never */ });
@@ -424,7 +432,7 @@ describe("runAdvancedHook — pipelineTimeoutMs", () => {
         channel: "Stop",
         parseInput: parseAny,
         escape: {
-          pipelineTimeoutMs: 10,
+          pipelineTimeoutMs: 50,
           lock: { relativePath: lockRelPath, payload: () => ({ pid: 1 }) },
         },
         handler: () => new Promise<undefined>(() => { /* never */ }),

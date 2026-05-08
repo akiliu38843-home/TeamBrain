@@ -525,6 +525,15 @@ describe("StdoutRenderer render-coverage — all AttributionEvent kinds", () => 
    * firstLine). All 40 TypeScript kind literals are covered.
    */
 
+  // Cross-check: every distinct AttributionEvent kind in the discriminated
+  // union must have at least one fixture. If a 41st kind is added to
+  // packages/types/src/attribution.ts but no fixture is added here, this
+  // assertion fails loudly instead of silently passing.
+  const kindsCovered = new Set(ALL_EVENTS.map((entry) => entry.event.kind));
+  it("covers every AttributionEvent kind", () => {
+    expect(kindsCovered.size).toBe(40);
+  });
+
   it.each(ALL_EVENTS)("$label: action line is non-empty and contains no 'undefined'/'NaN'", ({ event }) => {
     const out = renderOne(event);
 
@@ -665,5 +674,115 @@ describe("StdoutRenderer render-coverage — per-kind content spot checks", () =
       "verbose",
     );
     expect(out).toContain("rule-016");
+  });
+
+  it("pitfall.added with adversarial userFacingValue: clean content survives, ANSI stripped", () => {
+    // Security finding (PR #152 review conf 9): describeAction/describeKnowledgeChange/
+    // describeTarget render user-controlled fields; call-site sanitizeUserFacingText()
+    // wrapping must strip ANSI escapes before they reach stderr.
+    const event: AttributionEvent = {
+      kind: "pitfall.added",
+      source: "pitfall",
+      severity: "highlight",
+      timestamp: BASE_TS,
+      knowledgeId: "rule-sec",
+      category: "security",
+      tag: "injection-test",
+      level: "personal",
+      knowledgeCountBefore: 0,
+      knowledgeCountAfter: 1,
+      skillMdPath: "/skills/rule-sec/SKILL.md",
+      userFacingValue: "\x1b[2J\x1b[Hgotcha\x1b]0;hijack\x07",
+    };
+    const out = renderer2.render([event], "verbose");
+
+    // Clean content extracted from the adversarial payload must appear
+    expect(out).toContain("gotcha");
+
+    // No raw ANSI escape bytes in the rendered output
+    expect(out).not.toContain("\x1b");
+    expect(out).not.toContain("\x9b");
+    expect(out).not.toContain("\x07");
+    expect(out).not.toContain("\x9d");
+  });
+
+  it("adversarial counterfactual: stripped end-to-end via call-site sanitizer", () => {
+    // Round 2 re-review (testing): the userFacingValue path was tested above,
+    // but the parallel `counterfactual` field also rendered to stderr at
+    // stdout-renderer.ts:169. Add adversarial counterfactual coverage.
+    const event: AttributionEvent = {
+      kind: "pitfall.added",
+      source: "pitfall",
+      severity: "highlight",
+      timestamp: BASE_TS,
+      knowledgeId: "rule-cf",
+      category: "noise",
+      tag: "cf-attack",
+      level: "personal",
+      knowledgeCountBefore: 0,
+      knowledgeCountAfter: 1,
+      skillMdPath: "/skills/rule-cf/SKILL.md",
+      userFacingValue: "safe-uf",
+      // attacks are placed AFTER clean content so the regex final-byte
+      // consumption doesn't eat the survivable text.
+      counterfactual: "cfgotcha\x1b[2J\x9d0;hijack\x9c",
+    };
+    const out = renderer2.render([event], "verbose");
+    expect(out).toContain("cfgotcha");
+    expect(out).not.toContain("\x1b");
+    expect(out).not.toContain("\x9b");
+    expect(out).not.toContain("\x9d");
+  });
+
+  it("verbose raw-events JSON dump strips C1 bytes from event field content", () => {
+    // Round 2 re-review (security conf 9): JSON.stringify does not escape
+    // \x80-\x9f, so an event field with 8-bit CSI/OSC bytes emitted them
+    // as raw bytes in the verbose `--- raw events ---` audit dump even
+    // when per-line call sites were sanitized. The fix wraps the
+    // JSON.stringify result in sanitizeUserFacingText too.
+    const event: AttributionEvent = {
+      kind: "pitfall.added",
+      source: "pitfall",
+      severity: "highlight",
+      timestamp: BASE_TS,
+      knowledgeId: "rule-json",
+      category: "json-attack",
+      tag: "raw-dump",
+      level: "personal",
+      knowledgeCountBefore: 0,
+      knowledgeCountAfter: 1,
+      skillMdPath: "/skills/rule-json/SKILL.md",
+      userFacingValue: "uf-clean",
+      counterfactual: "cf-with-c1\x9b\x9dbytes",
+    };
+    const out = renderer2.render([event], "verbose");
+    // Verbose includes the raw events JSON dump section.
+    expect(out).toContain("--- raw events ---");
+    // Even in the dump, no raw C1 bytes survive.
+    expect(out).not.toContain("\x9b");
+    expect(out).not.toContain("\x9d");
+  });
+
+  it("unterminated 8-bit OSC (\\x9d without terminator) is stripped end-to-end", () => {
+    // Round 2 re-review (security conf 8): the terminated-only \x9d regex
+    // didn't catch a bare introducer byte. C1-blanket strip catches it.
+    const event: AttributionEvent = {
+      kind: "pitfall.added",
+      source: "pitfall",
+      severity: "highlight",
+      timestamp: BASE_TS,
+      knowledgeId: "rule-c1",
+      category: "c1-bare",
+      tag: "no-terminator",
+      level: "personal",
+      knowledgeCountBefore: 0,
+      knowledgeCountAfter: 1,
+      skillMdPath: "/skills/rule-c1/SKILL.md",
+      userFacingValue: "before\x9dnoterminator-after",
+    };
+    const out = renderer2.render([event], "verbose");
+    expect(out).toContain("before");
+    expect(out).toContain("noterminator-after");
+    expect(out).not.toContain("\x9d");
   });
 });
