@@ -31,6 +31,16 @@ interface AttributionEventBase {
   userFacingValue?: string;
   /** 反事实："没有 TeamAgent 你会 Z"，仅 verbose 模式显示 */
   counterfactual?: string;
+  /**
+   * audience+blocking 复合标签 (metadata only, per ADR-0008)：
+   * - "log"     仅用户看 (默认)
+   * - "context" 意图让 Claude 当上下文 (当前不映射退码)
+   * - "block"   意图阻断 (当前不映射退码)
+   *
+   * 当前 HookShell 始终 exit 0 (per ADR-0007), delivery 不影响退码。
+   * 未来若放宽 always-exit-0 约束, 该字段可作 hook 退码聚合依据。
+   */
+  delivery?: "log" | "context" | "block";
 }
 
 // ──────────────────────────────────────────────────────────────────────────

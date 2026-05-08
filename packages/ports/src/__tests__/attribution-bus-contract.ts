@@ -78,5 +78,16 @@ export function runAttributionBusContract(factory: () => AttributionBus): void {
       expect(a).toEqual(["x"]);
       expect(b).toEqual(["x"]);
     });
+
+    it("delivery field roundtrips through emit + drain (ADR-0008)", () => {
+      // delivery 字段是 metadata only (per ADR-0008, α2 决议保留 ADR-0007 always-exit-0)
+      // 但 bus 必须保证字段经 emit + drain 不丢失，否则 future Renderer 装饰 / 退码扩展失效
+      bus.emit(makeEvent({ delivery: "log" }));
+      bus.emit(makeEvent({ delivery: "context" }));
+      bus.emit(makeEvent({ delivery: "block" }));
+      bus.emit(makeEvent({})); // delivery undefined → 默认 "log" 语义
+      const drained = bus.drain();
+      expect(drained.map((e) => e.delivery)).toEqual(["log", "context", "block", undefined]);
+    });
   });
 }

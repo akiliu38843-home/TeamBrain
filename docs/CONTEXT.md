@@ -116,6 +116,11 @@ _Avoid_: hook framework（错位的 plugin/middleware 联想）, hook runner（r
 单个 Hook channel 的 channel-specific 业务函数，运行在 HookShell 的 `handler(ctx)` 槽位。位于 `packages/core/src/hook/`（自 ADR-0007 起；之前的 `createPreToolUseHandler` / `createPostToolUseHandler` 在 `packages/adapters/`，违反 FCIS 元约束）。每个 handler 是纯函数 + 注入 deps（`idGen` / `now` / `formatStyle` 等），通过 `bus.emit({ kind, ... })` 发 user-visible 系统事件，**不**直接 `process.stderr.write`。adapter 端保留 thin wrapper 绑生产 deps 让旧 caller 0 改动。
 _Avoid_: handler（无修饰）, hook function（与 React hooks 联想冲突）, hook callback（暗示同步触发链）
 
+**Delivery mode**:
+单条 `AttributionEvent` 的「audience + blocking」复合标签，三档枚举：`log | context | block`，加在 `AttributionEventBase` 上 optional 默认 `"log"`。`log` 仅给用户看；`context` 暗示 Claude 应消费此事件作 context（用于 future PostToolUse / UserPromptSubmit exit 2 退码反馈）；`block` 暗示这是阻断性归因（用于 future PreToolUse exit 2 + block 副作用）。**当前是 metadata only**——`HookShell.runHook` / `runAdvancedHook` 始终 exit 0（per ADR-0007 的 "never block harness" 保证），delivery 字段不映射到退码，仅供 Renderer 未来按 delivery 做装饰渲染（如 context 事件加 `[→Claude]` 前缀）+ grep 检索点 + future ADR 在已有字段上扩展退码聚合。详见 ADR-0008。
+_Avoid_: severity（描述事件响度 info/highlight/warning，与 delivery 正交，不要混用）
+_Avoid_: audience（仅描述谁看不描述阻止；delivery 同时承载两个维度，单字段收窄到 3 种实际有意义组合）
+
 ## Relationships
 
 - 一条 **personal** 规则经 **two gates** 通过后晋升为 **team**；不通过则永停 **L1**
@@ -127,6 +132,7 @@ _Avoid_: handler（无修饰）, hook function（与 React hooks 联想冲突）
 - **Tier ≥ stable** 是 `pnpm teamagent compile` 写 Skills 的门槛；因此 **Tier** 决定 compile gate，**Confidence** 不直接决定
 - **Calibration subagent** 走 git-backed transport / cross-machine **无关** —— 它是 host agent 进程内的本地行为，输出落到 L1 还是 L2 由所改 rule 自身的 scope 决定
 - 每个 **Hook channel** 的 imperative shell 都走 **HookShell** 的两层 API；channel-specific 业务在 **Hook handler** 内（住 core，纯函数）；user-visible 副作用全部通过 `ctx.bus.emit` 走 **AttributionBus** + StdoutRenderer，禁止 `process.stderr.write`（per ADR-0007 + lint rule `scripts/check-bin-stderr.sh`）
+- 每条 **AttributionEvent** 携带可选 **Delivery mode** 标签描述意图；当前 **HookShell** 始终 exit 0 不读此字段，但 **Renderer** 可读它做 future 装饰；该字段是 audience+blocking 维度的 architectural future-proof（详见 ADR-0008）
 
 ## Example dialogue
 
@@ -146,3 +152,4 @@ _Avoid_: handler（无修饰）, hook function（与 React hooks 联想冲突）
 - **"5-tier vs 6-tier"** — CLAUDE.md「TeamAgent 经验」第 4 条与设计文档曾写 5-tier；实际枚举 6 档（含 `dormant`）；解决：6-tier 为 canonical，文档在 ADR-0004 实现 PR 中对齐
 - **"AgenticCalibrator"** — 在 grilling 过程中曾被提出作为 TeamBrain 内部模块名；解决：拒绝；TeamBrain 不内嵌 LLM，agentic 判断由 host 端的 **Calibration subagent** 完成
 - **"5 handler factories" vs "2 handler factories"** — ADR-0007 + 早期 plan.md 假设 5 个 hook handler factory 要从 adapters 搬到 core；实际 inventory 只有 2 个（`pre-tool-use-sdk.ts` + `post-tool-use-sdk.ts`）。其他 hook channel（user-prompt-submit / stop / session-* / pre-compact / updater）已经直接以 `bin-*.ts` 形态在 `packages/cli/src/`，没有 `createXxxHandler(deps)` factory 模式可搬。**实际 sweep = 2 个 factory**，per commit 2 (PreToolUse) + commit 3 (PostToolUse)
+- **"audience vs delivery" / "exit 2 vs metadata"** — 候选 2 grilling (2026-05-08) 中曾考虑给 `AttributionEvent` 加 `audience: "user" | "claude" | "both"` + `blocking: bool` 两个独立字段，并让 delivery=context/block 触发 hook 退 2 让 Claude 拿 stderr 当 context；解决：单字段 `delivery: "log" | "context" | "block"` 收窄到 3 种实际有意义组合，且 α2 决议保留 ADR-0007 的 always-exit-0 保证——delivery 当前是 metadata 字段不映射退码；详见 ADR-0008

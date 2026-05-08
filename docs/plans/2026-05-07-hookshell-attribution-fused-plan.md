@@ -35,6 +35,7 @@ Plan 起源：[Architecture grilling session 2026-05-07/08](.) — `/improve-cod
 |-----|------|------|
 | v1 | 2026-05-07 | Initial fused plan after architecture grilling round 2 锁定全部 5 题 + max-power scope 升级 |
 | v1.1 | 2026-05-08 | Branch 转移：从 `teamwork/archive-hypothetical-ports` 移到独立分支 `teamwork/hookshell-attribution-fused`（避免与 ADR-0005 PR 共用 commit 树） |
+| v1.2 | 2026-05-08 | 加入 delivery field as metadata (per `/improve-codebase-architecture` candidate-2 grilling α2 决议)：`AttributionEventBase` 加 `delivery?: "log" \| "context" \| "block"` optional 字段；attribution-bus-contract.ts 加 roundtrip 用例；CONTEXT.md 加 Delivery mode 术语；详见 ADR-0008。**当前是 metadata only**——HookShell 仍走 ADR-0007 的 always-exit-0 路径不变 |
 
 ---
 
