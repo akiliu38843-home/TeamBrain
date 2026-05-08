@@ -5,14 +5,16 @@ import {
   type ExtractPipelineDeps,
 } from "../extract-pipeline.js";
 import type {
-  CorrectionDetector,
-  CorrectionMoment,
   KnowledgeExtractor,
   KnowledgeStore,
   AttributionBus,
   Validator,
   ValidationL0Result,
 } from "@teamagent/ports";
+import type {
+  CorrectionDetector,
+  CorrectionMoment,
+} from "../../correction-detector/rule-based.js";
 import type {
   AttributionEvent,
   KnowledgeEntry,
@@ -182,7 +184,7 @@ describe("runExtractPipeline", () => {
     expect(entry.status).toBe("active");
     expect(entry.trigger_description).toContain(entry.trigger);
     expect(entry.pattern_description).toContain("axios");
-    expect(entry.fire_threshold).toBe(0.40);
+    expect(entry.fire_threshold).toBe(0.65); // DEFAULT_FIRE_THRESHOLD raised from 0.40 → 0.65 (B-125/B-139)
     expect(entry.threshold_alpha).toBe(1.0);
     expect(entry.threshold_beta).toBe(1.0);
 

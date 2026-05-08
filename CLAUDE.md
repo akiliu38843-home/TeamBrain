@@ -156,6 +156,7 @@ working agreements.
 - 使用 检测到文件状态为 'nothing to stage' 或 'already tracked，no changes'时，应立即标记该文件为 skip，而不是重试或等待状态变化 而非 nothing to stage——Agent stalled for 600s 的根本原因：批处理逻辑未能识别 'nothing to stage' 作为终止条件，导致进程在无进展的状态检查循环中卡死。正确做法是将此状态视为'无操作需要'的信号，主动推进到下一个文件或任务。 [0.90]
 - 使用 检测到 'nothing to stage' 或 'already tracked' 立即标记 skip，不重试、不做额外树检查，推进下一个文件或任务 而非 nothing to stage——git 输出 'nothing to stage' 是明确的终止信号而非错误；agent 若继续重试或做额外 git tree 检查，会陷入无进展循环，最终触发 600s watchdog 超时将整个 batch 任务杀死 [0.90]
 - 逐个创建 playbook → 验证（用 Wave agent 或 claudefast -p） → 提交，而不是批量创建→批量提交→后验证——批量创建后集中验证会导致某个 playbook 失败时难以定位原因、影响后续工作流；逐步验证能及时发现问题并在单个文件层面修复，加快反馈循环 [0.90]
+- 每条消息末尾必须附加完整的 12-field <self-report> block：premature_stopping / permission_seeking / ownership_dodging / simplest_fix / reasoning_loop / known_limitation / skipped_repo_search / fabricated_value / placeholder_used / ambiguity_unresolved / contradiction_unresolved / silent_fallback，全部为 true|false 布尔值——Stop hook 强制要求 12-field self-report 块，缺失或格式错误会导致 hook 判定为 block；全部 false 表示继续执行，全部 true 或部分 true 表示存在需报告的问题信号 [0.90]
 - 使用 先读用户指向的文件，重新 brainstorm + 补全需求，再拆 task 实现；API key 来源询问用户（如 claude code haiku） 而非 计划文档只是设计文档，还没实现——AI 未读文件就断言不存在会误导用户；正确做法是先 Read 指定路径、以文件内容为准，再结合用户偏好（如用 haiku 作 token 来源）规划实现 [0.90] [预置]
 - 立即读取 output-file 并继续后续流程，不再说'等通知'——task-notification 本身就是通知；AI 仍说'等通知'说明未识别该消息为触发信号，正确做法是收到后立即处理输出、推进工作流 [0.90] [预置]
 - 后台 agent 完成时系统会发 task-notification，包含 task-id、output-file、status、summary；可通过 TaskOutput 工具按 task-id 读取结果——Agent(run_in_background=true) 底层走 TaskCreate 机制，完成后 harness 自动发 task-notification 事件；AI 声称'无法手动查状态'是错的，实际有 task-id 可查 [0.90] [预置]
@@ -173,5 +174,12 @@ working agreements.
 - 使用 直接调用 mcp 工具 而非 通过 wiki 知识库系统——wiki 知识库方案过度复杂；应优先检查是否有现成 mcp 工具可直接调用，避免绕路 [0.95] [预置]
 - 全局单次init，所有项目共享规则——全局 init 避免重复配置和规则分散，保证用户所有项目规则一致，降低管理成本 [0.95] [预置]
 - 修改文档后不要自动运行验证 probe；只在用户明确要求时才执行验证——自动验证每次提交会浪费 token 并干扰用户工作流；验证应该由用户显式触发而非被动自动化 [0.90]
+- 先澄清和解释系统逻辑细节，获得用户确认理解后再给建议——用户若不理解系统为何如此，对改动方案缺乏信心；同步理解是决策的前置条件，避免改动后产生新的疑虑 [0.95] [预置]
+- 按分阶段流程：通读项目结构 → 识别核心模块 → 追踪关键链路 → 提炼设计思想 → 最后动笔——充分的前期分析能确保文档的准确性、完整性和逻辑清晰，避免仓促写作导致遗漏或误读 [0.95] [预置]
+- 将抽象层级维持在问题与思路层而非技术与结构层；焦点放在问题形状、核心判断、思路选择与权衡取舍，避免具体技术名、目录、字段、算法、流水线式细节——资深架构师关注的是设计的认知模型与思维方式而非实现的技术栈；提升抽象层级使文档跨时间跨团队复用，避免技术细节导致的快速过时 [0.95] [预置]
+- 保持在功能与机制层级：讲『系统做什么』和『如何运转』，避免实现细节（技术名、目录、代码组织）和空泛表述（价值观、文学比喻）——资深读者需要清晰的功能骨架来快速形成系统心智模型；过低的抽象陷入无关细节，过高的抽象脱离工程实现，只有功能与机制层才能既有清晰的因果链又足以指导架构判断 [0.95] [预置]
+- 保持在功能与机制层：讲系统做什么、如何运转；避免掉进实现细节（技术名、路径、代码组织）和空泛理念（价值观表述、文学比喻）——资深工程师需要清晰的功能骨架来快速形成系统心智模型；掉进细节淹没主线，飘到理念脱离工程实践，只有功能与机制层既有因果链又足以指导架构判断 [0.95] [预置]
+- 遇到用户提出的概念和名词优先到 web 中 search，而非依赖自身记忆——LLM 记忆可能过时或有幻觉，web search 确保信息最新准确，特别是对新术语和概念的理解 [0.95] [预置]
 > 还有 37 条 canonical+ 规则因 token 预算未显示（teamagent compile --dry-run 查看）
+> 另有 2 条因与已选条目近义（Jaccard ≥ 0.6）被多样性过滤
 <!-- TEAMAGENT:END -->
