@@ -20,8 +20,9 @@ This is the **MD playbook** dispatched by the main agent (or maintainer) when ve
 ## Inputs
 
 - The impl PR's diff
-- `packages/cli/src/commands/record.ts` (new)
-- `packages/<m5-shell>/src/recording-ingest.ts` (new)
+- `packages/cli/src/commands/record-session.ts` (new — NOT `record.ts`, which would clash with the existing `recording.ts` recording-memory CLI)
+- `packages/core/src/m5/recording-ingest.ts` (new, pure functions colocated with secret-scanner)
+- `packages/adapters/src/m5/recording-uploader.ts` (new, IO side — asciinema spawn + gbrain upload)
 - `packages/core/src/recording/page-schema.ts` (new)
 - `docs/specs/<DATE>-team-scope-session-recording.md` (new)
 - `docs/plans/issue-83/poc-evidence/<run-id>/...`
@@ -189,12 +190,15 @@ Pass condition: all three true.
 
 ## Step 6 — Dependency on #82
 
+The team_id helper is currently inline in `packages/cli/src/commands/m5-sync.ts:95` (`computeTeamId`). The impl PR's deliverable extracts it to a shared helper `packages/core/src/m5/team-id.ts` and updates both call sites.
+
 Sub-agent reads:
 
-- `packages/core/src/m5/m5-sync.ts` — extract the team_id computation algorithm
-- `packages/<m5-shell>/src/recording-ingest.ts` — extract the team_id computation algorithm
+- `packages/core/src/m5/team-id.ts` — the new shared helper (extracted from `packages/cli/src/commands/m5-sync.ts:95`).
+- `packages/cli/src/commands/m5-sync.ts` — must now import from the helper, not redefine.
+- `packages/core/src/m5/recording-ingest.ts` — must also import from the helper.
 
-Both must compute team_id as `SHA256(normalize(git remote))[:16]` (or call into the same shared helper).
+Both call sites must compute team_id as `SHA256(normalize(git remote))[:16]` via the same shared helper. If the impl PR ships without extracting the helper, the test fails.
 
 Emit:
 
@@ -202,7 +206,7 @@ Emit:
 {
   "m5_sync_uses_helper": true,
   "recording_ingest_uses_helper": true,
-  "shared_helper_path": "packages/core/src/m5/team-id.ts",
+  "shared_helper_path": "packages/core/src/m5/team-id.ts (NEW; extracted from packages/cli/src/commands/m5-sync.ts:95 computeTeamId as part of this impl PR's deliverable)",
   "teamid_algorithms_match": true
 }
 ```
@@ -215,7 +219,7 @@ Main agent reads `step-{1..6}/raw.json`, applies pass conditions, writes `verdic
 
 ## What this judge harness does NOT do
 
-- It does not judge whether asciinema is the "right" recording technology — that's a v1 decision in the plan.
+- It does not judge whether asciinema is the "right" recording technology — that's a v1 decision in the plan. v1 supports both asciinema cast v2 and v3 schemas.
 - It does not enforce frame-level visual redaction — that's a v2 concern; v1 does not record the screen so the question doesn't arise. (It DOES enforce text-stream redaction end-to-end, including the uploaded cast file, via Step 4.)
 - It does not test cross-project (different `team_id`) playback — that's a non-goal.
 - It does not measure end-user UX for "watching another teammate's clip" — UX is iterated in v2.

@@ -47,7 +47,7 @@
 - **Reference:**
   - `docs/CONTEXT.md`（canonical 术语仲裁）
   - `docs/HOWTO-PLAN-PR.md`
-  - `docs/superpowers/specs/2026-04-15-phase2-design.md`（Phase 2 design 引用）
+  - `docs/superpowers/specs/2026-04-15-phase2-design-v2.md`（Phase 2 design v2；非 `-v2` 版本只在 `docs/backup/phase2-superseded/` 归档）
   - `~/.gbrain/config.json`（gbrain 已 setup 状态，参考 CLAUDE.md GBrain Configuration 节）
   - 现有 gbrain MCP tools（`file_upload`、`file_list`、`file_url`、`put_page`、`add_timeline_entry`、`get_timeline`、`query`、`search`、`put_raw_data`、`get_raw_data`）
   - `packages/core/src/m5/secret-scanner.ts`（transcript 脱敏复用）
@@ -80,11 +80,11 @@
 
 ### 怎么做
 
-1. **录制器** `packages/cli/src/commands/record.ts`：
-   - 实现 `teamagent record` 子命令，wrap `asciinema rec` 落 `.teamagent/recordings/<session-id>.cast`。
+1. **录制器** `packages/cli/src/commands/record-session.ts`（**不**用 `record.ts`：`packages/cli/src/commands/recording.ts` 已存在用于 recording-memory CLI，命名空间冲突，故本子命令的源文件叫 `record-session.ts`，CLI 入口为 `teamagent record-session`，以与 `teamagent recording …` 子树明确区分）：
+   - 实现 `teamagent record-session` 子命令，wrap `asciinema rec` 落 `.teamagent/recordings/<session-id>.cast`。
    - 录制结束后自动调用下面的 ingest pipeline（步骤 2）。
-2. **Ingest pipeline** `packages/<m5-shell>/src/recording-ingest.ts`：
-   - 解析 cast 文件（asciinema v2 schema）→ 提取 transcript（按时间戳）。
+2. **Ingest pipeline** `packages/core/src/m5/recording-ingest.ts`（**不**用 `<m5-shell>` 占位——M5 shell 不是已有 package；与 M5 secret-scanner 等核心纯函数 colocated 在 `packages/core/src/m5/` 即可，符合 Functional Core / Imperative Shell 元约束。Side-effectful 部分（asciinema spawn、网络上传 gbrain）拆到 `packages/cli/src/commands/record-session.ts` 与 `packages/adapters/src/m5/recording-uploader.ts`）：
+   - 解析 cast 文件（asciinema v2 **或** v3 schema，detect by `version` 字段）→ 提取 transcript（按时间戳）。
    - 跑 M5 hard secret scanner 在 transcript 上；命中即整 session 标 `sealed_in_L1`，**不上传 gbrain**（与 M5 双闸门同等强度）。
    - 通过则跑 scope classifier；非 team scope 也不上传。
    - team scope → 上传：`file_upload`（cast）+ `put_page`（transcript markdown）+ `add_timeline_entry`（章节级摘要）。
@@ -109,15 +109,15 @@
 ### 已知 spec 缺口（必须在 follow-up impl PR 开工前明确）
 
 - gbrain 当前**没有**专属 "video API"——本 plan 计划复用 `file_upload` + `put_page` + `add_timeline_entry` + `query` 四个现有 MCP tool。这套组合**未在 gbrain 项目层面被官方定为 "video ingest pattern"**；如 gbrain 后续推出专用 video pattern，follow-up impl PR 切换。
-- asciinema 版本 / cast schema：v2 是当前主流，但 v3 在试制；本 plan 锁 v2，如机器装 v3 需 ingest pipeline 兼容。
+- asciinema 版本 / cast schema：本 plan **同时支持 v2 与 v3**（dev 机当前装的是 asciinema 3.2.0 默认输出 `asciicast-v3`，v2 仍是 CI runner 上常见版本）。Ingest pipeline 通过 cast 文件顶部 JSON 的 `version` 字段切分支处理；任何后续不兼容 schema 改动单独建 issue。
 - `team_id` 与 #82 共享算法；如 #82 follow-up impl 阶段调整 team_id schema，本 plan 同步调。
 
 ## ② Expected outputs — reviewer-checkable artifacts
 
 | Artifact | Path | Reviewer 验收点 |
 |---|---|---|
-| 录制器 CLI | `packages/cli/src/commands/record.ts` | `teamagent record --help` 列出子命令；wrap asciinema 落 cast 文件 |
-| Ingest pipeline | `packages/<m5-shell>/src/recording-ingest.ts` | 解析 cast → 脱敏 → 上传 gbrain；失败降级；契约测试覆盖 |
+| 录制器 CLI | `packages/cli/src/commands/record-session.ts`（与现有 `recording.ts` 区分命名） | `teamagent record-session --help` 列出子命令；wrap asciinema 落 cast 文件 |
+| Ingest pipeline | `packages/core/src/m5/recording-ingest.ts`（pure，纯函数）+ `packages/adapters/src/m5/recording-uploader.ts`（IO） | 解析 cast → 脱敏 → 上传 gbrain；失败降级；契约测试覆盖 |
 | Page schema | `packages/core/src/recording/page-schema.ts` | frontmatter 含 `team_id` / `session_id` / `user` / `started_at` / `ended_at` / `attribution_link_to_rule_id?`；序列化 round-trip 测试 |
 | Spec 文档 | `docs/specs/<DATE>-team-scope-session-recording.md` | 6 个原 issue 设计问题逐题回答；canonical 命名；frame-level 脱敏 OUT OF SCOPE 标注 |
 | PoC evidence | `docs/plans/issue-83/poc-evidence/<run-id>/{cast,transcript.md,page.md,timeline.json,query-result.json,banner.txt}` | 5–10 min 真实 CC session 录制 + gbrain ingest + query 命中 |
@@ -152,9 +152,9 @@ Judge harness **不**评：
    - 输入：当前 gbrain MCP tool list。
    - 验证：`file_upload`、`put_page`、`add_timeline_entry`、`query`、`search` 五个 tool 在当前 gbrain 安装里都可调用。
    - 通过条件：probe 输出 `tools_available_count == 5`。
-2. **Probe-2：asciinema 装机存在性**（`claudefast -p`）
-   - 验证：`which asciinema` 在目标机器上 exit 0；版本 ≥ 2。
-   - 通过条件：probe 输出 `asciinema_version >= "2.0"`。
+2. **Probe-2：asciinema 装机存在性 + 版本分支检测**（`claudefast -p`）
+   - 验证：`which asciinema` 在目标机器上 exit 0；major 版本 ∈ {2, 3}；ingest pipeline 在合成 cast fixture（一份 v2 + 一份 v3）上都能解析。
+   - 通过条件：probe 输出 `asciinema_major in [2,3]` 且 `parse_v2_ok=true` 且 `parse_v3_ok=true`。
 3. **Probe-3：M5 secret scanner 可复用**（`claudefast -p`）
    - 输入：合成 transcript 文本含 fake token + path + email + AWS key。
    - 验证：`packages/core/src/m5/secret-scanner.ts` 可独立调用并返回脱敏后字符串。
@@ -180,7 +180,7 @@ Judge harness **不**评：
 | Asciinema cast 文本流泄露（scanner 漏检） | judge 步骤 4 强制 fail；scanner regex 表必须随 M5 同步更新；v1 路径下不允许"warning + 人手复检" | 发现泄露 → 立即从 gbrain `file_list` 删除 cast + revoke token + scanner regex 表补 + BUGREPORT；视为 scanner bug |
 | Frame-level 屏幕像素泄露（v2 议题） | v1 不录屏幕，问题不存在；v2 引入屏幕录像时单独设计 | 不适用（v1） |
 | 录制 / ingest 体积大、CI 上跑不动 | PoC evidence 限制 5–10 min；judge step 2 用合成短录像 | CI 不跑 long-form ingest；本地 dev 跑长录像；CI 只跑契约测试 |
-| asciinema v2 → v3 迁移 | 本 plan 锁 v2；v3 兼容由独立 issue 处理 | follow-up impl PR 启动时 Probe-2 复核版本 |
+| asciinema cast schema 不兼容变更（如 v3.x → v4） | 本 plan 同时支持 v2 与 v3；任何后续不兼容 schema 由独立 issue 处理 | follow-up impl PR 启动时 Probe-2 双 fixture 复核 |
 | #82 follow-up impl 长期未启动 | 本 plan 显式依赖 #82；judge step 6 拦底 | #83 follow-up impl PR hold；本 plan 不重开 |
 | Issue #82 调整 team_id 算法 | 同步更新本 plan team_id 说明 | follow-up impl PR 启动时 grep 两侧实现，差异 → 修一侧 |
 
