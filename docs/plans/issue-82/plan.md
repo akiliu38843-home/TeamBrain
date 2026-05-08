@@ -107,7 +107,7 @@ Issue #82 的 5 个原始设计问题里，**前 4 个已被 M5 viral sync (PR #
    - Rig 形态：`packages/cli/src/__tests__/m5-e2e-teaching.test.ts` 或 `tests/e2e/m5-teaching/` 目录。
    - Rig 用 2 个临时 worktree 模拟 M1 / M2，临时 git remote 用 `git --bare`。
    - Rig 跑完整链：M1 pitfall → 双闸门 → push → M2 pull → m5-sync --apply → M2 PreToolUse intercept → 输出 raw JSON。
-   - Rig 输出 fixed schema 落 `summary.json`：`{positive_trigger_rate, false_positive_rate, attribution_present, dependency_check_ok}`（与 §② Probe summary row 完全一致；source_commit_sha 等 4 个 source_* 字段在每条 attribution.jsonl 事件**顶层平铺**记录，judge.md Step 3 直接读 attribution.jsonl 不读 summary.json）。
+   - Rig 输出 fixed schema 落 `summary.json`：`{positive_trigger_rate, false_positive_rate, attribution_present, dependency_check_ok}`（与 §② Probe summary row 完全一致）；source_commit_sha 等 4 个 source_* 字段在每条 `attribution.jsonl` 事件**顶层平铺**记录。judge.md Step 3 **同时读两个 artifact**：从 `summary.json` 读 trigger / false-positive 比率与总体 attribution_present flag；从 `attribution.jsonl` 逐条读 source_commit_sha 与 M1-side commit 做严格比对。
 3. **Attribution chain UI**：
    - AttributionBus 已有结构化事件（`docs/features/multi-tool.md` 第 4 通道）；本 plan 验证 4 个 source_* 字段在 team-scope 拦截事件里**确实被 emit + 可读 + 显示给用户**。
    - 如发现 emit 缺字段，本 plan 的 follow-up impl PR 补 emit 路径；显示路径如缺，补 Renderer 段。

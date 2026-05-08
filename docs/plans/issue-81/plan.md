@@ -113,7 +113,7 @@
 |---|---|---|
 | Cross-cutting research 报告 | `docs/research/2026-05-XX-personal-use-3people.md` | ≥3 个 subject section（每位同事 1 段）+ cross-cutting cluster section + 给 #82 team-scope viral sync teaching 的设计输入 section |
 | Per-subject raw evidence | `docs/research/2026-05-XX-personal-use-3people/subject-<N>/{db.redacted.jsonl, hooks.redacted.jsonl, stats-start.json, stats-end.json, interview.md}` | 每位同事一份 subdir，每份 ≥5 个文件，db 与 hooks 必须 hardmatch redact 处理过，git 上不得出现 `[a-zA-Z0-9]{20,}` 长 token 字面 |
-| Subject 招募口径 | `docs/research/2026-05-XX-personal-use-3people/recruitment.md` | 列出 3 同事 codebase 类型 + agent 习惯类型；姓名脱敏成 `subject-1/2/3`；**每位 subject 必须含字段**：`codebase_root_cwd`（绝对路径，judge step 3 enriched `event.cwd` 比对依据）、`evaluation_window_start` / `evaluation_window_end`（与 `stats-start.json` / `stats-end.json` 对齐）；明确确认每人**真在用 Claude Code 工作** |
+| Subject 招募口径 | `docs/research/2026-05-XX-personal-use-3people/recruitment.md` | 列出 3 同事 codebase 类型 + agent 习惯类型；姓名脱敏成 `subject-1/2/3`；**每位 subject 必须含字段**：`codebase_root_cwd`（绝对路径，judge step 3 enriched `event.cwd` 比对依据）、`evaluation_window_start` / `evaluation_window_end`（**等于** 对应 subject 的 `stats-start.json.window_start` / `stats-end.json.window_end`，judge step 3(c) 强制核对两边相等避免 drift）；明确确认每人**真在用 Claude Code 工作** |
 | Subject 访谈题模板 | `docs/research/2026-05-XX-personal-use-3people/interview-template.md` | 5 题闭合 + 自由反馈段；必须能直接复用做下一轮 |
 | 报告对 #82 的输入 section | `docs/research/2026-05-XX-personal-use-3people.md` 的 `## Inputs to issue #82 (team-scope viral sync teaching design)` 一节 | ≥3 条具体可下钻的设计输入；每条带证据指针（subject-N / cluster-X） |
 
