@@ -45,6 +45,43 @@ describe("decideAction", () => {
     writeFileSync(join(cwd, ".teamagent", "knowledge.db"), "");
     expect(decideAction(cwd, new Date())).toBe("skip-already-initialized");
   });
+
+  // Issue #161: walk-up logic — decideAction must honour an ancestor's
+  // .teamagent/knowledge.db so SessionStart from a sub-directory does not
+  // spawn a duplicate child auto-init.
+  describe("issue #161 ancestor-aware walk-up", () => {
+    let root: string;
+    let sub: string;
+
+    beforeEach(() => {
+      root = mkdtempSync(join(tmpdir(), "teamagent-w4-"));
+      sub = join(root, "sub");
+      mkdirSync(sub, { recursive: true });
+    });
+    afterEach(() => {
+      rmSync(root, { recursive: true, force: true });
+    });
+
+    it("ancestor 有 .teamagent/knowledge.db，子目录调用 → skip-already-initialized", () => {
+      mkdirSync(join(root, ".teamagent"), { recursive: true });
+      writeFileSync(join(root, ".teamagent", "knowledge.db"), "");
+      // sub itself has no .teamagent/knowledge.db
+      expect(decideAction(sub, new Date())).toBe("skip-already-initialized");
+    });
+
+    it("无任何 ancestor 有 db + cwd 是项目目录 → auto-init", () => {
+      // No .teamagent anywhere along the chain; cwd has package.json marker.
+      writeFileSync(join(sub, "package.json"), "{}");
+      expect(decideAction(sub, new Date())).toBe("auto-init");
+    });
+
+    it("无 ancestor db + cwd 有 .teamagent/auto-init.disabled → skip-auto-init-disabled", () => {
+      // No knowledge.db anywhere; only the per-cwd disabled marker exists.
+      mkdirSync(join(sub, ".teamagent"), { recursive: true });
+      writeFileSync(join(sub, ".teamagent", "auto-init.disabled"), "");
+      expect(decideAction(sub, new Date())).toBe("skip-auto-init-disabled");
+    });
+  });
 });
 
 describe("maybeShowReinstallBanner (B-104)", () => {

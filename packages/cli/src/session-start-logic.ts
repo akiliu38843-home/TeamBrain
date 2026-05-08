@@ -13,6 +13,7 @@ import {
   type UpdateState,
 } from "@teamagent/core";
 import { rotateIfTooLarge } from "./log-rotate.js";
+import { findTeamagentRoot } from "./lib/walk-up.js";
 
 export const DEFAULT_DEBOUNCE_HOURS = 24;
 
@@ -53,15 +54,16 @@ function autoInitDisabled(cwd: string): boolean {
 }
 
 export function decideAction(cwd: string, _now?: Date, _debounceHours?: number): Action {
-  const dbPath = join(cwd, ".teamagent", "knowledge.db");
-  if (!existsSync(dbPath)) {
-    // New project (no DB yet). Auto-init if it looks like a real project
-    // and user hasn't opted out.
-    if (autoInitDisabled(cwd)) return "skip-auto-init-disabled";
-    if (!isProjectDir(cwd)) return "skip-not-a-project";
-    return "auto-init";
-  }
-  return "skip-already-initialized";
+  // Issue #161: walk up to honor an ancestor's .teamagent/knowledge.db.
+  // SessionStart from a sub-directory of an already-initialized project
+  // must NOT auto-init a duplicate child .teamagent/.
+  const ancestorRoot = findTeamagentRoot(cwd);
+  if (ancestorRoot !== null) return "skip-already-initialized";
+
+  // No ancestor has a DB. Apply the existing per-cwd logic for new projects.
+  if (autoInitDisabled(cwd)) return "skip-auto-init-disabled";
+  if (!isProjectDir(cwd)) return "skip-not-a-project";
+  return "auto-init";
 }
 
 export function findMainBin(): string {
