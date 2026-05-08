@@ -50,6 +50,23 @@
 
 录制脚本未提交到仓库 (per plan.md anti-goal "DO NOT modify any file outside of: index.html / public/double-moment.gif / docs/plans/issue-120/")，作为一次性产物存于 `/tmp/double-moment-demo.sh`。再次录制需要从此 report 重建脚本。
 
+### Emoji 渲染修复 (POSTPR review v2)
+
+`/review` PR #179 时发现 v1 GIF 的装饰性 emoji (`✨`, `💡`, `▸`) 渲染为 `?` 框：agg 1.7.0 的默认 resvg backend 不渲染 COLR/SBIX 彩色 emoji 表，且 macOS 默认无 JetBrains Mono (fc-match 落到 PingFang)。
+
+尝试过的方案：
+- `--font-family "Menlo,Apple Color Emoji,..."` (resvg) → Latin 渲染对了但 emoji 仍 `?`
+- `--renderer fontdue` → emoji 对了但中文整个丢失 (CJK fallback 缺失)
+
+最终方案 — `perl -i -pe` 在 cast 文件层面 ASCII 替换：
+- `✨` → `*`
+- `💡` → `*`
+- `▸` → `>`
+
+替换在 cast 而非源命令是因为 emoji 来自 teamagent CLI 真实输出，不是 demo 脚本生成。一列宽 ASCII 维持原始对齐。再用默认 resvg + Menlo 转 GIF。
+
+v5 GIF 数据：174,657 bytes / 25.01s / 688x490；Lighthouse perf=0.96, accessibility=0.93, seo=1.00, FCP=1673ms, LCP=1728ms, CLS=0；6/6 assertions pass。
+
 ---
 
 ## 实际数字 vs 验收门槛 (judge.md)
