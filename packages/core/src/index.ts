@@ -168,6 +168,15 @@ export {
 } from "./narrative-scanner/index.js";
 
 export {
+  createPreToolUseHandler,
+  type PreToolUseDeps,
+  type PreToolUseInput,
+  type PreToolUseResult,
+  type SemanticHit,
+  type HookFormatStyle,
+} from "./hook/pre-tool-use-handler.js";
+
+export {
   parseManifest,
   validateManifest,
   serializeManifest,
