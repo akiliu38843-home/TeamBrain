@@ -95,4 +95,4 @@ Canonical JSON to `.judge/<run_id>/judge.json`:
   - No model is invoked, so this verifier is fast but tests only static rendering, not runtime model behavior.
 
 ## Phase 2 fix log
-Resolved 2026-05-08: #8 (P3) replaced absolute-path jq assertion with `test("r[0-9]+/canary/SKILL\\.md")` regex in §V1 Step 3; updated §V2 metric to `prompt_input_contains_skill_path_shorthand`; updated §V3 FAIL guidance; added `r0/` shorthand note. Commit TBD.
+Resolved 2026-05-08: #8 (P3) replaced absolute-path jq assertion with `test("r[0-9]+/canary/SKILL\\.md")` regex in §V1 Step 3; updated §V2 metric to `prompt_input_contains_skill_path_shorthand`; updated §V3 FAIL guidance; added `r0/` shorthand note. Commit de67193.
