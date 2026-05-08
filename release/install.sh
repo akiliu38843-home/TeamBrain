@@ -15,7 +15,7 @@
 # Substring matcher (legacy) is fully functional from first interception.
 # To opt-in to vector matcher (BM25+dense RRF, smarter on paraphrases):
 #   TEAMAGENT_INCLUDE_OPTIONAL=1 sh -c "$(curl -fsSL ...install.sh)"
-# or after-the-fact: `npm install -g --include=optional teamagent`.
+# or after-the-fact: `npm install -g @xenova/transformers@^2.17.0 onnxruntime-node@1.14.0`.
 
 set -eu
 

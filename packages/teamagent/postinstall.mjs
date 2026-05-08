@@ -7,9 +7,10 @@ import os from "node:os";
 
 /**
  * ADR 0001 §opt-in: detect whether the optional vector deps (@xenova/transformers
- * + onnxruntime-node) are installed alongside teamagent. Default install.sh
- * passes --omit=optional so they are absent. Skip Stage 2 entirely when
- * missing — otherwise the detached child would fail and the placeholder state
+ * + onnxruntime-node) are installed alongside teamagent. They have been removed
+ * from package.json entirely (npm 10 ignores --omit=optional for tarball installs,
+ * so omission from package.json is the only reliable gate). Skip Stage 2 entirely
+ * when missing — otherwise the detached child would fail and the placeholder state
  * file would stick at status="downloading" pid=0 forever (isPidAlive(0)=true),
  * confusing bin-pre-tool-use which would never see a terminal "ready"/"failed".
  *
@@ -20,15 +21,24 @@ import os from "node:os";
  * to ./node_modules/ for local installs).
  */
 function vectorOptionalsInstalled(pkgDir) {
-  const candidates = [
+  // Both @xenova/transformers AND onnxruntime-node must be present for warmup
+  // to actually succeed; if only @xenova is found the runtime fails on missing
+  // native ORT bindings. Mirrors the AND check in
+  // packages/cli/src/commands/init.ts:haveVectorOptionals.
+  const xenovaCandidates = [
     path.join(pkgDir, "node_modules", "@xenova", "transformers", "package.json"),
     path.join(pkgDir, "..", "@xenova", "transformers", "package.json"),
   ];
-  const found = candidates.some((p) => {
-    try { return fs.existsSync(p); } catch { return false; }
-  });
+  const onnxCandidates = [
+    path.join(pkgDir, "node_modules", "onnxruntime-node", "package.json"),
+    path.join(pkgDir, "..", "onnxruntime-node", "package.json"),
+  ];
+  const exists = (p) => { try { return fs.existsSync(p); } catch { return false; } };
+  const hasXenova = xenovaCandidates.some(exists);
+  const hasOnnx = onnxCandidates.some(exists);
+  const found = hasXenova && hasOnnx;
   if (process.env.TEAMAGENT_POSTINSTALL_DEBUG === "1") {
-    process.stderr.write(`DEBUG postinstall pkgDir=${pkgDir} found=${found} candidates=${JSON.stringify(candidates)}\n`);
+    process.stderr.write(`DEBUG postinstall pkgDir=${pkgDir} found=${found} (xenova=${hasXenova} onnx=${hasOnnx})\n`);
   }
   return found;
 }
@@ -262,9 +272,10 @@ async function main() {
   if (process.env.TEAMAGENT_SKIP_WARMUP === "1") {
     process.stderr.write(duckify("[2/2] warmup: 跳过 (TEAMAGENT_SKIP_WARMUP=1)\n"));
   } else if (!haveVectorOptionals) {
-    // Default install.sh now passes --omit=optional → @xenova/transformers
-    // and onnxruntime-node are absent. Skip warmup entirely; substring
-    // matcher is fully functional from first interception.
+    // @xenova/transformers and onnxruntime-node have been removed from
+    // package.json entirely (npm 10 ignores --omit=optional for tarball
+    // installs; omission is the only reliable gate). Skip warmup entirely;
+    // substring matcher is fully functional from first interception.
     warmupStatus = "vector-deps-absent";
     process.stderr.write(
       duckify(

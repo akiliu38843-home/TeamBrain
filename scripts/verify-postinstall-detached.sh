@@ -50,8 +50,9 @@ run_one() {
     node "${WORKTREE}/packages/teamagent/postinstall.mjs" \
     >"${stdout}" 2>"${stderr}.raw" || exit_code=$?
 
-  # Pull the "real <s>" line, leave the rest of the noise in stderr proper.
-  awk '/^real /{print; next} {print > "/dev/stderr"}' "${stderr}.raw" \
+  # Pull all three POSIX time -p lines (real/user/sys) into timing file;
+  # leave everything else (postinstall output) in stderr proper.
+  awk '/^real |^user |^sys /{print; next} {print > "/dev/stderr"}' "${stderr}.raw" \
     1>"${timing}" 2>"${stderr}"
   rm -f "${stderr}.raw"
 

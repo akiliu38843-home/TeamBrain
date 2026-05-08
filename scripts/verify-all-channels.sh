@@ -128,7 +128,11 @@ trap cleanup_master EXIT INT TERM
 echo ""
 echo "── Phase 1: real install (3 runs) — channels #1, #5, #7, #8(partial) ──"
 echo ""
-RUN_ID="${RUN_ID}" SKIP_FOREGROUND=1 bash scripts/verify-real-install-30s.sh
+CHANNEL_FAILURES=()
+if ! RUN_ID="${RUN_ID}" SKIP_FOREGROUND=1 bash scripts/verify-real-install-30s.sh; then
+  echo "  ✗ verify-real-install-30s.sh failed (mandatory channel #1/5/7)" >&2
+  CHANNEL_FAILURES+=("1:phase1-real-install")
+fi
 
 # ─── Phase 2: persistent install for post-install channels ────────────────
 echo ""
@@ -183,8 +187,11 @@ echo "  fs_usage stopped"
 # Channel #8: negative existence (post-install snapshot).
 echo ""
 echo "── Channel #8: negative existence ──────────────────────────"
-RUN_ID="${RUN_ID}" PREFIX="${P2_PREF}" HOMEDIR="${P2_HOME}" \
-  bash scripts/verify-negative-existence.sh
+if ! RUN_ID="${RUN_ID}" PREFIX="${P2_PREF}" HOMEDIR="${P2_HOME}" \
+     bash scripts/verify-negative-existence.sh; then
+  echo "  ✗ verify-negative-existence.sh failed (mandatory channel #8)" >&2
+  CHANNEL_FAILURES+=("8:negative-existence")
+fi
 for f in neg-no-xenova neg-no-onnx neg-no-state; do
   if [ -f "${EVIDENCE_DIR}/${f}" ]; then
     printf "  %-15s %s\n" "${f}:" "$(cat "${EVIDENCE_DIR}/${f}")"
@@ -209,29 +216,34 @@ cat > "${P2_PROJ}/package.json" <<'JSON_EOF'
 }
 JSON_EOF
 
-# teamagent init (skip warmup; vector deps absent anyway).
+# teamagent init — let the natural ADR 0001 gate decide whether to skip warmup.
+# We intentionally do NOT pass TEAMAGENT_SKIP_WARMUP=1 or --skip-warmup here
+# so that Channel #8 (neg-no-state) actually tests the haveVectorOptionals gate:
+# vector deps are absent in the default install → haveVectorOptionals returns
+# false → warmup is skipped → no .warmup-state.json is written.  Using the
+# bypass flags would make the assertion trivially pass even if the gate regressed.
 echo ""
 echo "── teamagent init (post-install) ───────────────────────────"
-( cd "${P2_PROJ}" && HOME="${P2_HOME}" TEAMAGENT_SKIP_WARMUP=1 \
-    "${TEAMAGENT_BIN}" init --skip-warmup 2>&1 ) > "${EVIDENCE_DIR}/teamagent-init.out" \
+( cd "${P2_PROJ}" && HOME="${P2_HOME}" \
+    "${TEAMAGENT_BIN}" init 2>&1 ) > "${EVIDENCE_DIR}/teamagent-init.out" \
   || echo "  ⚠ teamagent init had non-zero exit; continuing for evidence collection"
 
 # Channel #6: DB + state-file content.
 echo ""
 echo "── Channel #6: DB + state-file content ─────────────────────"
-RUN_ID="${RUN_ID}" HOMEDIR="${P2_HOME}" bash scripts/verify-db-content.sh
+if ! RUN_ID="${RUN_ID}" HOMEDIR="${P2_HOME}" bash scripts/verify-db-content.sh; then
+  echo "  ✗ verify-db-content.sh failed (mandatory channel #6)" >&2
+  CHANNEL_FAILURES+=("6:db-content")
+fi
 for f in db-tables.txt db-rule-count.txt warmup-state.kv; do
   if [ -f "${EVIDENCE_DIR}/${f}" ]; then
     printf "  %-25s %s\n" "${f}:" "$(head -3 "${EVIDENCE_DIR}/${f}" | tr '\n' '|')"
   fi
 done
 
-# Channel #3: runtime hooks. Codex P2 fix: 8/8 mandatory means a collector
-# failure must propagate to the orchestrator's exit code. Track failures in
-# CHANNEL_FAILURES and fail the run at the end if any are non-zero. Don't
-# abort mid-run though — we still want to collect the remaining channels'
-# evidence so the report tells the user what worked and what didn't.
-CHANNEL_FAILURES=()
+# Channel #3: runtime hooks. All mandatory channels use the CHANNEL_FAILURES
+# accumulator (initialized before Phase 1) so failures accumulate to exit 4
+# and evidence collection continues for the remaining channels.
 echo ""
 echo "── Channel #3: runtime hooks (claudefast --debug hooks) ────"
 if ! RUN_ID="${RUN_ID}" HOMEDIR="${P2_HOME}" PROJECT_DIR="${P2_PROJ}" \

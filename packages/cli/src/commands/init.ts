@@ -224,13 +224,19 @@ export async function executeInit(opts: InitOptions = {}): Promise<InitResult> {
     try {
       // Same bounded resolution policy as packages/teamagent/postinstall.mjs:
       // peer to teamagent (npm hoist) or local under teamagent/node_modules.
+      // Both @xenova/transformers AND onnxruntime-node must be present; if only
+      // @xenova is found (e.g. installed globally elsewhere) warmup would spawn
+      // and immediately fail because onnxruntime is the actual runtime dep.
       const here = fileURLToPath(import.meta.url);
       let dir = path.dirname(here);
       for (let i = 0; i < 8; i++) {
-        if (
+        const hasXenova =
           fs.existsSync(path.join(dir, "node_modules", "@xenova", "transformers", "package.json")) ||
-          fs.existsSync(path.join(dir, "..", "@xenova", "transformers", "package.json"))
-        ) {
+          fs.existsSync(path.join(dir, "..", "@xenova", "transformers", "package.json"));
+        const hasOnnx =
+          fs.existsSync(path.join(dir, "node_modules", "onnxruntime-node", "package.json")) ||
+          fs.existsSync(path.join(dir, "..", "onnxruntime-node", "package.json"));
+        if (hasXenova && hasOnnx) {
           return true;
         }
         const parent = path.dirname(dir);
