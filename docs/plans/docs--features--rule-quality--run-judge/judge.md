@@ -129,7 +129,7 @@ Document EXACT thresholds from source:
   conflict-detection logic to be implemented.
 
 ## Phase 2 fix log
-Resolved 2026-05-08: #7 (P1) updated §V1 Step 2 API contract to `validateLevel0({entry, sourceText, existingRules, projectStack})` → `{ok, failed_checks}`; removed old `{rule}` / `{valid, errors}` shape; updated §V2 per-rule schema and §V3 FAIL criteria. Commit TBD.
+Resolved 2026-05-08: #7 (P1) updated §V1 Step 2 API contract to `validateLevel0({entry, sourceText, existingRules, projectStack})` → `{ok, failed_checks}`; removed old `{rule}` / `{valid, errors}` shape; updated §V2 per-rule schema and §V3 FAIL criteria. Commit 3d4ddbd.
 
 <self-report>
 premature_stopping: false
