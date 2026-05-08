@@ -113,7 +113,7 @@ gstack user-level Claude Code skill ("Pre-landing PR review")；ADR-0007 指定�
 _Avoid_: "review command", "PR review tool"
 
 **Codex review** (deprecated):
-被 ADR-0007 弃用的 cloud `chatgpt-codex-connector[bot]` review 流程；`docs/POSTPR.md` / `docs/postpr/verify-canned-answer.sh` / `.claude/hooks/laziness-self-report.sh` / `CLAUDE.md` POSTPR canned-answer block 中的引用待未来 TEAMWORK PR 移除。
+被 ADR-0007 弃用的 cloud `chatgpt-codex-connector[bot]` review 流程。本 PR 已移除：`docs/POSTPR.md` 重写为 `/review` 锚点、`docs/postpr/verify-canned-answer.sh` 已删除、`CLAUDE.md` / `AGENTS.md` 的 POSTPR canned-answer block 已删除。仍待未来 TEAMWORK PR 处理：`.claude/hooks/laziness-self-report.sh` 的 POSTPR + FASTPROBE-PR-conflict 锚点（文件已 orphan 但锚点仍是源码）、源码层 `pr-cycle.ts` / `pr-review.ts` / sqlite `reviewed_at` 字段。
 _Avoid_: "Codex 👍 = ship"
 
 **Self-discipline-via-matcher**:

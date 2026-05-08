@@ -36,7 +36,7 @@ mechanism) to **self-discipline-via-matcher** — real doc semantics + the M4-B
 BM25+dense-RRF+soft-AND matcher + a `claudefast -p "what should we do when we
 make a PR?"` semantic probe must return the right answer organically. No
 canned-answer block in `CLAUDE.md` / `AGENTS.md` and no grep anchors in hooks
-are permitted as substitutes. Implementation is deferred to a future TEAMWORK PR.
+are permitted as substitutes. Doc rewrites land in this PR; source-code cleanup is deferred to a future TEAMWORK PR.
 
 ## Considered Options
 
@@ -65,24 +65,24 @@ are permitted as substitutes. Implementation is deferred to a future TEAMWORK PR
 
 ## Consequences
 
-- **Doc rewrites deferred to a future TEAMWORK PR** — `docs/POSTPR.md`,
+- **Doc rewrites shipped in THIS PR** — `docs/POSTPR.md`,
   `docs/PR-PLAN.md`, `docs/HOWTO-PLAN-PR.md`, `docs/feature-verification.md`,
   and the POSTPR canned-answer blocks at `CLAUDE.md:33-49,282-295` +
   `AGENTS.md:33-49,282-295` must be rewritten to a `/review`-anchored workflow.
   The rewrite **must not** introduce new canned-answer blocks or grep-anchor
   enforcement; verification is the `claudefast -p "what should we do when we
   make a PR?"` probe returning a `/review`-anchored answer organically.
-- **Removals required in the same future PR** —
-  `.claude/hooks/laziness-self-report.sh:225,243-245` POSTPR + FASTPROBE-PR-
-  conflict anchors; `docs/postpr/verify-canned-answer.sh` (the canned-answer
-  verifier itself); `CLAUDE.md` + `AGENTS.md` POSTPR canned-answer blocks. The
-  replacement verifier is a `claudefast -p` probe runner, not a grep
-  comparator.
+- **Removals shipped in THIS PR** —
+  `docs/postpr/verify-canned-answer.sh` (the canned-answer verifier itself);
+  `CLAUDE.md` + `AGENTS.md` POSTPR canned-answer blocks. Deferred to a future
+  TEAMWORK PR: `.claude/hooks/laziness-self-report.sh:225,243-245` POSTPR +
+  FASTPROBE-PR-conflict anchors (file is orphaned but anchors still exist as
+  source code). The replacement verifier is a `claudefast -p` probe runner,
+  not a grep comparator.
 - **`packages/cli/src/commands/pr-cycle.ts` + `packages/adapters/src/ingest/pr-review.ts`
   + `packages/adapters/src/storage/sqlite/sqlite-candidate-queue.ts`'s
   `reviewed_at` semantics + the `pr-review.test.ts` suite** — pending decision:
-  delete (Codex-era fossil) vs freeze. Recommendation: delete in the same
-  future PR.
+  delete (Codex-era fossil) vs freeze. Recommendation: delete in a follow-up TEAMWORK PR (out of scope for this docs-only PR).
 - **`packages/core/src/extractor/prompt.ts:44`'s `"pr-review"` extraction kind**
   — semantic source shifts from GitHub Codex inline comments to `/review` skill
   output text; rename to `"local-review"` or keep as alias.
