@@ -2,7 +2,7 @@
  * Thin adapter wrapper around `createPreToolUseHandler` from `@teamagent/core`.
  *
  * The pure handler lives in `packages/core/src/hook/pre-tool-use-handler.ts`
- * (FCIS: Functional Core, Imperative Shell — see ADR-0007). This module binds
+ * (FCIS: Functional Core, Imperative Shell — see ADR-0008). This module binds
  * production impurities — `crypto.randomUUID()`, `new Date().toISOString()`,
  * and a `process.env.TEAMAGENT_HOOK_ASCII_BOX` formatStyle switch reserved for
  * the AttributionEvent reshape (commits 4+) — and accepts the SDK-typed input

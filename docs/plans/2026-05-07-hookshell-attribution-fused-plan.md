@@ -35,7 +35,7 @@ Plan 起源：[Architecture grilling session 2026-05-07/08](.) — `/improve-cod
 |-----|------|------|
 | v1 | 2026-05-07 | Initial fused plan after architecture grilling round 2 锁定全部 5 题 + max-power scope 升级 |
 | v1.1 | 2026-05-08 | Branch 转移：从 `teamwork/archive-hypothetical-ports` 移到独立分支 `teamwork/hookshell-attribution-fused`（避免与 ADR-0005 PR 共用 commit 树） |
-| v1.2 | 2026-05-08 | 加入 delivery field as metadata (per `/improve-codebase-architecture` candidate-2 grilling α2 决议)：`AttributionEventBase` 加 `delivery?: "log" \| "context" \| "block"` optional 字段；attribution-bus-contract.ts 加 roundtrip 用例；CONTEXT.md 加 Delivery mode 术语；详见 ADR-0008。**当前是 metadata only**——HookShell 仍走 ADR-0007 的 always-exit-0 路径不变 |
+| v1.2 | 2026-05-08 | 加入 delivery field as metadata (per `/improve-codebase-architecture` candidate-2 grilling α2 决议)：`AttributionEventBase` 加 `delivery?: "log" \| "context" \| "block"` optional 字段；attribution-bus-contract.ts 加 roundtrip 用例；CONTEXT.md 加 Delivery mode 术语；详见 ADR-0009。**当前是 metadata only**——HookShell 仍走 ADR-0008 的 always-exit-0 路径不变 |
 
 ---
 
@@ -75,7 +75,7 @@ Plan 起源：[Architecture grilling session 2026-05-07/08](.) — `/improve-cod
 | `packages/cli/src/hook-shell/conditional-gate.ts` | TS conditional type，强制 `runAdvancedHook` 必须传至少一个 `escape.*` 字段才编译通过 |
 | `packages/cli/src/hook-shell/__tests__/conditional-gate.test.ts` | runtime + 类型 gate 测试 |
 | `packages/cli/src/hook-shell/__tests__/run-hook.test.ts` | 默认层 lifecycle smoke 测试 |
-| `docs/adr/0007-hookshell-imperative-shell.md` | 设计决策 + considered options |
+| `docs/adr/0008-hookshell-imperative-shell.md` | 设计决策 + considered options |
 | `docs/plans/2026-05-07-hookshell-attribution-fused/judge.md` | 第三方 judge harness playbook |
 
 ### 移动（adapter → core，FCIS 修复）
@@ -90,7 +90,7 @@ Plan 起源：[Architecture grilling session 2026-05-07/08](.) — `/improve-cod
 PreToolUse 注入 3 个 dep：`idGen: () => string` / `now: () => string` / `formatStyle: "humane" | "ascii-box"`（替换 `crypto.randomUUID` / `new Date()` / `process.env.TEAMAGENT_HOOK_ASCII_BOX`）。
 PostToolUse 注入 2 个 dep：`idGen` / `now`（无 env-driven format flag）。
 
-其他 hook channel（`user-prompt-submit` / `stop` / `session-start` / `session-end` / `pre-compact` / `updater`）已经直接以 imperative `bin-*.ts` 形态在 `packages/cli/src/`，没有 `createXxxHandler(deps)` factory 模式可搬。它们已经在 imperative shell 层（per ADR-0007 设计），通过 commits 5-12 改用 HookShell 即可，不需要 sweep 到 core。
+其他 hook channel（`user-prompt-submit` / `stop` / `session-start` / `session-end` / `pre-compact` / `updater`）已经直接以 imperative `bin-*.ts` 形态在 `packages/cli/src/`，没有 `createXxxHandler(deps)` factory 模式可搬。它们已经在 imperative shell 层（per ADR-0008 设计），通过 commits 5-12 改用 HookShell 即可，不需要 sweep 到 core。
 
 ### 重塑
 
@@ -133,7 +133,7 @@ export type AttributionEvent =
 ### 文档 + 治理
 
 - `docs/CONTEXT.md` 加术语 `Hook channel` / `HookShell` / `Hook handler`
-- `docs/adr/0007-hookshell-imperative-shell.md` 新建
+- `docs/adr/0008-hookshell-imperative-shell.md` 新建
 - 新 lint 规则（`scripts/check-bin-stderr.sh` 或 ESLint custom rule）禁 `process.stderr.write` 出现 user-visible Chinese/`TeamAgent:` 文本于 `packages/cli/src/bin-*.ts`（debug fallback log 仍允许）
 - `CLAUDE.md` 高频快照不变（HookShell 是实现细节，不是用户级 canned answer）
 
@@ -178,7 +178,7 @@ commit 11: refactor(m6): bin-pre-tool-use → runHook + mirrorSystemMessage
 commit 12: refactor(m6): bin-stop → runAdvancedHook (highest risk)
 commit 13: feat(m6): lint rule banning process.stderr.write user-visible text
 commit 14: docs(m6): CONTEXT.md add 3 terms (Hook channel/HookShell/Hook handler)
-commit 15: docs(m6): ADR-0007 hookshell-imperative-shell
+commit 15: docs(m6): ADR-0008 hookshell-imperative-shell
 commit 16: chore(m6): cleanup any dead wiring + verify-all-rules pass
 ```
 
@@ -224,7 +224,7 @@ per `docs/POSTPR.md`：PR 开后 fetch Codex review → triage P1/P2/P3 → 用 
 
 🦆 **(1) 任务描述**：把 8 只 bin 小鸭重复的洗脸刷牙工序提取成 `HookShell` 公共澡堂；3 只小鸭用「默认池」（post-tool-use / pre-tool-use / user-prompt-submit），4 只胖鸭用「进阶池」（bin-stop / bin-session-end / bin-pre-compact / bin-session-start，各自带 spawn detached / lock / pipeline timeout / manualResources 中的一些）。同时把 **2 个**（不是原计划的 5 个）handler factory 从 adapter 鸭舍搬回 core 鸭舍（修 FCIS 元约束）——只有 PreToolUse + PostToolUse 真存在 factory 模式。把 `AttributionEvent` 升级成 `kind: 40 enum` 的清晰窄类型。
 
-🦆 **(2) 预期产出**：HookShell 模块 (3 文件 + 测试) / ADR-0007 / 2 handler 搬移 / AttributionEvent 重塑 (40 kind) / 8 bin 改写 / CONTEXT.md +3 术语 / lint rule。
+🦆 **(2) 预期产出**：HookShell 模块 (3 文件 + 测试) / ADR-0008 / 2 handler 搬移 / AttributionEvent 重塑 (40 kind) / 8 bin 改写 / CONTEXT.md +3 术语 / lint rule。
 
 🦆 **(3) 第三方裁判**：本 PR 自己**不**评自己。3 阶段 judge harness：RUN（固定工具）→ DUMP（固定 JSON）→ READ（LLM judge）。任一 probe FAIL → block merge。
 

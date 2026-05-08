@@ -11,7 +11,7 @@
  *      knowledge_tool_vec retriever + 语义 vs legacy keyword 切换。
  *   3. warmup state probe (issue #91)：semantic 仅在 `status === "ready"` 时
  *      启用；否则降级到 legacy keyword matcher。这块 channel-specific，按
- *      ADR-0007 Q3 lock 留在 handler，不下沉到 shell。
+ *      ADR-0008 Q3 lock 留在 handler，不下沉到 shell。
  *   4. mergeSemanticAndLegacyMatches。
  *   5. 把 `PreToolUseResult` 包成 `{ hookSpecificOutput: { ... }, systemMessage? }`
  *      的 envelope；issue #50542 systemMessage stderr mirror 通过
@@ -98,7 +98,7 @@ async function main(): Promise<void> {
       // The user can still force legacy with TEAMAGENT_MATCHER=legacy. When
       // the detached warmup completes and writes status="ready", the very
       // next PreToolUse invocation reads the new value and switches to
-      // semantic. Per ADR-0007 Q3, this stays channel-specific (in handler)
+      // semantic. Per ADR-0008 Q3, this stays channel-specific (in handler)
       // rather than sinking to the shell.
       const { describeWarmupReadiness, defaultWarmupStatePath } = await import(
         "./warmup-state.js"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/check-bin-stderr.sh
 #
-# Lint rule per ADR-0007: hook channel binaries (`packages/cli/src/bin-*.ts`)
+# Lint rule per ADR-0008: hook channel binaries (`packages/cli/src/bin-*.ts`)
 # must not call `process.stderr.write` with user-visible system attribution
 # text. User-visible "what TeamAgent did" must go through `ctx.bus.emit({...})`,
 # which the HookShell routes to `StdoutRenderer` and on to stderr per the
@@ -42,7 +42,7 @@ matches=$(
 if [ -n "$matches" ]; then
   echo "ERROR: bin-*.ts must not write user-visible text to stderr directly." >&2
   echo "Use ctx.bus.emit({ kind: '...', ... }) — HookShell's StdoutRenderer" >&2
-  echo "routes to stderr per TEAMAGENT_VISIBILITY mode (per ADR-0007)." >&2
+  echo "routes to stderr per TEAMAGENT_VISIBILITY mode (per ADR-0008)." >&2
   echo "" >&2
   echo "Violations:" >&2
   echo "$matches" >&2
