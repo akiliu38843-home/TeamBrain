@@ -44,7 +44,19 @@
 - **Branch:** `worktree-clean-issues` (this docs-only PR); follow-up impl PR 自起分支
 - **Owner:** unassigned at plan time; 接手者请在 follow-up PR 起 owner
 - **Date:** 2026-05-08
-- **Reference:** `docs/HOWTO-PLAN-PR.md`、`docs/PRESHIP.md`、`docs/feature-verification.md`、ADR-0006
+- **Reference:** `docs/HOWTO-PLAN-PR.md`、`docs/PRESHIP.md`、`docs/feature-verification.md`、ADR-0006、`docs/CONTEXT.md`（canonical 术语仲裁源）
+
+## Glossary mapping — issue 用语 → CONTEXT.md canonical
+
+`docs/CONTEXT.md` _Avoid_ 列表覆盖 "group / shared / cross-user"。本 plan 正文一律用 canonical：
+
+| Issue 用语 / 历史叫法 | Canonical | 物理对应 |
+|---|---|---|
+| group sharing / group-sharing design | **team-scope viral sync teaching** | M5 sync 子系统 + L2 team layer（参考 `docs/features/team-share.md`） |
+| 同事级 personal-use 评估 | **personal-use evaluation**（本 plan 范围） | 单人 CC 实例 + L1 personal scope |
+| group / shared / cross-user 任何变体 | 一律 **team scope** 或 **viral sync** | 视语境选其一 |
+
+本 plan 后续段落正文不出现 forbidden terms；如出现于 ASCII art block / backtick code / 引号引用 / 本 Glossary 节，作为白名单豁免。
 
 ## ① Plan — task description
 
@@ -89,7 +101,7 @@
 
 ### 不做什么
 
-- **不做 group sharing 的端到端验证**——那是 #82 的 plan 范围。本 plan 只服务 #82 的前置条件（personal-use 不空才能去做 group sharing 设计）。
+- **不做 team-scope viral sync teaching 的端到端验证**——那是 #82 的 plan 范围。本 plan 只服务 #82 的前置条件（personal-use 不空才能去做 team-scope viral sync teaching 设计）。
 - **不做 evangelism / 招募更多同事 / 写 landing page**——那是 #114/#117/#84 系列的范围。本 plan 只对 3 同事负责。
 - **不修产品 bug** —— 评估期发现的 bug 落到 issue tracker，由 BUGREPORT 流程接手，不在本 plan 内修。
 - **不做合成数据 / synthetic agent / mock evaluation**——必须真同事真用真工作。
@@ -99,11 +111,11 @@
 
 | Artifact | Path | Reviewer 验收点 |
 |---|---|---|
-| Cross-cutting research 报告 | `docs/research/2026-05-XX-personal-use-3people.md` | ≥3 个 subject section（每位同事 1 段）+ cross-cutting cluster section + 给 #82 group-sharing 的设计输入 section |
+| Cross-cutting research 报告 | `docs/research/2026-05-XX-personal-use-3people.md` | ≥3 个 subject section（每位同事 1 段）+ cross-cutting cluster section + 给 #82 team-scope viral sync teaching 的设计输入 section |
 | Per-subject raw evidence | `docs/research/2026-05-XX-personal-use-3people/subject-<N>/{db.redacted.jsonl, hooks.redacted.jsonl, stats-start.json, stats-end.json, interview.md}` | 每位同事一份 subdir，每份 ≥5 个文件，db 与 hooks 必须 hardmatch redact 处理过，git 上不得出现 `[a-zA-Z0-9]{20,}` 长 token 字面 |
 | Subject 招募口径 | `docs/research/2026-05-XX-personal-use-3people/recruitment.md` | 列出 3 同事 codebase 类型 + agent 习惯类型；姓名脱敏成 `subject-1/2/3`；明确确认每人**真在用 Claude Code 工作** |
 | Subject 访谈题模板 | `docs/research/2026-05-XX-personal-use-3people/interview-template.md` | 5 题闭合 + 自由反馈段；必须能直接复用做下一轮 |
-| 报告对 #82 的输入 section | `docs/research/2026-05-XX-personal-use-3people.md` 的 `## Inputs to issue #82 (group-sharing design)` 一节 | ≥3 条具体可下钻的设计输入；每条带证据指针（subject-N / cluster-X） |
+| 报告对 #82 的输入 section | `docs/research/2026-05-XX-personal-use-3people.md` 的 `## Inputs to issue #82 (team-scope viral sync teaching design)` 一节 | ≥3 条具体可下钻的设计输入；每条带证据指针（subject-N / cluster-X） |
 
 报告 byline 必须含 evaluation 日期范围（`<start>..<end>`）与 git SHA。
 
@@ -118,7 +130,7 @@ Judge playbook 的固定步骤（playbook 不是固定 bash 脚本——具体�
    - 检查 `subject-1/2/3` 三个 subdir 各自 ≥5 个 redacted 证据文件；
    - 检查报告含 `## Inputs to issue #82` section 且 ≥3 条带证据指针的输入。
 2. **redact 完整性**：sub-agent 跑 hardmatch features 的 redact regex 全表对所有 `*.redacted.jsonl` 二次扫描，命中即 fail。
-3. **证据真实性 sample check**：sub-agent 随机抽 3 条 PreToolUse 拦截记录，对照该规则编译来源——用 `DualLayerStore.getById(<rule-id>)` 直查 SQLite（`packages/adapters/src/storage/sqlite/dual-layer-store.ts:78` 已有 API），**不**走 `teamagent review` CLI（CLI 当前没有 `--id` 过滤，会拿回最近 N 条不相关条目）；确认查到的 entry 的 `source_event_id` / `source_commit_sha` / `source_log_path` 全部 deref 到真实 artifact。
+3. **证据真实性 sample check**：sub-agent 随机抽 3 条 PreToolUse 拦截记录，每条做 5 项校验——(a) `DualLayerStore.getById(rule_id)` 直查 SQLite（`packages/adapters/src/storage/sqlite/dual-layer-store.ts:78`，**不**走 `teamagent review` CLI，CLI 没有 `--id` 过滤），(b) entry 必须存在，(c) `event.session_id` non-empty 且形态合法，(d) `event.intercepted_at` 在 subject 的 evaluation 窗口内（`stats-start.window_start ≤ intercepted_at ≤ stats-end.window_end`），(e) entry.`created_at ≤ event.intercepted_at` 且 entry.`source ∈ {preset,user,auto}`。**注意**：`KnowledgeEntry`（`packages/types/src/knowledge-entry.ts`）**没有** `source_event_id` / `source_commit_sha` / `source_log_path` 字段，只有 `source` enum；上述 provenance 必须从 `hooks.redacted.jsonl` 事件本身读，而不是从规则 entry 读。
 4. **访谈语义 hold**：sub-agent 用 LLM judge 读全部 3 份 `interview.md`，输出 raw JSON：`{subject_id, claim_count, evidence_referenced, internally_consistent}`。任何 `internally_consistent=false` 的 subject 列为 fail，要求人手复核。
 5. **Cluster reproducibility**：sub-agent 用同一 LLM judge 独立从 raw 证据再聚类一次，与报告 cluster 比对。差异 >40% 视为 cluster 主观性过强，要求作者补证据。
 6. **Final verdict**：main agent 汇总 1–5 步的 raw JSON，输出一份 `docs/plans/issue-81/judge-output/<run-id>/verdict.json`，含 `pass/fail`、每步证据 dir 路径、stdout 路径。LLM judge 只读 raw JSON + 必要 evidence 归纳，不允许凭印象判。

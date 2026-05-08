@@ -110,8 +110,14 @@ Pass condition: `leak_count == 0`. Any non-empty `leak_examples` triggers immedi
 
 Sub-agent randomly picks 3 entries across all three subjects' `hooks.redacted.jsonl` whose `event_type == "PreToolUse"` and `decision == "block"`. For each entry's `rule_id`:
 
-1. Resolve to the rule's source via **direct SQLite lookup** using the existing `DualLayerStore.getById(rule_id)` API at `packages/adapters/src/storage/sqlite/dual-layer-store.ts:78` (this API already searches the project DB then the global DB and returns the matching `KnowledgeEntry` or `undefined`). **Do NOT** call `teamagent review --scope=personal --id=<rule_id>` — the `review` CLI parser at `packages/cli/src/commands/review.ts` only accepts `--limit` and `--scope`, no `--id`, so an `--id` argument is silently ignored and the command returns the most recent N unrelated entries; using it here would fabricate "provenance ok" verdicts from drift.
-2. Confirm the returned entry's provenance trail (`source_event_id`, `source_commit_sha`, `source_log_path`) all dereference to real artifacts (file exists, sha is reachable).
+1. **Rule existence**: resolve via direct SQLite lookup using `DualLayerStore.getById(rule_id)` at `packages/adapters/src/storage/sqlite/dual-layer-store.ts:78` (searches project DB then global DB; returns matching `KnowledgeEntry` or `undefined`). **Do NOT** call `teamagent review --scope=personal --id=<rule_id>` — the `review` CLI parser at `packages/cli/src/commands/review.ts` only accepts `--limit` and `--scope`, so an `--id` argument is silently ignored.
+2. **Existence check**: `entry !== undefined`. Failure here means the hook fired against a `rule_id` no longer in the DB (rule deleted, evaluation tampered).
+3. **Provenance trail from the event log, NOT the entry**. `KnowledgeEntry` (`packages/types/src/knowledge-entry.ts`) does **not** carry `source_event_id` / `source_commit_sha` / `source_log_path` fields — only a `source` enum (preset / user / etc.). The provenance the judge cares about lives on the *event* in `hooks.redacted.jsonl`, not on the rule. So for each sampled hook event, verify:
+   - `event.session_id` is present and well-formed (UUID-shaped or per-tool conventions).
+   - `event.intercepted_at` is within the subject's evaluation window (`stats-start.json.window_start ≤ intercepted_at ≤ stats-end.json.window_end`).
+   - `event.cwd` (or equivalent project root field) matches the subject's recorded codebase root in `recruitment.md`.
+   - The rule entry's `created_at ≤ event.intercepted_at` (the rule existed before it fired).
+   - The rule entry's `source` is `preset` (came from a seed pack), `user` (subject pitfall'd it), or `auto` (extracted by error pipeline) — anything else means the gate-side rule injection happened.
 
 Emits:
 
@@ -120,13 +126,22 @@ Emits:
   "sample_size": 3,
   "matched": 3,
   "samples": [
-    {"rule_id": "...", "subject": "subject-2", "provenance_ok": true},
-    ...
+    {
+      "rule_id": "...",
+      "subject": "subject-2",
+      "rule_exists": true,
+      "session_id_present": true,
+      "intercepted_in_window": true,
+      "cwd_matches": true,
+      "rule_created_before_event": true,
+      "source_legit": true,
+      "all_checks_pass": true
+    }
   ]
 }
 ```
 
-Pass condition: `matched == sample_size`.
+Pass condition: `matched == sample_size` and every sample's `all_checks_pass == true`. If a sample fails any sub-check, that sample fails and the report owner must explain (or re-sample).
 
 ## Step 4 — Interview semantic hold
 
