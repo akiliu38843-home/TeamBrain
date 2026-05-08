@@ -108,16 +108,21 @@ Pass condition: `leak_count == 0`. Any non-empty `leak_examples` triggers immedi
 
 ## Step 3 — Evidence reality sample
 
-Sub-agent randomly picks 3 entries across all three subjects' `hooks.redacted.jsonl` whose `event_type == "PreToolUse"` and `decision == "block"`. For each entry's `rule_id`:
+Sub-agent randomly picks 3 entries across all three subjects' `hooks.redacted.jsonl` whose `kind == "hook-pre.blocked"` (the actual emitted shape from `packages/adapters/src/hook/claude-agent-sdk/pre-tool-use-sdk.ts:91-94`; events do **not** carry `event_type` / `decision` fields). For each entry's `knowledge_id` (the actual field name; not `rule_id`):
 
-1. **Rule existence**: resolve via direct SQLite lookup using `DualLayerStore.getById(rule_id)` at `packages/adapters/src/storage/sqlite/dual-layer-store.ts:78` (searches project DB then global DB; returns matching `KnowledgeEntry` or `undefined`). **Do NOT** call `teamagent review --scope=personal --id=<rule_id>` — the `review` CLI parser at `packages/cli/src/commands/review.ts` only accepts `--limit` and `--scope`, so an `--id` argument is silently ignored.
-2. **Existence check**: `entry !== undefined`. Failure here means the hook fired against a `rule_id` no longer in the DB (rule deleted, evaluation tampered).
-3. **Provenance trail from the event log, NOT the entry**. `KnowledgeEntry` (`packages/types/src/knowledge-entry.ts`) does **not** carry `source_event_id` / `source_commit_sha` / `source_log_path` fields — only a `source` enum (preset / user / etc.). The provenance the judge cares about lives on the *event* in `hooks.redacted.jsonl`, not on the rule. So for each sampled hook event, verify:
-   - `event.session_id` is present and well-formed (UUID-shaped or per-tool conventions).
-   - `event.intercepted_at` is within the subject's evaluation window (`stats-start.json.window_start ≤ intercepted_at ≤ stats-end.json.window_end`).
-   - `event.cwd` (or equivalent project root field) matches the subject's recorded codebase root in `recruitment.md`.
-   - The rule entry's `created_at ≤ event.intercepted_at` (the rule existed before it fired).
-   - The rule entry's `source` is `preset` (came from a seed pack), `user` (subject pitfall'd it), or `auto` (extracted by error pipeline) — anything else means the gate-side rule injection happened.
+1. **Rule existence**: resolve via direct SQLite lookup using `DualLayerStore.getById(knowledge_id)` at `packages/adapters/src/storage/sqlite/dual-layer-store.ts:78` (searches project DB then global DB; returns matching `KnowledgeEntry` or `undefined`). **Do NOT** call `teamagent review --scope=personal --id=<id>` — the `review` CLI parser at `packages/cli/src/commands/review.ts` only accepts `--limit` and `--scope`, so an `--id` argument is silently ignored.
+2. **Existence check**: `entry !== undefined`. Failure here means the hook fired against a `knowledge_id` no longer in the DB (rule deleted, evaluation tampered).
+3. **Provenance trail using ACTUAL fields the SDK emits**. The PreToolUse SDK at `pre-tool-use-sdk.ts:91-94` only writes `{ id, kind, knowledge_id, tool_use_id, tool_name, timestamp, schema_version }` to the event log — not `session_id`, not `cwd`, not `intercepted_at`. The plan's redact-export pipeline (which produces `hooks.redacted.jsonl`) is responsible for **enriching each raw SDK event** with two extra fields drawn from sibling artifacts:
+   - `session_id` from the StopHook payload's `session_id` (Claude Code SDK provides it on Stop events; the redact tool joins by tool_use_id sequence or by `started_at/ended_at` window).
+   - `cwd` from the subject's `recruitment.md` codebase root (one cwd per subject; constant per evaluation run).
+
+   With those two fields enriched, verify per event:
+   - `event.kind == "hook-pre.blocked"`.
+   - `event.timestamp` parses as ISO and falls within `stats-start.json.window_start ≤ event.timestamp ≤ stats-end.json.window_end`.
+   - `event.session_id` (enriched from Stop hook) is present and well-formed.
+   - `event.cwd` (enriched from recruitment.md) matches the subject's recorded codebase root.
+   - The resolved rule entry's `created_at ≤ event.timestamp` (rule existed before firing).
+   - The resolved rule entry's `source` is one of the **real** `KnowledgeEntrySchema` enum values (`packages/types/src/knowledge-entry.ts:103-110`): `preset` (seed pack) or `accumulated` (live use) or `ingested` (multi-source ingest) or `imported` (from another rule store). **Forbid** `team-shared` for #81 personal-use evaluation — its presence means a team-scope rule leaked into the L1 evaluation, which violates the personal-use scope.
 
 Emits:
 
@@ -127,14 +132,15 @@ Emits:
   "matched": 3,
   "samples": [
     {
-      "rule_id": "...",
+      "knowledge_id": "...",
       "subject": "subject-2",
       "rule_exists": true,
+      "kind_is_blocked": true,
+      "timestamp_in_window": true,
       "session_id_present": true,
-      "intercepted_in_window": true,
       "cwd_matches": true,
       "rule_created_before_event": true,
-      "source_legit": true,
+      "source_in_l1_legit": true,
       "all_checks_pass": true
     }
   ]
