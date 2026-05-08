@@ -110,8 +110,8 @@ Pass condition: `leak_count == 0`. Any non-empty `leak_examples` triggers immedi
 
 Sub-agent randomly picks 3 entries across all three subjects' `hooks.redacted.jsonl` whose `event_type == "PreToolUse"` and `decision == "block"`. For each entry's `rule_id`:
 
-1. Resolve to the rule's source via `teamagent review --scope=personal --id=<rule_id>` (or its programmatic equivalent on the subject DB).
-2. Confirm the rule's provenance trail (`source_event_id`, `source_commit_sha`, `source_log_path`) all dereference to real artifacts (file exists, sha is reachable).
+1. Resolve to the rule's source via **direct SQLite lookup** using the existing `DualLayerStore.getById(rule_id)` API at `packages/adapters/src/storage/sqlite/dual-layer-store.ts:78` (this API already searches the project DB then the global DB and returns the matching `KnowledgeEntry` or `undefined`). **Do NOT** call `teamagent review --scope=personal --id=<rule_id>` — the `review` CLI parser at `packages/cli/src/commands/review.ts` only accepts `--limit` and `--scope`, no `--id`, so an `--id` argument is silently ignored and the command returns the most recent N unrelated entries; using it here would fabricate "provenance ok" verdicts from drift.
+2. Confirm the returned entry's provenance trail (`source_event_id`, `source_commit_sha`, `source_log_path`) all dereference to real artifacts (file exists, sha is reachable).
 
 Emits:
 

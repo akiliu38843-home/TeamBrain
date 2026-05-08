@@ -118,7 +118,7 @@ Judge playbook 的固定步骤（playbook 不是固定 bash 脚本——具体�
    - 检查 `subject-1/2/3` 三个 subdir 各自 ≥5 个 redacted 证据文件；
    - 检查报告含 `## Inputs to issue #82` section 且 ≥3 条带证据指针的输入。
 2. **redact 完整性**：sub-agent 跑 hardmatch features 的 redact regex 全表对所有 `*.redacted.jsonl` 二次扫描，命中即 fail。
-3. **证据真实性 sample check**：sub-agent 随机抽 3 条 PreToolUse 拦截记录，对照该规则编译来源（`teamagent review --scope=personal --id=<rule-id>`），确认归因链回指真实 commit / log。
+3. **证据真实性 sample check**：sub-agent 随机抽 3 条 PreToolUse 拦截记录，对照该规则编译来源——用 `DualLayerStore.getById(<rule-id>)` 直查 SQLite（`packages/adapters/src/storage/sqlite/dual-layer-store.ts:78` 已有 API），**不**走 `teamagent review` CLI（CLI 当前没有 `--id` 过滤，会拿回最近 N 条不相关条目）；确认查到的 entry 的 `source_event_id` / `source_commit_sha` / `source_log_path` 全部 deref 到真实 artifact。
 4. **访谈语义 hold**：sub-agent 用 LLM judge 读全部 3 份 `interview.md`，输出 raw JSON：`{subject_id, claim_count, evidence_referenced, internally_consistent}`。任何 `internally_consistent=false` 的 subject 列为 fail，要求人手复核。
 5. **Cluster reproducibility**：sub-agent 用同一 LLM judge 独立从 raw 证据再聚类一次，与报告 cluster 比对。差异 >40% 视为 cluster 主观性过强，要求作者补证据。
 6. **Final verdict**：main agent 汇总 1–5 步的 raw JSON，输出一份 `docs/plans/issue-81/judge-output/<run-id>/verdict.json`，含 `pass/fail`、每步证据 dir 路径、stdout 路径。LLM judge 只读 raw JSON + 必要 evidence 归纳，不允许凭印象判。
