@@ -52,13 +52,16 @@ export function createPreToolUseHandler(deps: PreToolUseDeps) {
 }
 
 /**
- * Resolve the user-facing format style from env. Default is `"ascii-box"` —
- * the legacy `+-- title -+` framed look. Callers can opt into the
- * `humane` (boxless) variant by setting `TEAMAGENT_HOOK_ASCII_BOX=0`. The
- * AttributionEvent reshape (commits 4+) will likely flip the default once
- * the renderer takes ownership of decoration; for now we preserve current
- * stderr/CC UI behavior.
+ * Resolve the user-facing format style from env. Default is `"humane"` —
+ * the boxless `⚠️ TeamAgent ...` shape introduced by issue #86 (B-86) on
+ * `main`. Callers can opt back into the legacy `+-- title -+` ASCII-box
+ * look by setting `TEAMAGENT_HOOK_ASCII_BOX=1` (engineer dogfooders only).
+ *
+ * Default flip preserved through merge with `origin/main`: the upstream
+ * format function is `env === "1" ? ascii-box : humane`, which makes
+ * humane the user-facing default. Earlier commit (dc6510b) of this PR
+ * had this inverted; aligned during merge resolution.
  */
 function resolveFormatStyle(): HookFormatStyle {
-  return process.env.TEAMAGENT_HOOK_ASCII_BOX === "0" ? "humane" : "ascii-box";
+  return process.env.TEAMAGENT_HOOK_ASCII_BOX === "1" ? "ascii-box" : "humane";
 }

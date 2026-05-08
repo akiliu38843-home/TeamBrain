@@ -158,7 +158,7 @@ describe("createPreToolUseHandler (core)", () => {
     expect(kinds).not.toContain("hook-pre.warned");
   });
 
-  it("formatStyle 'humane' → no '+-- ... -+' box border, uses '◈ title' + indented body", async () => {
+  it("formatStyle 'humane' → no '+-- ... -+' box border, uses '⚠️ TeamAgent 提醒' 3-line shape", async () => {
     const warnRule = {
       id: "r1",
       enforcement: "warn",
@@ -185,7 +185,9 @@ describe("createPreToolUseHandler (core)", () => {
     expect(result.systemMessage).toBeDefined();
     expect(result.systemMessage).not.toMatch(/\+--/); // no ascii-box border
     expect(result.systemMessage).not.toMatch(/^\|/m); // no pipe-bordered rows
-    expect(result.systemMessage).toMatch(/◈ TeamAgent 经验提醒/);
+    // Issue #86 humane shape: 3 lines starting with ⚠️ TeamAgent 提醒 (warn) /
+    // ⚠️ TeamAgent 拦了一下 (block).
+    expect(result.systemMessage).toMatch(/^⚠️ TeamAgent 提醒 — /);
     expect(result.systemMessage).toContain("fetch");
   });
 
