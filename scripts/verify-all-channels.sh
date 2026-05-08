@@ -167,7 +167,7 @@ echo ""
 echo "── Default install (default path) ───────────────────────────"
 INSTALL_OUT="${EVIDENCE_DIR}/p2-install.out"
 INSTALL_TIME="${EVIDENCE_DIR}/p2-install.time"
-HOME="${P2_HOME}" /usr/bin/time -p npm install -g \
+HOME="${P2_HOME}" /usr/bin/time -p npm install -g --foreground-scripts \
   --prefix="${P2_PREF}" --cache="${P2_CACH}" "${TGZ}" \
   > "${INSTALL_OUT}" 2> "${INSTALL_TIME}.raw" || INSTALL_EXIT=$?
 INSTALL_EXIT="${INSTALL_EXIT:-0}"

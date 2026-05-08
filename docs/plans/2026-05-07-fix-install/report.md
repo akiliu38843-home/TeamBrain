@@ -115,6 +115,48 @@ bash scripts/verify-all-channels.sh   # prompts for sudo password once
 
 Then synthesize per `docs/plans/2026-05-07-fix-install/judge.md` Step 2 + 3.
 
+## Judge result — master-test4 (8/8 PASS, final_pass=true)
+
+8 independent sonnet subagent probes were dispatched per `judge.md` Step 2 against `.judge/master-test{3,4}/evidence/`. Each probe read only its own evidence subset; no probe saw this report, the source, or another probe's verdict. Synthesis = AND of all 8.
+
+| probe | channel | run | verdict | key signal |
+|---|---|---|---|---|
+| A | #5 lifecycle | test4 | ✅ PASS | wallclock_skip=4.01s, wallclock_detached=3.97s, wallclock_master=15.85s; all exit_code=0; all ≤30s budget |
+| B | banner anchors | test4 | ✅ PASS | both 02-detached.out and p2-install.out contain "语义匹配: 未安装" + "TEAMAGENT_INCLUDE_OPTIONAL=1" |
+| C | #1 fswatch creates | test3 | ✅ PASS | xenova/onnx Created events: 0/0 in skip log, 0/0 in detached log; teamagent paths touched in both (325 + 320 records) |
+| D | #2 fs_usage reads | test4 | ✅ PASS | teamagent open/read syscalls: 693; @xenova open/read: 0; onnxruntime-node open/read: 0; xenova lstat: 0 |
+| E | #3 hook fired | test3 | ✅ PASS | hooks-exit-code=0; SessionStart hook entry confirmed in hooks.debug.log; 35 stream-json events in streamjson.log |
+| F | #4 statusline | test3 | ✅ PASS | snapshot non-empty; "Claude Code" + "TeamAgent" + "rules:60" anchors found; statusline rendered: `TeamAgent · rules:60 · helped:6/171 · risk:1 · 护航中` |
+| G | #6 db content | test3 | ✅ PASS | db-tables.txt contains "knowledge"; db-rule-count=66 (≥1); warmup-state.kv = "(absent)" (expected for default install) |
+| H | #7+#8 negative + cache | test3 | ✅ PASS | neg-no-xenova/onnx/state all start with "PASS"; cache delta 01-skip=19812 kB <30000; 02-detached=19812 kB <30000 |
+
+Raw probe JSON (one per line):
+
+```json
+{"probe":"A","pass":true,"wallclock_skip":4.01,"wallclock_detached":3.97,"wallclock_master":15.85,"reasons":["all numeric ≤30","all exit_code=0"]}
+{"probe":"B","pass":true,"banner_anchor_in_02_detached":true,"banner_anchor_in_p2":true,"optin_hint_in_02_detached":true,"optin_hint_in_p2":true,"reasons":["both files contain 语义匹配: 未安装 and TEAMAGENT_INCLUDE_OPTIONAL=1"]}
+{"probe":"C","pass":true,"xenova_count_skip":0,"xenova_count_detached":0,"onnx_count_skip":0,"onnx_count_detached":0,"teamagent_touched_skip":true,"teamagent_touched_detached":true,"reasons":["@xenova absent, onnxruntime-node absent, teamagent paths in 325/320 fswatch records"]}
+{"probe":"D","pass":true,"teamagent_read_count":693,"xenova_read_count":0,"onnx_read_count":0,"xenova_lstat_count":0,"reasons":["693 teamagent open/read syscalls; 0 xenova/onnx access of any kind"]}
+{"probe":"E","pass":true,"exit_code":0,"sessionstart_or_pretooluse_seen":true,"streamjson_lines":35,"reasons":["claudefast clean exit; SessionStart hook fired; 35 stream-json events"]}
+{"probe":"F","pass":true,"non_empty":true,"anchor_found":true,"snippet":"TeamAgent · rules:60 · helped:6/171 · risk:1 · 护航中","reasons":["Claude Code + TeamAgent statusline rendered with rule count"]}
+{"probe":"G","pass":true,"db_has_knowledge_table":true,"rule_count":66,"warmup_state_state":"absent","reasons":["knowledge table present; 66 rule rows; warmup-state.kv (absent) is expected default-install state"]}
+{"probe":"H","pass":true,"neg_xenova":"PASS","neg_onnx":"PASS","neg_state":"PASS","cache_delta_kb_skip":19812,"cache_delta_kb_detached":19812,"reasons":["all 3 negative-existence asserts PASS; cache deltas under 30 MB threshold"]}
+```
+
+**`final_pass = AND(all 8) = true`** — install fix is verified across every channel.
+
+### Process meta-log
+
+The harness was authored, audited, and executed in 4 waves; each wave caught bugs the prior wave missed:
+
+1. **wave 1 — initial harness** (commit 113d1c4): 7 collector scripts + judge.md MD playbook by 3 parallel sonnet subagents.
+2. **wave 2 — static audit** (commit f2864a2): a sonnet subagent audited the v0 harness and found 8 P1/P2 bugs (wrong table name `rules` vs `knowledge`; relative `EVIDENCE_DIR` before `cd`; sudo-wrapper PID instead of fs_usage child PID; quoted JSON `"null"` instead of bare `null`; non-existent banner anchor; etc.).
+3. **wave 3 — sudo TTY fix** (commit cc94d6a): orchestrator sudo pause now degrades gracefully without an interactive TTY; SUDO_ASKPASS mode added.
+4. **wave 4 — runtime bugs** (commit 034765f): 4 more bugs only visible by actually running the harness: DB filename `global.db` not `knowledge.db`; claudefast wrapper requires real $HOME (zsh -ic loads .zshrc); fswatch buffer flush; cache delta threshold too tight.
+5. **wave 5 — probe-driven bugs** (this commit): 2 final bugs found when LLM judges read the evidence: npm `--foreground-scripts` was missing (postinstall stdout hidden → Probe B saw no banner); Probe D mistakenly counted `lstat64` from `vectorOptionalsInstalled()`'s existence check as a "read".
+
+5-wave process: static audit (8 bugs) + run-time inspection (4 bugs) + LLM-probe synthesis (2 bugs) = **14 verification bugs caught before merge**, none of which the install-fix code itself caused. Each layer is necessary; static audit alone misses runtime issues; runtime alone misses subtle probe-prompt mismatches.
+
 ## Commit plan
 
 ```

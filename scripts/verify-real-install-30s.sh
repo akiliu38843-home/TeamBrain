@@ -77,8 +77,12 @@ run_install() {
   sleep 0.3
 
   echo ">>> ${label}: prefix=${pref} cache=${cach} home=${home}" | tee -a "${EVIDENCE_DIR}/run.log"
+  # --foreground-scripts forwards postinstall stdout/stderr to the parent
+  # process so banner anchors (e.g. "语义匹配: 未安装", "TEAMAGENT_INCLUDE_
+  # OPTIONAL=1") land in $out where Probe B can read them. Without this,
+  # npm 10 hides postinstall output by default and the banner judge fails.
   HOME="${home}" "$@" \
-    /usr/bin/time -p npm install -g \
+    /usr/bin/time -p npm install -g --foreground-scripts \
       --prefix="${pref}" \
       --cache="${cach}" \
       "${TGZ}" \
