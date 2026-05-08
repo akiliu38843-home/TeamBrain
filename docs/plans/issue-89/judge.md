@@ -6,7 +6,7 @@
        │
        ├─► sub-agent 1: schema lint (parse each jsonl line)
        ├─► sub-agent 2: file-type scope (5 stacks have it, universal doesn't)
-       ├─► sub-agent 3: substring-friendly (no regex metachars)
+       ├─► sub-agent 3: matcher-aware pattern check (token ≥3, valid splitPatterns)
        ├─► sub-agent 4: cross-language false-trigger (synthetic fixtures)
        ├─► sub-agent 5: real-codebase sample (≥3 OSS repos)
        └─► main agent aggregate verdict.json
@@ -36,7 +36,7 @@ The `verdict.json` schema:
   "steps": [
     {"id": 1, "name": "schema-lint",         "exit_code": 0, "metrics": {"valid_lines_total": 50, "invalid_lines_total": 0}},
     {"id": 2, "name": "file-type-scope",     "exit_code": 0, "metrics": {"stack_packs_with_file_types": 5, "universal_has_file_types": false}},
-    {"id": 3, "name": "substring-friendly",  "exit_code": 0, "metrics": {"substring_friendly_count": 50, "regex_like_count": 0}},
+    {"id": 3, "name": "matcher-aware-pattern", "exit_code": 0, "metrics": {"valid_token_count": 50, "dropped_short_tokens_count": 0, "rules_with_no_valid_tokens_count": 0}},
     {"id": 4, "name": "cross-lang-false",    "exit_code": 0, "metrics": {"rules_only_firing_in_expected_lang": 50, "rules_misfiring_count": 0}},
     {"id": 5, "name": "real-codebase",       "exit_code": 0, "metrics": {"dead_rules": [], "noisy_rules": []}}
   ],
@@ -50,11 +50,12 @@ The `verdict.json` schema:
 Sub-agent reads each jsonl file line-by-line. Per line:
 
 - Must `JSON.parse` cleanly.
-- Required fields: `id`, `scope.level`, `category`, `tags`, `type`, `nature`, `trigger`, `wrong_pattern`, `correct_pattern`, `reasoning`, `confidence`, `enforcement`, `status`, `source`, `current_tier`, `tier_entered_at`.
-- `scope.level == "global"` (per pack convention).
-- `source == "preset"`.
-- `current_tier == "canonical"`.
-- `id` matches `^seed-pack-(universal|frontend-js|python-data|ops-safety|golang|rust)-[a-z0-9-]+$`.
+- **Schema-level lint**: feed each line into `KnowledgeEntrySchema.parse()` from `@teamagent/types` (`packages/types/src/knowledge-entry.ts:59`). Rejecting any line means the schema source-of-truth says it's malformed — that's authoritative, no need to maintain a parallel field list in this judge. Any zod parse error is a fail with the field name + reason emitted.
+- **Pack-specific invariants** (on top of schema):
+  - `scope.level == "global"` (per pack convention).
+  - `source == "preset"`.
+  - `current_tier == "canonical"`.
+  - `id` matches `^seed-pack-(universal|frontend-js|python-data|ops-safety|golang|rust)-[a-z0-9-]+$`.
 
 Emit `{file, valid_lines, invalid_lines, invalid_examples}`. Pass condition: `invalid_lines_total == 0`.
 
@@ -67,13 +68,32 @@ Sub-agent checks:
 
 Emit `{file, lines_with_file_types, lines_without}`. Pass condition: stack packs all have it, universal doesn't.
 
-## Step 3 — Substring-friendly
+## Step 3 — Matcher-aware pattern check
 
-Sub-agent inspects each rule's `wrong_pattern`. Pass condition: it contains **no regex metacharacters** from the set `^$.*+?(){}[]|\\`. Anchored on the legacy substring matcher requirement (ADR-0001 / ADR-0002 lineage).
+Sub-agent simulates the actual matcher logic at `packages/core/src/matcher/legacy/keyword-matcher.ts` (`splitPatterns`):
 
-If a rule legitimately needs regex (rare), it must be `nature: "subjective"` AND `enforcement: "warn"` AND have a non-empty `wrong_pattern_regex_safe` field marking the author's intent. The default should be plain substring.
+- Split each `wrong_pattern` on `|` (the only true separator).
+- Trim each token, drop tokens with length < 3 (matcher's `MIN_TOKEN_LENGTH`).
+- For each rule, check:
+  - `valid_token_count > 0` (a rule with all sub-3-char tokens silently falls back to whole-string match — risky drift from author intent).
+  - For multi-token rules, every kept token is ≥3 chars (otherwise the rule's coverage is narrower than the author thinks).
 
-Emit `{file, substring_friendly_count, regex_like_count, regex_examples[]}`.
+The matcher uses `String.prototype.includes()` after splitting, so regex-like characters (`.()[]*+?{}^$\\`) are **literal substring** chars and are perfectly valid in `wrong_pattern` — `eval(`, `dangerouslySetInnerHTML`, `np.float`, `git push --force`, `--no-verify` all match cleanly. Do not flag those.
+
+Emit:
+
+```json
+{
+  "file": "...",
+  "rules_checked": 8,
+  "valid_token_count": 8,
+  "dropped_short_tokens": [],
+  "rules_with_no_valid_tokens": [],
+  "alternation_rules": [{"rule_id": "...", "tokens": ["foo", "barbaz"]}]
+}
+```
+
+Pass condition: `len(rules_with_no_valid_tokens) == 0` AND `len(dropped_short_tokens) == 0`. The legacy substring-friendly framing (ADR-0001 / ADR-0002 lineage) is preserved at the conceptual level — `wrong_pattern` should still match what the author thinks — but the regex-metacharacter blacklist that prior drafts proposed has been corrected: those characters are literal in this matcher.
 
 ## Step 4 — Cross-language false-trigger
 
@@ -120,5 +140,5 @@ Main agent reads `step-{1..5}/raw.json`, applies pass conditions, writes `verdic
 ## What this judge harness does NOT do
 
 - It does not run TeamBrain's full PreToolUse / UserPromptSubmit / Stop pipeline against the new packs (that's calibration territory — ADR-0004).
-- It does not judge whether a given rule is "wise" — only whether it's structurally correct, file-type-scoped, substring-friendly, language-isolated, and grounded in real-codebase prevalence.
+- It does not judge whether a given rule is "wise" — only whether it's structurally correct (per `KnowledgeEntrySchema`), file-type-scoped, matcher-token-valid (`splitPatterns` produces ≥1 token of length ≥3), language-isolated, and grounded in real-codebase prevalence.
 - It does not enforce confidence values — a rule shipped at `confidence: 0.6` is fine; calibration will adjust it post-merge.

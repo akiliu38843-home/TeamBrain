@@ -70,7 +70,7 @@
 
 1. **照抄 schema**：每条规则 1:1 沿用 `seed/packs/universal.jsonl` 已落地字段（id 前缀改为 `seed-pack-<lang>-<slug>`、`scope.level=global`、`source=preset`、`current_tier=canonical`、`tier_entered_at` 用 commit 日期）。
 2. **加 `scope.file_types`**：universal pack 没有 file-type 限制（跨语言）；本批 5 个必须有。schema 字段名锚定 issue body：`scope.file_types: ["js","jsx","ts","tsx"]` 形态。
-3. **`wrong_pattern` substring-friendly**：legacy substring matcher 必须能命中（参考 `docs/adr/0001-two-stage-install.md` 双阶段 install 的 substring 友好原则）。能用纯 substring 表达就别上 regex。
+3. **`wrong_pattern` matcher-aware**：legacy matcher（`packages/core/src/matcher/legacy/keyword-matcher.ts`）实际行为是 `splitPatterns` 按 `|` 切分多 token，每个 token 走 `String.prototype.includes()` 子串匹配，token 长度 < 3 字符会被丢弃。所以**唯一真正的 metacharacter 是 `|`**（多 token 分隔符），`.()[]*+?{}^$\\` 等在 regex 里是元字符的字符在本 matcher 里都是**字面子串**，可以放心用（universal.jsonl 已含 `eval(` / `dangerouslySetInnerHTML` / `git push --force` 这类含特殊符号的 pattern）。本 plan 的检查口径也按此对齐：(a) `|` 不允许出现在单 token 中，要么作为 alternation 分隔且每段 ≥3 字符，要么不写；(b) 每个有效 token 长度 ≥3 字符；(c) 其他 regex-like 字符是 OK 的字面子串，不必避讳。
 4. **`README.md`** 列出 6 个 pack：每行 `pack name | rule count | scope | install hint`。同时贴一段 `teamagent pack add <name>` 的命令示例（CLI 来自已 close 的 #90）。
 5. **Verify script** `docs/features/stack-packs/run-judge.sh`：跑 judge MD playbook 的 thin shim（playbook 在 `docs/plans/issue-89/judge.md`，详 ③ 节）。
 6. **`docs/PRODUCT-FEATURES.md` 增 6 行 VERIFIED**：`stack-pack-universal`、`stack-pack-frontend-js`、`stack-pack-python-data`、`stack-pack-ops-safety`、`stack-pack-golang`、`stack-pack-rust`。
@@ -105,7 +105,7 @@ Playbook 6 步（每步是 sub-agent 子任务，**不是固定 bash 步骤**）
 
 1. **Schema lint**：每个 jsonl 行能 JSON.parse、有 `id / scope / type / wrong_pattern / current_tier` 等必备字段；`source=preset`、`current_tier=canonical`、`scope.level=global` 全部满足。emit `{file, valid_lines, invalid_lines}`。
 2. **File-type scope**：5 个 stack pack 必须有 `scope.file_types`，universal pack 必须没有。emit `{file, has_file_types}`。
-3. **Substring-friendly**：每个 rule 的 `wrong_pattern` 不是 regex（不含 `^$.*+?(){}[]|\\` 等元字符）。emit `{file, substring_friendly_count, regex_like_count}`。命中 regex 视为违反 ADR-0001 substring-friendly 原则，fail。
+3. **Matcher-aware pattern check**：把 `wrong_pattern` 喂进 `splitPatterns` 模拟逻辑，校验：(a) 切分后每个 token 长度 ≥3（matcher 会丢弃 <3 的 token），(b) 切分后非空（不会全军覆没回退到整体匹配），(c) 含 `|` 的 pattern 必须确实是 alternation（每段都 ≥3 字符且作者意图明确）。emit `{file, valid_token_count, dropped_short_tokens[], rules_with_no_valid_tokens[]}`。`.()[]*+?{}^$\\` 等 regex 元字符在本 matcher 里是字面子串，**不**算违规（与 universal.jsonl 已有的 `eval(`、`dangerouslySetInnerHTML` 等保持一致）。
 4. **No cross-language false-trigger**：sub-agent 用一组合成代码片段（每语言 1 段，列在 `docs/plans/issue-89/judge-fixtures/`），跑 substring matcher，对每条 rule 检查是否只在自己 `file_types` 下命中。emit per-rule `{rule_id, expected_lang, fired_on_langs[]}`，列表只含 expected_lang 才 pass。
 5. **Real-codebase sample**：sub-agent 在 ≥3 个真实开源 repo（每语言 ≥1）上跑 dry-run substring matcher，统计每条 rule 命中频次。命中 0 次的 rule 标 `dead-rule`，命中频次过高（>200/repo）的标 `noisy-rule`，二者列表都进 verdict。
 6. **Final verdict aggregate**：main agent 写 `docs/plans/issue-89/judge-output/<run-id>/verdict.json`，schema 含 `pass/fail`、6 个步骤 metrics、dead-rule 列表、noisy-rule 列表。LLM judge 只读 verdict + raw JSON 决定是否 release。
