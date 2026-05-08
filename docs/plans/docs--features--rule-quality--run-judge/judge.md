@@ -25,6 +25,23 @@ Concrete commands from source:
     `confidence_range` (2), `missing_fields` (2), `embedding_conflict` (2).
   - 10 clean rules with unique triggers, valid patterns, and `confidence: 0.75`.
 
+  **API contract (as of M5)**: each call must use the new signature:
+  ```ts
+  // INPUT — pass an object with these keys (NOT a bare `rule` key):
+  const result = validateLevel0({
+    entry,          // Partial<KnowledgeEntry> — the rule under test
+    sourceText,     // string — source text containing (or not) the wrong_pattern
+    existingRules,  // Pick<KnowledgeEntry, "id"|"trigger"|"wrong_pattern">[]
+    projectStack,   // string[] — e.g. ["ts","tsx","js"]
+  });
+
+  // OUTPUT — read these keys (NOT `valid` or `errors`):
+  result.ok            // boolean — true = passed all checks
+  result.failed_checks // string[] — list of failed check names, empty when ok=true
+  ```
+  Do NOT use the old API shape `validateLevel0({rule})` → `{valid, errors}` — that was
+  removed prior to M5 and will cause a TypeScript compile error.
+
 - Step 3: Run the evaluator via `tsx`:
   ```bash
   JUDGE_FILE="$EVIDENCE_DIR/judge.json" \
@@ -61,8 +78,8 @@ Capture to `evidence_dir = .judge/<run_id>/`.
     "embedding_conflict": 1.0
   },
   "per_rule_results": {
-    "defective": "<array of 10 per-rule objects with detected/CAUGHT/MISSED>",
-    "clean": "<array of 10 per-rule objects with false_positive flag>"
+    "defective": "<array of 10 per-rule objects; each has: id, ok (bool), failed_checks (string[]), verdict: 'CAUGHT'|'MISSED'>",
+    "clean": "<array of 10 per-rule objects; each has: id, ok (bool), failed_checks (string[]), false_positive (bool)>"
   },
   "evidence_dir": ".judge/<run_id>",
   "stdout_path": ".judge/<run_id>/stdout.log"
@@ -81,12 +98,15 @@ Document EXACT thresholds from source:
 > - `metrics.overall_recall >= 0.8`
 > - `metrics.false_positives == 0`
 > - `exit_code == 0` and `verdict == "PASS"`
+> - Per-rule `ok` field corresponds correctly to `failed_checks` being empty (ok=true ↔ failed_checks=[])
 >
 > FAIL criteria:
 > - `metrics.overall_recall < 0.8` (fewer than 8 of 10 defects caught)
 > - `metrics.false_positives > 0` (any clean rule incorrectly flagged)
 > - `exit_code != 0`
 > - Missing or malformed `judge.json`
+> - Runner used old API (`valid`/`errors` keys) instead of `ok`/`failed_checks` — results
+>   will be all-undefined and appear as 10/10 false negatives (clean rules all "caught")
 >
 > SKIP if infra missing: `tsx` binary not found at `node_modules/.bin/tsx`; or
 > `packages/core/src/validator/l0.js` does not exist (run `pnpm install` first).
@@ -107,6 +127,9 @@ Document EXACT thresholds from source:
 - The embedding-conflict category (`d-ec-1`, `d-ec-2`) tests Jaccard ≥ 0.85 detection against a
   synthetic existing rule with trigger `fetch-vs-axios`; this requires the L0 validator's
   conflict-detection logic to be implemented.
+
+## Phase 2 fix log
+Resolved 2026-05-08: #7 (P1) updated §V1 Step 2 API contract to `validateLevel0({entry, sourceText, existingRules, projectStack})` → `{ok, failed_checks}`; removed old `{rule}` / `{valid, errors}` shape; updated §V2 per-rule schema and §V3 FAIL criteria. Commit TBD.
 
 <self-report>
 premature_stopping: false
