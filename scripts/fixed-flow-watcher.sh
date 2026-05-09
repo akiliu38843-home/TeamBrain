@@ -43,6 +43,13 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+for tool in jq gh; do
+  command -v "$tool" >/dev/null 2>&1 || {
+    echo "[FATAL] required tool not in PATH: $tool" >&2
+    exit 127
+  }
+done
+
 mkdir -p "$STATE_DIR"
 [ -f "$PROCESSED_FILE" ] || echo '[]' > "$PROCESSED_FILE"
 
@@ -51,6 +58,7 @@ ts_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 write_heartbeat() {
   local status="${1:-running}"
   local last_seen="${2:-}"
+  local tmp; tmp=$(mktemp "${HEARTBEAT_FILE}.XXXXXX")
   jq -n \
     --arg ts "$(ts_iso)" \
     --arg host "$HOST" \
@@ -58,7 +66,7 @@ write_heartbeat() {
     --arg last_seen "$last_seen" \
     --arg driver_enabled "$DRIVER_ENABLED" \
     '{timestamp:$ts, host:$host, status:$status, last_seen_issue:$last_seen, driver_enabled:$driver_enabled}' \
-    > "$HEARTBEAT_FILE"
+    > "$tmp" && mv "$tmp" "$HEARTBEAT_FILE"
 }
 
 is_processed() {
