@@ -207,6 +207,115 @@ function removeStopLock(lockPath: string): void {
   }
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// Issue #189: user-level singleton lock for detached pipeline child.
+//
+// The cwd-local STOP_LOCK_RELATIVE above is per-project (statusline only).
+// The pipeline-singleton lock below is per-machine: prevents new Stop hook
+// invocations from spawning detached children while a previous detached
+// pipeline is still running. Without it, repeated Stop events accumulate
+// orphan node processes when the embedder hangs on huggingface.co.
+//
+// Stale-lock policy: a lock whose pid is no longer alive, OR whose
+// started_at is older than `STOP_PIPELINE_LOCK_MAX_AGE_MS`, is treated as
+// stale (the prior child crashed or was SIGKILLed). Stale locks are
+// silently overwritten by the next spawn attempt.
+// ──────────────────────────────────────────────────────────────────────────
+
+const STOP_PIPELINE_LOCK_RELATIVE = path.join(".teamagent", ".stop-pipeline.lock");
+const STOP_PIPELINE_LOCK_MAX_AGE_MS = 30 * 60 * 1000; // 30 min
+
+function pipelineLockPath(): string {
+  return path.join(teamagentHomeDir(), STOP_PIPELINE_LOCK_RELATIVE);
+}
+
+interface PipelineLockEntry {
+  pid: number;
+  started_at: string;
+}
+
+function readPipelineLock(lockPath: string): PipelineLockEntry | null {
+  try {
+    if (!existsSync(lockPath)) return null;
+    const raw = readFileSync(lockPath, "utf-8");
+    const parsed = JSON.parse(raw) as Partial<PipelineLockEntry>;
+    if (
+      typeof parsed.pid === "number" &&
+      parsed.pid > 0 &&
+      typeof parsed.started_at === "string"
+    ) {
+      return { pid: parsed.pid, started_at: parsed.started_at };
+    }
+  } catch {
+    // any parse / IO error => treat as no lock
+  }
+  return null;
+}
+
+function writePipelineLock(lockPath: string, pid: number): void {
+  try {
+    mkdirSync(path.dirname(lockPath), { recursive: true });
+    writeFileSync(
+      lockPath,
+      JSON.stringify({ pid, started_at: new Date().toISOString() }),
+      "utf-8",
+    );
+  } catch {
+    // best-effort — lock is an optimization, not a correctness invariant
+  }
+}
+
+function removePipelineLock(lockPath: string): void {
+  try {
+    if (existsSync(lockPath)) unlinkSync(lockPath);
+  } catch {
+    // silent
+  }
+}
+
+function isPidAlive(pid: number): boolean {
+  if (!Number.isFinite(pid) || pid <= 0) return false;
+  try {
+    // signal 0 is the POSIX "alive check" — does not deliver a signal,
+    // only validates the target. Throws ESRCH if dead, EPERM if alive
+    // but owned by another user.
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "ESRCH") return false;
+    if (code === "EPERM") return true;
+    return false;
+  }
+}
+
+function isPipelineLockStale(
+  entry: PipelineLockEntry,
+  nowMs: number = Date.now(),
+): boolean {
+  if (!isPidAlive(entry.pid)) return true;
+  const started = Date.parse(entry.started_at);
+  if (!Number.isFinite(started)) return true;
+  return nowMs - started > STOP_PIPELINE_LOCK_MAX_AGE_MS;
+}
+
+/**
+ * Decide whether to skip spawning a new detached pipeline because a
+ * previous one is still in flight. Returns the live owner pid when we
+ * should skip; null when the spawn should proceed (no lock or stale).
+ *
+ * Exported for tests.
+ */
+export function shouldSkipForExistingPipeline(
+  lockPath: string,
+  nowMs: number = Date.now(),
+): number | null {
+  const entry = readPipelineLock(lockPath);
+  if (!entry) return null;
+  if (isPipelineLockStale(entry, nowMs)) return null;
+  return entry.pid;
+}
+
 /** Build the Haiku-primary Sonnet-fallback LLM client. Overridable by env. */
 function buildLLMClient(): LLMClient {
   const primaryModel = process.env.TEAMAGENT_LLM_MODEL ?? "haiku";
@@ -552,20 +661,55 @@ export async function runStopPipeline(
             const semanticDb = openDb(globalDbPath);
             const semanticRetriever = new SqliteSemanticRetriever(semanticDb);
 
-            let semanticHits: import("@teamagent/core").SemanticMatch[];
+            // Issue #189: semanticMatch internally calls embedder.embed
+            // which lazy-loads @xenova/transformers + downloads model
+            // weights from huggingface.co. Pre-fix that path could hang
+            // indefinitely. P0-A fixes the underlying fetch timeout, but
+            // we add a defensive Promise.race here for symmetry with the
+            // scan-errors step (line ~441-450) so any future code path
+            // that still blocks (e.g. SQLite I/O on a slow disk) cannot
+            // wedge the Stop pipeline. Override via env var for warmup
+            // CLI / slow-CI scenarios.
+            const semScanTimeoutMs = ((): number => {
+              const v = parseInt(
+                process.env["TEAMAGENT_SEMANTIC_SCAN_TIMEOUT_MS"] ?? "",
+                10,
+              );
+              return Number.isFinite(v) && v > 0 ? v : 30_000;
+            })();
+            let semanticHits: import("@teamagent/core").SemanticMatch[] | null;
             try {
-              semanticHits = await semanticMatch({
-                contextText,
-                actionText,
-                embedder,
-                retriever: semanticRetriever,
-                scope: { level: "global" },
-              });
+              semanticHits = await Promise.race<
+                import("@teamagent/core").SemanticMatch[] | null
+              >([
+                semanticMatch({
+                  contextText,
+                  actionText,
+                  embedder,
+                  retriever: semanticRetriever,
+                  scope: { level: "global" },
+                }),
+                new Promise<null>((resolve) =>
+                  setTimeout(() => resolve(null), semScanTimeoutMs),
+                ),
+              ]);
             } finally {
               try { semanticDb.close(); } catch { /* ok */ }
             }
 
-            if (semanticHits.length > 0) {
+            if (semanticHits === null) {
+              emitWithFallback(
+                emit,
+                {
+                  kind: "hook-stop.semantic-scan-timeout",
+                  source: "hook-stop",
+                  severity: "info",
+                  timestamp: nowIso(),
+                  timeoutMs: semScanTimeoutMs,
+                },
+                `TeamAgent: semantic-scan 超时 (>${semScanTimeoutMs}ms)，跳过\n`,
+              );
+            } else if (semanticHits.length > 0) {
               const semanticEventsDb = openDb(eventsDbPath);
               const semanticEventLog = new SqliteEventLog(semanticEventsDb);
               const nowTs = new Date().toISOString();
@@ -717,7 +861,21 @@ async function main(): Promise<void> {
       // pipeline directly (sync mode below converges to same call). Pipeline
       // is unbounded — escape.pipelineTimeoutMs caps the handler at 240s.
       if (isDetachedPipelineInvocation(process.env, process.argv)) {
-        await runStopPipeline(ctx.input, { emit });
+        // Issue #189: claim the singleton lock with our own pid so the
+        // foreground hook can see we are alive; release on every exit
+        // path (normal, error, signal). Prior child's pid was already
+        // decided stale by the foreground guard below, otherwise we would
+        // not have been spawned.
+        const childLockPath = pipelineLockPath();
+        writePipelineLock(childLockPath, process.pid);
+        const releaseChildLock = (): void => removePipelineLock(childLockPath);
+        process.once("exit", releaseChildLock);
+        process.once("SIGTERM", () => { releaseChildLock(); process.exit(0); });
+        try {
+          await runStopPipeline(ctx.input, { emit });
+        } finally {
+          releaseChildLock();
+        }
         return;
       }
 
@@ -728,6 +886,29 @@ async function main(): Promise<void> {
         const selfPath = process.argv[1];
         if (!selfPath) {
           ctx.logError("self-path", new Error("process.argv[1] missing — cannot self-spawn"));
+          return;
+        }
+        // Issue #189: skip spawning if a previous detached pipeline is
+        // still running. Without this guard, a slow embedder load (e.g.
+        // huggingface.co blocked) plus a busy Claude Code session
+        // triggers exponential process growth — observed 71 concurrent
+        // bin-stop.cjs hooks consuming 5+ GB RAM on an 8 GB Mac. The
+        // lock is best-effort: stale-pid / stale-age entries are
+        // overwritten silently.
+        const fgLockPath = pipelineLockPath();
+        const liveOwner = shouldSkipForExistingPipeline(fgLockPath);
+        if (liveOwner !== null) {
+          emitWithFallback(
+            emit,
+            {
+              kind: "hook-stop.skip-concurrent",
+              source: "hook-stop",
+              severity: "info",
+              timestamp: nowIso(),
+              otherPid: liveOwner,
+            },
+            `TeamAgent: stop hook pid ${liveOwner} 仍在运行，跳过本次 Stop event\n`,
+          );
           return;
         }
         // Write JSON payload to a temp file instead of passing via argv[2].
@@ -753,16 +934,45 @@ async function main(): Promise<void> {
           // close, so users see a flurry of popups. Must hide.
           windowsHide: true,
         });
+        if (typeof child.pid === "number" && child.pid > 0) {
+          writePipelineLock(fgLockPath, child.pid);
+        }
         child.on("error", (err) => {
           ctx.logError("spawn-detached", err);
           try { if (existsSync(tmpFile)) unlinkSync(tmpFile); } catch { /* ignore */ }
+          // spawn failed — release the lock immediately so the next Stop
+          // event isn't blocked by a phantom owner.
+          removePipelineLock(fgLockPath);
         });
         child.unref();
         return;
       }
 
       // sync mode: run pipeline inline. escape.pipelineTimeoutMs caps duration.
-      await runStopPipeline(ctx.input, { emit });
+      // Issue #189: also claim/release the singleton lock so a sync-mode
+      // Stop hook stuck on embedder load is visible to subsequent events.
+      const syncLockPath = pipelineLockPath();
+      const syncLiveOwner = shouldSkipForExistingPipeline(syncLockPath);
+      if (syncLiveOwner !== null) {
+        emitWithFallback(
+          emit,
+          {
+            kind: "hook-stop.skip-concurrent",
+            source: "hook-stop",
+            severity: "info",
+            timestamp: nowIso(),
+            otherPid: syncLiveOwner,
+          },
+          `TeamAgent: stop hook pid ${syncLiveOwner} 仍在运行，跳过本次 Stop event (sync)\n`,
+        );
+        return;
+      }
+      writePipelineLock(syncLockPath, process.pid);
+      try {
+        await runStopPipeline(ctx.input, { emit });
+      } finally {
+        removePipelineLock(syncLockPath);
+      }
     },
     escape: {
       // pipeline opens its own DBs per-step (DualLayerStore + SqliteEventLog

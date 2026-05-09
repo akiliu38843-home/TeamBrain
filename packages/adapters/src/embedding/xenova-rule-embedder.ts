@@ -90,11 +90,43 @@ export class XenovaRuleEmbedder implements RuleEmbedder {
     if (this.progressCallback) {
       pipelineOpts.progress_callback = this.progressCallback;
     }
-    this.pipeline = (await pipeline(
-      "feature-extraction",
-      this.modelId,
-      pipelineOpts,
-    )) as unknown as XenovaPipeline;
+    // Issue #189: @xenova/transformers internally calls Node's built-in
+    // fetch() with no AbortSignal when downloading model weights from
+    // huggingface.co. If the upstream is slow / blocked / rate-limited,
+    // fetch hangs forever inside an undici worker thread; SIGTERM cannot
+    // interrupt the worker; the event loop never drains; the hook process
+    // refuses to exit. Repeated Stop events accumulate orphan node
+    // processes (observed: 71 concurrent, 5+ GB RAM, OOM on 8 GB Macs).
+    // Wrap globalThis.fetch with AbortSignal.timeout for the duration of
+    // pipeline init; an aborted fetch releases its socket and the loop
+    // drains. Restore the original fetch on either path so we don't
+    // affect unrelated runtime fetches.
+    const fetchTimeoutMs = ((): number => {
+      const v = parseInt(
+        process.env["TEAMAGENT_EMBEDDER_FETCH_TIMEOUT_MS"] ?? "",
+        10,
+      );
+      return Number.isFinite(v) && v > 0 ? v : 15_000;
+    })();
+    const origFetch = globalThis.fetch;
+    if (typeof origFetch === "function") {
+      const wrappedFetch: typeof globalThis.fetch = (input, init) => {
+        const signal = init?.signal ?? AbortSignal.timeout(fetchTimeoutMs);
+        return origFetch(input, { ...(init ?? {}), signal });
+      };
+      globalThis.fetch = wrappedFetch;
+    }
+    try {
+      this.pipeline = (await pipeline(
+        "feature-extraction",
+        this.modelId,
+        pipelineOpts,
+      )) as unknown as XenovaPipeline;
+    } finally {
+      if (typeof origFetch === "function") {
+        globalThis.fetch = origFetch;
+      }
+    }
     console.error(`Rule embedder ready (${this.modelId}, dim=${this.dim}).`);
   }
 }
