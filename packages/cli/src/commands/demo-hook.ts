@@ -151,40 +151,24 @@ export function executeDemoHook(opts: DemoHookOptions): DemoHookResult {
 }
 
 /**
- * 在单个 argv slot 内按 `;` 或 `&` 切分多对 key=value。
- * 返回 null 表示没有内嵌分隔符；否则返回所有解析出来的 [k,v] 对。
- *
- * 注：不处理转义（例如 `\;` / `\&`）——shell quoting 已经覆盖大多数场景。
- * 简单 split 即可，复杂 case 请使用空格分隔的多个 argv slot。
- */
-function splitMultiField(v: string): Array<[string, string]> | null {
-  const sep = v.includes(";") ? ";" : v.includes("&") ? "&" : null;
-  if (!sep) return null;
-  const parts = v.split(sep).filter((p) => p.length > 0);
-  const out: Array<[string, string]> = [];
-  for (const part of parts) {
-    const idx = part.indexOf("=");
-    if (idx < 0) continue;
-    out.push([part.slice(0, idx), part.slice(idx + 1)]);
-  }
-  return out.length > 0 ? out : null;
-}
-
-/**
  * 解析 demo-hook 的 CLI 参数：argv[0]=tool, argv[1..]=key=value
  *
- * 支持四种输入形式：
- *  1. 空格分隔多 slot：`Write file_path=test.js content='console.log(1)'`
- *  2. 单 slot 内 `;` 分隔：`Write 'file_path=test.js;content=console.log(1)'`
- *  3. 单 slot 内 `&` 分隔：`Write 'file_path=test.js&content=console.log(1)'`
- *  4. 单 slot 整个 JSON：`Write '{"file_path":"test.js","content":"console.log(1)"}'`
+ * 支持两种输入形式：
+ *  1. 空格分隔多 slot（canonical）：`Write file_path=test.js content='console.log(1)'`
+ *  2. 单 slot 整个 JSON：`Write '{"file_path":"test.js","content":"console.log(1)"}'`
+ *
+ * 历史注意：曾尝试支持单 slot 内 `;` / `&` 分隔多字段（例如
+ * `Write 'file_path=a;content=b'`），但 `;` 是 shell 命令分隔符、`&` 在 URL
+ * 查询串里随处可见，会把 `command=echo hi; rm -rf /` 或
+ * `url=https://x.com/?a=1&b=2` 静默切断。Demo 工具必须忠实回放用户输入，所以
+ * 那条路径已经下线（PR #183 fix）。多字段请用 JSON 形式。
  */
 export function parseDemoHookArgs(args: string[]): DemoHookOptions | null {
   if (args.length === 0) return null;
   const toolName = args[0]!;
   const rest = args.slice(1);
 
-  // Form 4: 单个 slot 且以 `{` 开头 `}` 结尾，整体当 JSON 解析为 toolInput
+  // Form 2: 单个 slot 且以 `{` 开头 `}` 结尾，整体当 JSON 解析为 toolInput
   if (rest.length === 1) {
     const only = rest[0]!.trim();
     if (only.startsWith("{") && only.endsWith("}")) {
@@ -200,39 +184,19 @@ export function parseDemoHookArgs(args: string[]): DemoHookOptions | null {
     }
   }
 
+  // Form 1: 空格分隔多 slot，每 slot 是 `key=value`。value 内的 `;` / `&` 不被切。
   const toolInput: Record<string, unknown> = {};
-  const assign = (k: string, v: string) => {
+  for (const a of rest) {
+    const idx = a.indexOf("=");
+    if (idx < 0) continue;
+    const k = a.slice(0, idx);
+    const v = a.slice(idx + 1);
     // 尝试解析 JSON，否则保留为字符串
     try {
       toolInput[k] = JSON.parse(v);
     } catch {
       toolInput[k] = v;
     }
-  };
-
-  for (const a of rest) {
-    const idx = a.indexOf("=");
-    if (idx < 0) continue;
-    const k = a.slice(0, idx);
-    const v = a.slice(idx + 1);
-    // Form 2/3: v 内含 `;` 或 `&` 表示多对 key=value 共用一个 slot。
-    // 但必须先把当前 (k, firstV) 还原回去，再追加后续 pairs。
-    const multi = splitMultiField(v);
-    if (multi) {
-      // v 形如 `test.js;content=console.log(1)` —— 第一段是裸 value，归属当前 k；
-      // 后续段已经是 `key=value` 形式（已经被 splitMultiField 拆开）。
-      const sep = v.includes(";") ? ";" : "&";
-      const parts = v.split(sep);
-      assign(k, parts[0]!);
-      for (let i = 1; i < parts.length; i++) {
-        const part = parts[i]!;
-        const eq = part.indexOf("=");
-        if (eq < 0) continue;
-        assign(part.slice(0, eq), part.slice(eq + 1));
-      }
-      continue;
-    }
-    assign(k, v);
   }
 
   return { toolName, toolInput, tool: toolName, input: toolInput };
