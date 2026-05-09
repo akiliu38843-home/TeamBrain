@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  readdirSync,
+  renameSync as realRenameSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ulid } from 'ulid';
@@ -284,17 +291,12 @@ describe('resolveDaemonBin', () => {
     expect(existsSync(userInstalled)).toBe(false);
 
     const renameTargets: Array<[string, string]> = [];
-    const realRename = (oldPath: string, newPath: string) => {
-      renameTargets.push([oldPath, newPath]);
-      // Defer to the real implementation by re-importing here.
-      // Using require() keeps the test self-contained without a hoisted import.
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require('node:fs').renameSync(oldPath, newPath);
-    };
-
     const result = resolveDaemonBin(home, {
       selfDirname: () => selfDir,
-      renameSync: realRename,
+      renameSync: (oldPath, newPath) => {
+        renameTargets.push([oldPath, newPath]);
+        realRenameSync(oldPath, newPath);
+      },
     });
 
     expect(result).toBe(userInstalled);
