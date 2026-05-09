@@ -650,6 +650,62 @@ describe("runHook TEAMAGENT_HOOK_VERBOSE gating (issue #174 W3)", () => {
     expect(exitCode).toBe(0);
   });
 
+  // PR #183 fix: the W3 commit only gated the StdoutRenderer's mode (stderr
+  // human-prose). It did NOT downgrade `ctx.visibility`, so handlers like
+  // pre-tool-use-handler.ts:120 still saw "verbose" and wrote
+  // `◈ TeamAgent: ✓ <tool> 放行` into the stdout JSON envelope's
+  // systemMessage on every clean pass — the user-visible "noisy by default"
+  // problem leaked through stdout. This regression test pins the contract
+  // that ctx.visibility seen by handlers IS the downgraded value.
+  it("ctx.visibility is downgraded to `smart` when TEAMAGENT_HOOK_VERBOSE unset (PR #183 #2 regression)", async () => {
+    feedStdin(JSON.stringify({ tool_name: "Bash", cwd: tmpCwd }));
+    let observedVisibility: string | undefined;
+    await runUntilExit(() =>
+      runHook<unknown, { decision: string }>({
+        channel: "PreToolUse",
+        parseInput: (raw: unknown) => raw,
+        handler: (ctx: DefaultHookContext<unknown>) => {
+          observedVisibility = ctx.visibility;
+          return { decision: "allow" };
+        },
+        envelope: (out) => ({
+          hookSpecificOutput: {
+            hookEventName: "PreToolUse",
+            permissionDecision: out.decision,
+          },
+        }),
+      }),
+    );
+    // Without the gate, handler observes the downgraded value.
+    expect(observedVisibility).toBe("smart");
+    expect(exitCode).toBe(0);
+  });
+
+  it("ctx.visibility stays `verbose` when TEAMAGENT_HOOK_VERBOSE=1 (PR #183 #2 opt-in)", async () => {
+    process.env.TEAMAGENT_HOOK_VERBOSE = "1";
+    feedStdin(JSON.stringify({ tool_name: "Bash", cwd: tmpCwd }));
+    let observedVisibility: string | undefined;
+    await runUntilExit(() =>
+      runHook<unknown, { decision: string }>({
+        channel: "PreToolUse",
+        parseInput: (raw: unknown) => raw,
+        handler: (ctx: DefaultHookContext<unknown>) => {
+          observedVisibility = ctx.visibility;
+          return { decision: "allow" };
+        },
+        envelope: (out) => ({
+          hookSpecificOutput: {
+            hookEventName: "PreToolUse",
+            permissionDecision: out.decision,
+          },
+        }),
+      }),
+    );
+    // With the opt-in, handler sees the original verbose value.
+    expect(observedVisibility).toBe("verbose");
+    expect(exitCode).toBe(0);
+  });
+
   it("TEAMAGENT_VISIBILITY=smart still works (no upgrade): no `--- raw events ---` regardless of HOOK_VERBOSE", async () => {
     // Smart mode never produces the verbose tail in StdoutRenderer, and the
     // gate only downgrades verbose→smart — it must NOT upgrade smart→verbose.
