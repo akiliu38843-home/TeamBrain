@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ulid } from 'ulid';
-import { main } from '../bin-digital-twin-tap.js';
+import { main, resolveDaemonBin } from '../bin-digital-twin-tap.js';
 import {
   defaultConfig,
   saveConfig,
@@ -239,5 +239,79 @@ describe('bin-digital-twin-tap main', () => {
       entries = [];
     }
     expect(entries.length).toBe(0);
+  });
+});
+
+describe('resolveDaemonBin', () => {
+  let home: string;
+  beforeEach(() => {
+    home = freshHome();
+  });
+
+  function makeFakeMonorepo(rootHome: string): { selfDir: string; daemonAt: string } {
+    // Mirror the real monorepo layout: <root>/packages/cli/dist/bin-digital-twin-tap.cjs
+    // and <root>/packages/digital-twin/dist/bin-uploader.cjs. resolveDaemonBin
+    // walks `selfDirname → ../../digital-twin/dist/bin-uploader.cjs`.
+    const selfDir = join(rootHome, 'packages', 'cli', 'dist');
+    const daemonDir = join(rootHome, 'packages', 'digital-twin', 'dist');
+    mkdirSync(selfDir, { recursive: true });
+    mkdirSync(daemonDir, { recursive: true });
+    const daemonAt = join(daemonDir, 'bin-uploader.cjs');
+    writeFileSync(daemonAt, '// fake daemon bundle\n', 'utf-8');
+    return { selfDir, daemonAt };
+  }
+
+  it('returns the user-installed path when present (no monorepo lookup)', () => {
+    const paths = digitalTwinPaths(home);
+    mkdirSync(paths.digitalTwinDir, { recursive: true });
+    const userInstalled = join(paths.digitalTwinDir, 'bin-uploader.cjs');
+    writeFileSync(userInstalled, '// existing user-installed bundle\n', 'utf-8');
+
+    // selfDirname is irrelevant here because the user-installed path wins.
+    const result = resolveDaemonBin(home, {
+      selfDirname: () => '/nonexistent/cli/dist',
+    });
+    expect(result).toBe(userInstalled);
+  });
+
+  it('falls back to the monorepo dist and self-installs to user path', () => {
+    const fakeRoot = join(tmpdir(), `dt-mono-${ulid()}`);
+    mkdirSync(fakeRoot, { recursive: true });
+    const { selfDir, daemonAt } = makeFakeMonorepo(fakeRoot);
+
+    const paths = digitalTwinPaths(home);
+    const userInstalled = join(paths.digitalTwinDir, 'bin-uploader.cjs');
+    expect(existsSync(userInstalled)).toBe(false);
+
+    const result = resolveDaemonBin(home, { selfDirname: () => selfDir });
+    expect(result).toBe(userInstalled);
+    expect(existsSync(userInstalled)).toBe(true);
+    // Bytes copied from the monorepo bundle.
+    expect(readFileSync(userInstalled, 'utf-8')).toBe(
+      readFileSync(daemonAt, 'utf-8'),
+    );
+  });
+
+  it('returns the monorepo path directly when self-install fails', () => {
+    const fakeRoot = join(tmpdir(), `dt-mono-fail-${ulid()}`);
+    mkdirSync(fakeRoot, { recursive: true });
+    const { selfDir, daemonAt } = makeFakeMonorepo(fakeRoot);
+
+    const result = resolveDaemonBin(home, {
+      selfDirname: () => selfDir,
+      // Simulate read-only HOME or EACCES on copy.
+      copyFileSync: () => {
+        throw new Error('EACCES');
+      },
+    });
+    expect(result).toBe(daemonAt);
+  });
+
+  it('returns null when neither user-installed nor monorepo dist exists', () => {
+    // Fresh tmpdir with no bin-uploader.cjs anywhere.
+    const result = resolveDaemonBin(home, {
+      selfDirname: () => '/nonexistent/cli/dist',
+    });
+    expect(result).toBeNull();
   });
 });
