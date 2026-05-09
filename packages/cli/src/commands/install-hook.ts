@@ -1,7 +1,34 @@
+import { execSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+/**
+ * Round-2 F2: CPU-friendly sync sleep. The previous busy-wait
+ * `while (Date.now() < until)` loop pegged a core at 100% during contention.
+ * We delegate to the OS `sleep` / `timeout` command via `execSync` so the
+ * caller-thread is parked instead. Falls back to busy-wait only if the OS
+ * binary is missing.
+ */
+function sleepSync(ms: number): void {
+  try {
+    if (process.platform === "win32") {
+      // Windows `timeout` only supports whole-second granularity. We always
+      // wait at least 1 second when called for SLEEP_MS=200; that's still
+      // bounded and CPU-free.
+      execSync(`timeout /t 1 /nobreak`, { stdio: "ignore", windowsHide: true });
+    } else {
+      execSync(`sleep ${(ms / 1000).toFixed(2)}`, { stdio: "ignore" });
+    }
+  } catch {
+    // Last-resort busy wait if /usr/bin/sleep / timeout is unavailable.
+    const until = Date.now() + ms;
+    while (Date.now() < until) {
+      // spin
+    }
+  }
+}
 
 const HOOK_TAG = "teamagent-pre-tool-use";
 const POST_HOOK_TAG = "teamagent-post-tool-use";
@@ -130,7 +157,37 @@ function toForwardSlash(p: string): string {
 function stageBundleToUserTeamagent(srcDistPath: string, homeDir: string): string {
   const dest = path.join(homeDir, ".teamagent", "hooks", path.basename(srcDistPath));
   fs.mkdirSync(path.dirname(dest), { recursive: true });
-  fs.copyFileSync(srcDistPath, dest);
+
+  // Round-2 F3: skip the copy if the destination already contains the same
+  // bytes — same size + dest mtime is at-least-as-new as src. Avoids
+  // pointless I/O on every init AND avoids racing with concurrent hook
+  // processes that already loaded the staged bundle. (rsync-style heuristic.)
+  try {
+    const srcStat = fs.statSync(srcDistPath);
+    const destStat = fs.statSync(dest);
+    if (srcStat.size === destStat.size && srcStat.mtimeMs <= destStat.mtimeMs) {
+      return dest;
+    }
+  } catch {
+    // dest missing or unreadable — fall through to the copy below.
+  }
+
+  // Round-2 F3: atomic copy via tmp + rename. On Windows an unconditional
+  // copyFileSync over an in-use bundle throws EBUSY and crashes init; on
+  // Unix an in-flight hook process can otherwise see a half-written file.
+  // rename(2) is atomic on POSIX and very-near-atomic on NTFS.
+  const tmp = `${dest}.tmp-${process.pid}-${Math.random().toString(36).slice(2, 10)}`;
+  try {
+    fs.copyFileSync(srcDistPath, tmp);
+    fs.renameSync(tmp, dest);
+  } catch (err) {
+    try {
+      fs.unlinkSync(tmp);
+    } catch {
+      // best-effort cleanup
+    }
+    throw err;
+  }
   return dest;
 }
 
@@ -185,6 +242,47 @@ function readSettings(file: string): ClaudeSettings {
   }
 }
 
+/**
+ * Round-2 F5: cap the number of `<file>.bak-<ts>` siblings on disk so 100
+ * `teamagent init` runs don't leave 200 stale backups (each potentially
+ * containing user secrets / paths) lying around forever. We keep the newest
+ * `RETENTION_BACKUPS` per file and prune everything older.
+ */
+const RETENTION_BACKUPS = 5;
+
+function safeMtime(p: string): number {
+  try {
+    return fs.statSync(p).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
+function pruneOldBackups(file: string): void {
+  const dir = path.dirname(file);
+  const base = path.basename(file);
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(dir);
+  } catch {
+    return;
+  }
+  const baks = entries
+    .filter((e) => e.startsWith(`${base}.bak-`))
+    .map((e) => ({ name: e, mtimeMs: safeMtime(path.join(dir, e)) }))
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+  // We're about to create one more backup. Keep the newest
+  // (RETENTION_BACKUPS - 1) and let that new one round us up to
+  // RETENTION_BACKUPS total.
+  for (const old of baks.slice(RETENTION_BACKUPS - 1)) {
+    try {
+      fs.unlinkSync(path.join(dir, old.name));
+    } catch {
+      // best-effort
+    }
+  }
+}
+
 function writeSettings(file: string, settings: ClaudeSettings): void {
   const dir = path.dirname(file);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -195,6 +293,9 @@ function writeSettings(file: string, settings: ClaudeSettings): void {
   // races non-corrupting: either the old file or the new file is on disk, never
   // a half-written file.
   if (fs.existsSync(file)) {
+    // Round-2 F5: prune old `.bak-*` siblings BEFORE creating a new one so
+    // the on-disk count stays bounded at RETENTION_BACKUPS.
+    pruneOldBackups(file);
     const ts = new Date().toISOString().replace(/[:.]/g, "-");
     const bak = `${file}.bak-${ts}`;
     try {
@@ -266,24 +367,25 @@ function acquireSettingsLock(homeDir: string): { fd: number | null; lockPath: st
         );
         return { fd: null, lockPath };
       }
-      // Busy-wait (sync code path — can't use real sleep without changing
-      // calling-convention; cap at SLEEP_MS to avoid hot-spin)
-      const until = Date.now() + SLEEP_MS;
-      while (Date.now() < until) {
-        // burn cycles; keeps init synchronous
-      }
+      // Round-2 F2: CPU-friendly sync sleep — defers to OS `sleep` / `timeout`
+      // via execSync so we don't burn a core while waiting. installHook is
+      // sync and can't be ported to async without ripping the public API.
+      sleepSync(SLEEP_MS);
     }
   }
   return { fd: null, lockPath };
 }
 
 function releaseSettingsLock(fd: number | null, lockPath: string): void {
-  if (fd !== null) {
-    try {
-      fs.closeSync(fd);
-    } catch {
-      // best-effort
-    }
+  // Round-2 F1: only unlink the lockfile if we actually own it (fd !== null).
+  // The degraded path in `acquireSettingsLock` returns fd=null when MAX_RETRIES
+  // is exhausted — at that point the lockfile is still held by another process.
+  // Unconditionally unlinking it would defeat mutual exclusion entirely.
+  if (fd === null) return;
+  try {
+    fs.closeSync(fd);
+  } catch {
+    // best-effort
   }
   try {
     fs.unlinkSync(lockPath);
@@ -583,6 +685,17 @@ function mergeUserLevelHooks(
     ];
 
     for (const op of channelOps) {
+      // Round-2 F4: dedup BEFORE the existsSync gate. Otherwise, when an
+      // upgrade drops a previously-installed bundle (e.g. `bin-foo.cjs`
+      // removed from a newer release), the existing TeamAgent-tagged entry
+      // pointing at the now-missing path stays in `~/.claude/settings.json`
+      // forever. By stripping all TeamAgent entries first, then skipping
+      // re-install when the new bundle is missing, we get clean upgrades.
+      if (settings.hooks[op.channel]) {
+        const list = settings.hooks[op.channel] as HookEntry[];
+        settings.hooks[op.channel] = list.filter((h) => !isTeamagentEntry(h, op.channel));
+      }
+
       if (!fs.existsSync(op.bundlePath)) continue;
 
       // B-091: stage the bundle to a stable user-owned location and reference
@@ -591,12 +704,25 @@ function mergeUserLevelHooks(
       // nvm version switches, npm reinstalls, or `/private/tmp/<repo>`
       // cleanups silently break TeamAgent hooks across every project on the
       // machine. Mirrors install-user-hook.ts pattern.
-      const stagedPath = stageBundleToUserTeamagent(op.bundlePath, homeDir);
+      // Round-2 F3: if staging fails (e.g. EBUSY on Windows when another cc
+      // session has the bundle loaded), we keep the install working by
+      // falling back to the original dist path. The user just loses the
+      // staged-path stability guarantee for that channel — better than no
+      // hook at all.
+      let pathForCommand: string;
+      try {
+        pathForCommand = stageBundleToUserTeamagent(op.bundlePath, homeDir);
+      } catch (err: any) {
+        process.stderr.write(
+          `teamagent install-hook: failed to stage ${path.basename(op.bundlePath)} ` +
+            `(${err?.code ?? err?.message ?? err}) — falling back to in-place dist path\n`,
+        );
+        pathForCommand = op.bundlePath;
+      }
 
       if (!settings.hooks[op.channel]) settings.hooks[op.channel] = [];
-      const list = settings.hooks[op.channel] as HookEntry[];
 
-      const command = `node ${shellQuote(toForwardSlash(stagedPath))}`;
+      const command = `node ${shellQuote(toForwardSlash(pathForCommand))}`;
       const newEntry: HookEntry = {
         _teamagentTag: op.tag,
         hooks: [{ type: "command", command, timeout: op.timeout }],
@@ -609,7 +735,8 @@ function mergeUserLevelHooks(
       // the channel's bundle filename and would otherwise accumulate
       // alongside the new tagged entry → double-fire per tool use. Mirror
       // install-user-hook.ts B-086 dedup pattern.
-      settings.hooks[op.channel] = list.filter((h) => !isTeamagentEntry(h, op.channel));
+      // Round-2 F4: dedup already happened above the existsSync check, so
+      // here we just push the freshly-built entry.
       (settings.hooks[op.channel] as HookEntry[]).push(newEntry);
     }
 

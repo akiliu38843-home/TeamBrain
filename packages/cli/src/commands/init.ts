@@ -597,6 +597,24 @@ function doCreateDirs(
   }
   try {
     for (const d of toCreate) fs.mkdirSync(d, { recursive: true });
+    // Issue #161 follow-up (PR #181 round-2 finding #9): write a TeamAgent-
+    // managed `.teamagent/.project-root` marker so docs-only projects (no
+    // .git, no package.json) are still discoverable by `findTeamagentRoot`
+    // when Claude Code is launched from a sub-directory. Idempotent —
+    // best-effort, a write failure must NOT abort init.
+    try {
+      const marker = path.join(paths.cwd, ".teamagent", ".project-root");
+      if (!fs.existsSync(marker)) {
+        fs.writeFileSync(
+          marker,
+          `# TeamAgent project marker — created by \`teamagent init\` on ${new Date().toISOString()}\n` +
+            `# This file makes the project discoverable by findTeamagentRoot from sub-directories.\n`,
+          "utf-8",
+        );
+      }
+    } catch {
+      // best-effort; the rest of init proceeds even if the marker fails to write
+    }
     return okStep("create-dirs", `已确保目录存在: ${toCreate.length} 个`);
   } catch (err) {
     return failStep("create-dirs", String(err).slice(0, 200));

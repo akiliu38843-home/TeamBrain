@@ -14,6 +14,7 @@ import {
 } from "@teamagent/core";
 import { rotateIfTooLarge } from "./log-rotate.js";
 import { findTeamagentRoot } from "./lib/walk-up.js";
+import { hasProjectMarker } from "./lib/project-markers.js";
 
 export const DEFAULT_DEBOUNCE_HOURS = 24;
 
@@ -23,26 +24,13 @@ export type Action =
   | "skip-auto-init-disabled"
   | "skip-already-initialized";
 
-/** Project markers — cwd must have at least one of these to trigger auto-init. */
-const PROJECT_MARKERS = [
-  ".git",
-  "package.json",
-  "pyproject.toml",
-  "pnpm-workspace.yaml",
-  "Cargo.toml",
-  "go.mod",
-  "pom.xml",
-  "build.gradle",
-  "build.gradle.kts",
-  "Gemfile",
-  "composer.json",
-];
-
+/**
+ * Project markers — cwd must have at least one of these to trigger auto-init.
+ * Single source of truth lives in `./lib/project-markers.ts`; this thin wrapper
+ * preserves the `isProjectDir` name used elsewhere in this module.
+ */
 function isProjectDir(cwd: string): boolean {
-  for (const m of PROJECT_MARKERS) {
-    if (existsSync(join(cwd, m))) return true;
-  }
-  return false;
+  return hasProjectMarker(cwd);
 }
 
 function autoInitDisabled(cwd: string): boolean {

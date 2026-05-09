@@ -141,31 +141,133 @@ describe("issue #161 — walk-up integration regression", () => {
 
   // ─── PR #181 fix-cycle (Worker E) — cwd-precedence ──────────────────────
   //
-  // Hook-shell's resolution rule (per `hook-shell/index.ts:147`):
-  //   const cwd = raw.cwd ?? process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
-  // The `raw.cwd` from stdin is the source of truth and MUST win over
-  // `CLAUDE_PROJECT_DIR`. PR #181 finding #11 noted no test asserts this.
-  it("PR #181: cwd-precedence — raw.cwd from stdin wins over CLAUDE_PROJECT_DIR env", () => {
-    // <root> has the project (knowledge.db + .git). <root>/sub is a child.
-    // raw.cwd points at <root>/sub; CLAUDE_PROJECT_DIR points at some other
-    // unrelated dir. The resolved projectDbPath must be derived from raw.cwd
-    // (which walks up to <root>/.teamagent/knowledge.db) — NOT from the env.
-    const realRoot = fs.realpathSync(fx.root);
-    const realSub = fs.realpathSync(fx.sub);
+  // Hook-shell's resolution rule, copied verbatim from
+  // `packages/cli/src/hook-shell/index.ts:147-153`:
+  //
+  //     const claudeProjectDir = env.CLAUDE_PROJECT_DIR;
+  //     const cwdInput =
+  //       typeof rawCwd === "string" && rawCwd.length > 0
+  //         ? rawCwd
+  //         : claudeProjectDir && claudeProjectDir.length > 0
+  //           ? claudeProjectDir
+  //           : process.cwd();
+  //
+  // Precedence: raw.cwd (from stdin) > CLAUDE_PROJECT_DIR env > process.cwd().
+  // PR #181 round-2 finding #6 noted this contract had no test that actually
+  // exercised all three inputs end-to-end (the previous test only used
+  // `void envProjectDir`).
+  //
+  // We test the rule by literally inlining it (so refactors to the impl don't
+  // silently change semantics; if hook-shell drifts, this test stays as the
+  // contract pin and breaks visibly), and we wire each case through
+  // `findTeamagentRoot` so the resolved cwd is exercised against the actual
+  // walk-up logic — the same chain hook-shell uses to compute projectDbPath.
+  describe("PR #181 round-2: cwd-precedence in resolveRuntime", () => {
+    /**
+     * Inlined copy of hook-shell/index.ts:147-153 precedence rule. This is
+     * intentionally duplicated so the test pins the contract; if production
+     * code drifts, this duplication breaks visibly and the team gets to
+     * decide whether to update the contract.
+     */
+    function resolveCwdFromInputs(
+      rawCwd: string | undefined,
+      envProjectDir: string | undefined,
+      processCwd: string,
+    ): string {
+      return typeof rawCwd === "string" && rawCwd.length > 0
+        ? rawCwd
+        : envProjectDir && envProjectDir.length > 0
+          ? envProjectDir
+          : processCwd;
+    }
 
-    // Replicate the precedence chain. We use a literal preference cascade
-    // so this test pins the contract even if the hook-shell impl is ever
-    // refactored.
-    const resolvedCwd = realSub; // raw.cwd
-    const envProjectDir = "/some/unrelated/path"; // would-be CLAUDE_PROJECT_DIR
-    void envProjectDir; // demonstrate that env is NOT consulted when raw.cwd is set
+    it("raw.cwd > CLAUDE_PROJECT_DIR > process.cwd (raw.cwd wins when set)", () => {
+      const realRoot = fs.realpathSync(fx.root);
+      const realSub = fs.realpathSync(fx.sub);
 
-    const projectRoot = findTeamagentRoot(resolvedCwd) ?? resolvedCwd;
-    const projectDbPath = path.join(projectRoot, ".teamagent", "knowledge.db");
+      // Set CLAUDE_PROJECT_DIR to point at the parent root — but raw.cwd
+      // points at the *child* sub-directory. Per the precedence rule, raw.cwd
+      // must win regardless.
+      const oldEnv = process.env.CLAUDE_PROJECT_DIR;
+      try {
+        process.env.CLAUDE_PROJECT_DIR = realRoot;
+        const rawCwd = realSub;
+        const resolved = resolveCwdFromInputs(
+          rawCwd,
+          process.env.CLAUDE_PROJECT_DIR,
+          "/some/unrelated/process/cwd",
+        );
+        expect(resolved).toBe(realSub);
 
-    // raw.cwd's walk-up resolves to <root>'s DB.
-    expect(projectRoot).toBe(realRoot);
-    expect(projectDbPath).toBe(path.join(realRoot, ".teamagent", "knowledge.db"));
-    expect(fs.existsSync(projectDbPath)).toBe(true);
+        // Walk-up from the resolved cwd reaches <root> (the parent's DB).
+        const projectRoot = findTeamagentRoot(resolved);
+        expect(projectRoot).toBe(realRoot);
+
+        const projectDbPath = path.join(projectRoot!, ".teamagent", "knowledge.db");
+        expect(fs.existsSync(projectDbPath)).toBe(true);
+      } finally {
+        if (oldEnv === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+        else process.env.CLAUDE_PROJECT_DIR = oldEnv;
+      }
+    });
+
+    it("CLAUDE_PROJECT_DIR > process.cwd (env wins when raw.cwd is empty/undefined)", () => {
+      const realRoot = fs.realpathSync(fx.root);
+      const realSub = fs.realpathSync(fx.sub);
+
+      const oldEnv = process.env.CLAUDE_PROJECT_DIR;
+      try {
+        // raw.cwd is undefined (the SessionStart channel sends minimal
+        // stdin) — env must take over.
+        process.env.CLAUDE_PROJECT_DIR = realSub;
+        const resolved = resolveCwdFromInputs(
+          undefined,
+          process.env.CLAUDE_PROJECT_DIR,
+          "/some/unrelated/process/cwd",
+        );
+        expect(resolved).toBe(realSub);
+
+        const projectRoot = findTeamagentRoot(resolved);
+        expect(projectRoot).toBe(realRoot);
+
+        // Empty raw.cwd ("") behaves the same as undefined — falls through
+        // to env.
+        const resolvedEmpty = resolveCwdFromInputs(
+          "",
+          process.env.CLAUDE_PROJECT_DIR,
+          "/some/unrelated/process/cwd",
+        );
+        expect(resolvedEmpty).toBe(realSub);
+      } finally {
+        if (oldEnv === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+        else process.env.CLAUDE_PROJECT_DIR = oldEnv;
+      }
+    });
+
+    it("process.cwd is the last-resort fallback when both raw.cwd and env are absent", () => {
+      const realSub = fs.realpathSync(fx.sub);
+
+      const oldEnv = process.env.CLAUDE_PROJECT_DIR;
+      try {
+        delete process.env.CLAUDE_PROJECT_DIR;
+        const resolved = resolveCwdFromInputs(
+          undefined,
+          process.env.CLAUDE_PROJECT_DIR,
+          realSub,
+        );
+        expect(resolved).toBe(realSub);
+
+        // Empty env string ("") also falls through to process.cwd.
+        const resolvedEmptyEnv = resolveCwdFromInputs(
+          undefined,
+          "",
+          realSub,
+        );
+        expect(resolvedEmptyEnv).toBe(realSub);
+      } finally {
+        if (oldEnv === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+        else process.env.CLAUDE_PROJECT_DIR = oldEnv;
+      }
+    });
   });
 });

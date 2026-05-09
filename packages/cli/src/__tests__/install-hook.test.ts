@@ -851,9 +851,10 @@ describe("installHook — PR #181 fix-cycle", () => {
       });
       expect(opened).toBe(true);
 
-      // After the call, the lock has been released (file removed) — the
-      // releaseSettingsLock path always unlinks even on the no-fd degraded
-      // path.
+      // After a successful acquire (fd != null), the lock is released and
+      // the lockfile is unlinked. Round-2 F1 only changed the *fd === null*
+      // (degraded) branch so it no longer unlinks; the happy path is
+      // unchanged.
       expect(fs.existsSync(lockPath)).toBe(false);
 
       // The settings file was still written successfully.
@@ -862,6 +863,195 @@ describe("installHook — PR #181 fix-cycle", () => {
       expect(content.hooks.PreToolUse[0]._teamagentTag).toBe("teamagent-pre-tool-use");
     } finally {
       openSpy.mockRestore();
+    }
+  });
+
+  // ─── PR #181 round-2 (Worker FC) — true mutual-exclusion behaviour ────────
+  //
+  // Round-2 finding #10 noted that case (5) above only verifies the lockfile
+  // is created and removed — it does NOT exercise contention. The two cases
+  // below test the actual mutual-exclusion contract:
+  //
+  //   (5a) stale-lock recovery — a lockfile with mtime > 30s is detected as
+  //        stale, unlinked, and the install proceeds normally. Exercises the
+  //        retry-with-stale-detect branch in `acquireSettingsLock`.
+  //   (5b) lock held by another process — when we cannot acquire the lock
+  //        within MAX_RETRIES (5 retries × 200ms = 1s), `acquireSettingsLock`
+  //        degrades to fd=null and proceeds. The Round-2 F1 fix says we MUST
+  //        NOT unlink the lockfile we don't own. This is the regression
+  //        coverage for that fix — without F1, the second concurrent install
+  //        would silently nuke the first one's lock and break mutual
+  //        exclusion entirely.
+  it("(5a) stale-lock recovery — stale (>30s) lockfile is detected, unlinked, and install proceeds", () => {
+    const lockPath = path.join(fakeHome, ".claude", ".settings.lock");
+
+    // Pre-create a STALE lockfile (mtime in the past, > 30s ago). The
+    // stale-detect path in `acquireSettingsLock` will unlink it and retry.
+    fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+    fs.writeFileSync(lockPath, "", "utf-8");
+    const stalePast = new Date(Date.now() - 60_000); // 60s ago > STALE_MS=30s
+    fs.utimesSync(lockPath, stalePast, stalePast);
+
+    // Sanity: the lockfile is in place and stale before we run.
+    expect(fs.existsSync(lockPath)).toBe(true);
+    expect(Date.now() - fs.statSync(lockPath).mtimeMs).toBeGreaterThan(30_000);
+
+    installHook({
+      cwd: tmp.cwd,
+      hookEntry: FAKE_HOOK_ENTRY,
+      postHookEntry: FAKE_HOOK_ENTRY,
+      userPromptEntry: FAKE_HOOK_ENTRY,
+      stopEntry: FAKE_HOOK_ENTRY,
+      homeDir: fakeHome,
+      userLevel: true,
+    });
+
+    // After install: lockfile is gone (we acquired + released it), settings
+    // were written, all without throwing on the pre-existing stale lock.
+    expect(fs.existsSync(lockPath)).toBe(false);
+    const userSettingsPath = path.join(fakeHome, ".claude", "settings.json");
+    const content = JSON.parse(fs.readFileSync(userSettingsPath, "utf-8"));
+    expect(content.hooks.PreToolUse[0]._teamagentTag).toBe("teamagent-pre-tool-use");
+  });
+
+  it("(5b) Round-2 F1 regression: when lock is held by another process (fd=null), releaseSettingsLock does NOT unlink", () => {
+    // This is the failure mode the round-2 /review caught: in the previous
+    // implementation, `releaseSettingsLock` unconditionally unlinked the
+    // lockfile — even when our own `fs.openSync(lockPath, "wx")` had failed
+    // and the file was still held by another process. That defeated mutual
+    // exclusion: the second install would silently nuke the first install's
+    // lock partway through its read-modify-write window.
+    //
+    // We simulate "lock held by another process" by pre-creating the
+    // lockfile with a *fresh* mtime so it never trips stale-detect, and we
+    // hold the file descriptor open for the duration of installHook. The
+    // contention path in `acquireSettingsLock` exhausts MAX_RETRIES and
+    // returns fd=null. After Round-2 F1, releaseSettingsLock(null, ...) is
+    // a no-op — the held lockfile must still exist when installHook returns.
+    const lockPath = path.join(fakeHome, ".claude", ".settings.lock");
+    fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+    const otherFd = fs.openSync(lockPath, "wx");
+
+    // Capture stderr so the degraded-path warning doesn't pollute test
+    // output, AND so we can assert it was actually emitted.
+    const stderrSpy = vi
+      .spyOn(process.stderr, "write")
+      .mockImplementation(() => true);
+
+    try {
+      installHook({
+        cwd: tmp.cwd,
+        hookEntry: FAKE_HOOK_ENTRY,
+        postHookEntry: FAKE_HOOK_ENTRY,
+        userPromptEntry: FAKE_HOOK_ENTRY,
+        stopEntry: FAKE_HOOK_ENTRY,
+        homeDir: fakeHome,
+        userLevel: true,
+      });
+
+      // The CRITICAL Round-2 F1 invariant: the lockfile that we did NOT
+      // acquire must still exist. The pre-fix code would have unlinked it.
+      expect(fs.existsSync(lockPath)).toBe(true);
+
+      // The degraded-path warning was emitted.
+      const stderrCalls = stderrSpy.mock.calls.map((c) => String(c[0] ?? ""));
+      const hasDegradedWarning = stderrCalls.some((s) =>
+        s.includes("settings lock") && s.includes("contention"),
+      );
+      expect(hasDegradedWarning).toBe(true);
+
+      // The settings file was still written (degraded path proceeds without
+      // the lock — race-prone but better than blocking init forever).
+      const userSettingsPath = path.join(fakeHome, ".claude", "settings.json");
+      const content = JSON.parse(fs.readFileSync(userSettingsPath, "utf-8"));
+      expect(content.hooks.PreToolUse[0]._teamagentTag).toBe("teamagent-pre-tool-use");
+    } finally {
+      stderrSpy.mockRestore();
+      // Clean up: release the held lockfile we created above.
+      try { fs.closeSync(otherFd); } catch { /* best-effort */ }
+      try { fs.unlinkSync(lockPath); } catch { /* best-effort */ }
+    }
+  }, 30_000);
+
+  it("(5c) Round-2 F3 regression: stageBundleToUserTeamagent uses tmp+rename (atomic copy)", () => {
+    // Round-2 finding: under Windows, an unconditional `copyFileSync` over
+    // an in-use bundle throws EBUSY and crashes init. Under POSIX, an
+    // in-flight hook process can otherwise see a half-written bundle. The
+    // F3 fix replaces the bare copy with `copyFileSync → renameSync` via a
+    // pid+rand .tmp- intermediate. This test pins that contract by spying
+    // on `fs.renameSync` and confirming each staged channel goes through
+    // a `.tmp-<pid>-<rand>` source.
+    //
+    // We have to plant *real* hook bundles in a stable directory — using
+    // FAKE_HOOK_ENTRY (this test file's own path) doesn't trigger the
+    // stage-skip heuristic in stageBundleToUserTeamagent (size+mtime guard)
+    // when the destination doesn't yet exist, but its filename
+    // `install-hook.test.ts` is not a recognized channel basename and would
+    // confuse the staged-path assertions. Plant proper bundle-named files.
+    const stage = fs.mkdtempSync(path.join(os.tmpdir(), "stage-bundle-"));
+    try {
+      const hookEntry = path.join(stage, "bin-pre-tool-use.cjs");
+      const postHookEntry = path.join(stage, "bin-post-tool-use.cjs");
+      const userPromptEntry = path.join(stage, "bin-user-prompt-submit.cjs");
+      const stopEntry = path.join(stage, "bin-stop.cjs");
+      for (const p of [hookEntry, postHookEntry, userPromptEntry, stopEntry]) {
+        fs.writeFileSync(p, "// stub bundle\n", "utf-8");
+      }
+
+      const renameSpy = vi.spyOn(fs, "renameSync");
+      try {
+        installHook({
+          cwd: tmp.cwd,
+          hookEntry,
+          postHookEntry,
+          userPromptEntry,
+          stopEntry,
+          homeDir: fakeHome,
+          userLevel: true,
+        });
+
+        const calls = renameSpy.mock.calls;
+        // Among all renames during install (writeSettings tmp+rename for
+        // each of project + user settings.json AND stageBundleToUserTeamagent
+        // tmp+rename for each of 4 channels), at least 4 must be
+        // bundle-staging renames whose source matches the .tmp-<pid>-<rand>
+        // shape and whose destination is under <home>/.teamagent/hooks/.
+        const teamagentHooksDir = path.join(fakeHome, ".teamagent", "hooks");
+        const stagingRenames = calls.filter(([src, dst]) => {
+          const s = String(src);
+          const d = String(dst);
+          return (
+            d.startsWith(teamagentHooksDir) &&
+            /\.tmp-\d+-[a-z0-9]+$/.test(s)
+          );
+        });
+        expect(stagingRenames.length).toBeGreaterThanOrEqual(4);
+
+        // Each .tmp- source name follows pid-rand contract (no static name).
+        const stagingSources = stagingRenames.map(([s]) => String(s));
+        for (const src of stagingSources) {
+          expect(src).toMatch(/\.tmp-\d+-[a-z0-9]+$/);
+        }
+
+        // The four channel destinations all materialize as real files.
+        for (const basename of [
+          "bin-pre-tool-use.cjs",
+          "bin-post-tool-use.cjs",
+          "bin-user-prompt-submit.cjs",
+          "bin-stop.cjs",
+        ]) {
+          const dest = path.join(teamagentHooksDir, basename);
+          expect(fs.existsSync(dest)).toBe(true);
+          // No leaked .tmp- intermediates next to the final files.
+          const peers = fs.readdirSync(teamagentHooksDir);
+          const leaks = peers.filter((p) => p.startsWith(`${basename}.tmp-`));
+          expect(leaks).toEqual([]);
+        }
+      } finally {
+        renameSpy.mockRestore();
+      }
+    } finally {
+      fs.rmSync(stage, { recursive: true, force: true });
     }
   });
 

@@ -1,33 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-
-/**
- * Project markers — at least one of these must exist in the candidate
- * ancestor directory for it to count as a real "project root". Mirrors
- * `session-start-logic.ts:27-39`'s PROJECT_MARKERS list exactly. Any
- * change here MUST be mirrored there (and vice-versa).
- */
-const PROJECT_MARKERS = [
-  ".git",
-  "package.json",
-  "pyproject.toml",
-  "pnpm-workspace.yaml",
-  "Cargo.toml",
-  "go.mod",
-  "pom.xml",
-  "build.gradle",
-  "build.gradle.kts",
-  "Gemfile",
-  "composer.json",
-];
-
-function hasProjectMarker(dir: string): boolean {
-  for (const m of PROJECT_MARKERS) {
-    if (fs.existsSync(path.join(dir, m))) return true;
-  }
-  return false;
-}
+import { hasProjectMarker } from "./project-markers.js";
 
 /**
  * Walks from `start` (inclusive) up to the user's home directory boundary.
@@ -36,7 +10,9 @@ function hasProjectMarker(dir: string): boolean {
  *      NOT follow symlinks; a symlink-to-file at that path is rejected),
  *  (b) at least one project-marker is present in `<dir>` (.git, package.json,
  *      pyproject.toml, pnpm-workspace.yaml, Cargo.toml, go.mod, pom.xml,
- *      build.gradle, build.gradle.kts, Gemfile, composer.json).
+ *      build.gradle, build.gradle.kts, Gemfile, composer.json, or the
+ *      TeamAgent-managed `.teamagent/.project-root` marker written by
+ *      `teamagent init` so docs-only projects are still discoverable).
  *
  * Returns null if no such ancestor is found before reaching `os.homedir()` or
  * the filesystem root, whichever comes first. The home-directory cap rejects
