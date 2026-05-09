@@ -274,7 +274,7 @@ describe('resolveDaemonBin', () => {
     expect(result).toBe(userInstalled);
   });
 
-  it('falls back to the monorepo dist and self-installs to user path', () => {
+  it('atomically self-installs via tmp+rename and ends up with the monorepo bytes', () => {
     const fakeRoot = join(tmpdir(), `dt-mono-${ulid()}`);
     mkdirSync(fakeRoot, { recursive: true });
     const { selfDir, daemonAt } = makeFakeMonorepo(fakeRoot);
@@ -283,28 +283,82 @@ describe('resolveDaemonBin', () => {
     const userInstalled = join(paths.digitalTwinDir, 'bin-uploader.cjs');
     expect(existsSync(userInstalled)).toBe(false);
 
-    const result = resolveDaemonBin(home, { selfDirname: () => selfDir });
+    const renameTargets: Array<[string, string]> = [];
+    const realRename = (oldPath: string, newPath: string) => {
+      renameTargets.push([oldPath, newPath]);
+      // Defer to the real implementation by re-importing here.
+      // Using require() keeps the test self-contained without a hoisted import.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('node:fs').renameSync(oldPath, newPath);
+    };
+
+    const result = resolveDaemonBin(home, {
+      selfDirname: () => selfDir,
+      renameSync: realRename,
+    });
+
     expect(result).toBe(userInstalled);
     expect(existsSync(userInstalled)).toBe(true);
+    // The atomic path was used: rename was invoked exactly once with a
+    // <userInstalled>.tmp.* source and the final userInstalled destination.
+    expect(renameTargets.length).toBe(1);
+    const [tmpSrc, finalDest] = renameTargets[0]!;
+    expect(tmpSrc).toMatch(/bin-uploader\.cjs\.tmp\.\d+\.\d+$/);
+    expect(finalDest).toBe(userInstalled);
     // Bytes copied from the monorepo bundle.
     expect(readFileSync(userInstalled, 'utf-8')).toBe(
       readFileSync(daemonAt, 'utf-8'),
     );
   });
 
-  it('returns the monorepo path directly when self-install fails', () => {
+  it('falls back to direct copyFileSync when rename throws EXDEV (cross-FS)', () => {
+    const fakeRoot = join(tmpdir(), `dt-mono-exdev-${ulid()}`);
+    mkdirSync(fakeRoot, { recursive: true });
+    const { selfDir, daemonAt } = makeFakeMonorepo(fakeRoot);
+
+    const paths = digitalTwinPaths(home);
+    const userInstalled = join(paths.digitalTwinDir, 'bin-uploader.cjs');
+
+    let renameAttempts = 0;
+    const result = resolveDaemonBin(home, {
+      selfDirname: () => selfDir,
+      renameSync: () => {
+        renameAttempts++;
+        const err = new Error('EXDEV: cross-device link not permitted');
+        // Real Node attaches an errno code; mimic it.
+        (err as NodeJS.ErrnoException).code = 'EXDEV';
+        throw err;
+      },
+    });
+
+    expect(renameAttempts).toBe(1);
+    // Direct copy fallback ran: userInstalled exists with daemon bytes.
+    expect(result).toBe(userInstalled);
+    expect(existsSync(userInstalled)).toBe(true);
+    expect(readFileSync(userInstalled, 'utf-8')).toBe(
+      readFileSync(daemonAt, 'utf-8'),
+    );
+  });
+
+  it('logs to deps.log and returns monorepo path when both atomic + direct copy fail', () => {
     const fakeRoot = join(tmpdir(), `dt-mono-fail-${ulid()}`);
     mkdirSync(fakeRoot, { recursive: true });
     const { selfDir, daemonAt } = makeFakeMonorepo(fakeRoot);
 
+    const logs: string[] = [];
     const result = resolveDaemonBin(home, {
       selfDirname: () => selfDir,
-      // Simulate read-only HOME or EACCES on copy.
+      // Simulate read-only HOME or EACCES on every copy attempt.
       copyFileSync: () => {
         throw new Error('EACCES');
       },
+      log: (msg) => logs.push(msg),
     });
+
     expect(result).toBe(daemonAt);
+    expect(logs.length).toBe(1);
+    expect(logs[0]).toMatch(/resolveDaemonBin self-install failed/);
+    expect(logs[0]).toMatch(/EACCES/);
   });
 
   it('returns null when neither user-installed nor monorepo dist exists', () => {

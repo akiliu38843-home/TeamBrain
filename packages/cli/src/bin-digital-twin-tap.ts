@@ -16,7 +16,13 @@
  *   self-installs the latter to the former on first hit. If neither exists,
  *   queue files persist for a future tick to pick up.
  */
-import { existsSync, copyFileSync, mkdirSync } from 'node:fs';
+import {
+  existsSync,
+  copyFileSync,
+  mkdirSync,
+  renameSync,
+  unlinkSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,6 +67,10 @@ export interface ResolveDaemonBinDeps {
   /** Best-effort self-install hooks. Failures must be swallowed by callers. */
   mkdirSync?: (p: string, opts: { recursive: true }) => void;
   copyFileSync?: (src: string, dest: string) => void;
+  renameSync?: (oldPath: string, newPath: string) => void;
+  unlinkSync?: (p: string) => void;
+  /** Where to send self-install diagnostics. Defaults to process.stderr. */
+  log?: (msg: string) => void;
 }
 
 /**
@@ -79,11 +89,26 @@ export interface ResolveDaemonBinDeps {
  *      since both are `<monorepo>/packages/cli/{src,dist}` two levels above
  *      `digital-twin/dist`).
  *
- * When (2) hits but (1) doesn't, perform a best-effort self-install: copy
- * the monorepo bundle to `~/.teamagent/digital-twin/bin-uploader.cjs` so
- * subsequent invocations use the stable production location. Self-install
- * failure (read-only HOME, EACCES, etc.) is non-fatal — return the monorepo
- * path so this tick still spawns the daemon.
+ * When (2) hits but (1) doesn't, perform a best-effort atomic self-install:
+ * copy the monorepo bundle to a sibling `<userInstalled>.tmp.<pid>.<hr>`,
+ * then `renameSync` into place. POSIX `rename(2)` is atomic on the same
+ * filesystem, so two concurrent Stop hooks racing this branch can't observe
+ * a half-written file — the loser's rename simply replaces the winner's
+ * identical bytes. On `EXDEV` (HOME on a different filesystem, e.g., docker
+ * mount or NFS), fall back to a direct `copyFileSync`.
+ *
+ * Failure semantics (Stop hook contract: never throw, never exit non-zero):
+ *   - Both atomic + direct copy fail → log a single line to `deps.log`
+ *     (defaults to `process.stderr`, which Claude Code captures) and return
+ *     `monorepoDist` so this tick still spawns the daemon. Next tick may
+ *     succeed if the failure was transient.
+ *
+ * Staleness caveat: self-install runs only on first hit. Once `userInstalled`
+ * exists, the monorepo bundle is never re-checked, so changes to
+ * `bin-uploader.cjs` shipped via `git pull` are NOT picked up automatically.
+ * To force an upgrade, delete `~/.teamagent/digital-twin/bin-uploader.cjs`
+ * and let the next Stop hook re-install. (TODO: extend `install-hook` to
+ * manage the daemon binary alongside `bin-digital-twin-tap.cjs`.)
  */
 export function resolveDaemonBin(
   home: string,
@@ -105,14 +130,33 @@ export function resolveDaemonBin(
   );
   if (!ex(monorepoDist)) return null;
 
+  const md = deps.mkdirSync ?? mkdirSync;
+  const cp = deps.copyFileSync ?? copyFileSync;
+  const rn = deps.renameSync ?? renameSync;
+  const ul = deps.unlinkSync ?? unlinkSync;
+  const log = deps.log ?? ((m: string) => process.stderr.write(m));
+
+  const tmpPath = `${userInstalled}.tmp.${process.pid}.${process.hrtime.bigint()}`;
   try {
-    const md = deps.mkdirSync ?? mkdirSync;
-    const cp = deps.copyFileSync ?? copyFileSync;
     md(paths.digitalTwinDir, { recursive: true });
-    cp(monorepoDist, userInstalled);
+    cp(monorepoDist, tmpPath);
+    rn(tmpPath, userInstalled);
     return userInstalled;
   } catch {
-    return monorepoDist;
+    try {
+      ul(tmpPath);
+    } catch {
+      /* tmp may not exist if cp threw */
+    }
+    try {
+      cp(monorepoDist, userInstalled);
+      return userInstalled;
+    } catch (copyErr) {
+      log(
+        `[teamagent.digital-twin] resolveDaemonBin self-install failed: ${String(copyErr)}\n`,
+      );
+      return monorepoDist;
+    }
   }
 }
 
