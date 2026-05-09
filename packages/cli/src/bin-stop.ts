@@ -913,20 +913,22 @@ async function main(): Promise<void> {
       // is unbounded — escape.pipelineTimeoutMs caps the handler at 240s.
       if (isDetachedPipelineInvocation(process.env, process.argv)) {
         // Issue #189: claim the per-cwd singleton lock with our own pid so
-        // the foreground hook can see we are alive; release on every exit
-        // path. Prior child's pid was already decided stale by the
-        // foreground guard, otherwise we would not have been spawned.
+        // the foreground hook can see we are alive; release in the normal
+        // try/finally path. Prior child's pid was already decided stale
+        // by the foreground guard, otherwise we would not have been spawned.
         const childLockPath = pipelineLockPath(ctx.cwd);
         writePipelineLock(childLockPath, process.pid);
         const releaseChildLock = (): void =>
           removePipelineLockIfOwned(childLockPath, process.pid);
-        process.once("exit", releaseChildLock);
-        // Don't process.exit on SIGTERM: that bypasses runStopPipeline's
-        // own try/finally that clears the per-cwd statusline lock and
-        // closes SQLite handles. Just release our own lock and let the
-        // pipeline's cleanup run; the harness's own pipelineTimeoutMs
-        // already enforces the hard deadline.
-        process.once("SIGTERM", releaseChildLock);
+        // Note on signal handling (issue #189 round-2 review): we
+        // intentionally do NOT install a SIGTERM handler that releases
+        // the lock. Doing so would let the lock disappear while we are
+        // still alive, allowing siblings to slip past the singleton guard.
+        // If SIGTERM fires (harness timeout), Node's default behavior
+        // terminates immediately; the next Stop event will see the lock
+        // pointing at a dead pid and treat it as stale (ESRCH path in
+        // isPidAlive). The eventual SIGKILL path is similarly covered by
+        // stale-pid detection.
         try {
           await runStopPipeline(ctx.input, { emit });
         } finally {

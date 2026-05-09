@@ -125,18 +125,27 @@ export class XenovaRuleEmbedder implements RuleEmbedder {
     const origFetch = globalThis.fetch;
     if (typeof origFetch === "function") {
       const wrappedFetch: typeof globalThis.fetch = (input, init) => {
-        if (init?.signal) {
-          // Caller already provided a signal; respect it without layering
-          // ours on top (avoid double-abort weirdness).
-          return origFetch(input, init);
-        }
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), fetchTimeoutMs);
         // Don't keep the event loop alive after fetch resolves.
         if (typeof timer === "object" && timer !== null && "unref" in timer) {
           (timer as { unref: () => void }).unref();
         }
-        return origFetch(input, { ...(init ?? {}), signal: controller.signal })
+        // Compose: if the caller already passed a signal, both their
+        // signal AND our timeout signal can fire — whichever first wins.
+        // AbortSignal.any is in Node ≥20.3 (project requires 22.5+, OK).
+        // This preserves the caller's intent (e.g. user cancellation)
+        // while keeping our deadline as a backstop. If AbortSignal.any
+        // is unavailable for any reason, fall back to our signal alone.
+        let signal: AbortSignal = controller.signal;
+        if (init?.signal) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const any = (AbortSignal as any).any;
+          if (typeof any === "function") {
+            signal = any.call(AbortSignal, [init.signal, controller.signal]);
+          }
+        }
+        return origFetch(input, { ...(init ?? {}), signal })
           .finally(() => clearTimeout(timer));
       };
       globalThis.fetch = wrappedFetch;
