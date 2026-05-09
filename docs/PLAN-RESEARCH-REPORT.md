@@ -195,6 +195,4 @@ claudefast -p "ONLY based on project level rules, where are the rules of plan.md
 
 1. 项目级文件路径 —— `docs/PLAN-RESEARCH-REPORT.md`（本文件）必须出现，附带 `CLAUDE.md`、`AGENTS.md` (软链 `CLAUDE.md`)、`docs/HOWTO-PLAN-PR.md`。
 2. 不把 user-level (`~/.claude/...`) 或父级 (`/Users/m1/projects/AGENTS.md`) 当作主答案；最多作为 "see also"。
-3. 同时覆盖 `plan.md`、`research.md`、`report.md` 三类文档。
-
-任意一条缺失视为本规则未落地，继续修订本文件与 `CLAUDE.md` **参考文档** 段。
+3. 同时覆盖 `plan.md`、`research.md`、`report.md` 三类文档；任意一条缺失视为本规则未落地，继续修订本文件与 `CLAUDE.md` **参考文档** 段。
