@@ -39,6 +39,7 @@ import type { LLMClient } from "@teamagent/ports";
 import type { KnowledgeEntry } from "@teamagent/types";
 import { computeEnforcement } from "@teamagent/types";
 import { installHook } from "./install-hook.js";
+import { findTeamagentRoot } from "../lib/walk-up.js";
 
 export interface InitOptions {
   cwd?: string;
@@ -60,6 +61,13 @@ export interface InitOptions {
    * the project's hooks. CLI escape hatch: `--no-user-level-hook`.
    */
   userLevelHook?: boolean;
+  /**
+   * Issue #161 follow-up: skip the nested-init guard. Default false. Use only
+   * when you really do want to create a child .teamagent/ inside an already-
+   * initialized parent (e.g. testing, monorepo subproject with intentional
+   * isolation).
+   */
+  force?: boolean;
   /** 跳过打包 seed 注入（测试环境隔离 dev 产物；正常安装应保持 false）。 */
   skipSeed?: boolean;
   /** 跳过向量模型预热（测试 / 离线环境；正常安装应保持 false）。 */
@@ -168,6 +176,27 @@ export async function executeInit(opts: InitOptions = {}): Promise<InitResult> {
   const target = opts.target ?? "claude";
   const now = opts.now ?? (() => new Date());
   const steps: InitStepResult[] = [];
+
+  // Issue #161 follow-up (PR #181 /review finding #5):
+  // If an ancestor directory already has a teamagent project (.teamagent/knowledge.db
+  // + project marker), refuse to create a duplicate child .teamagent/. The user
+  // almost certainly meant to operate on the existing parent project.
+  //
+  // Escape hatch: --force-nested-init (opts.force === true).
+  if (!opts.force) {
+    const ancestor = findTeamagentRoot(paths.cwd, { homeDir: paths.home });
+    if (ancestor !== null && ancestor !== paths.cwd) {
+      const failedStep: InitStepResult = {
+        step: "nested-init-guard",
+        status: "failed",
+        detail:
+          `detected ancestor TeamAgent project at ${ancestor}; refusing to ` +
+          `create duplicate .teamagent/ in ${paths.cwd} — cd to the project root ` +
+          `or use --force-nested-init to override.`,
+      };
+      return finalize(false, dryRun, [failedStep], emptySummary());
+    }
+  }
 
   // ---------- Phase A: Pre-check ----------
   const preCheck = runPreChecks(paths, target);
@@ -1208,6 +1237,7 @@ export function parseInitArgs(argv: string[]): InitOptions {
     else if (a === "--skip-import") opts.skipImport = true;
     else if (a === "--skip-hook") opts.skipHook = true;
     else if (a === "--no-user-level-hook") opts.userLevelHook = false;
+    else if (a === "--force-nested-init") opts.force = true;
     else if (a === "--skip-warmup") opts.skipWarmup = true;
     else if (a === "--install-plugins") opts.installPlugins = true;
     else if (a === "--codex") opts.target = "codex";

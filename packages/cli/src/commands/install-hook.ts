@@ -110,17 +110,186 @@ function toForwardSlash(p: string): string {
   return p.replace(/\\/g, "/");
 }
 
+/**
+ * B-091: stage a bundle from `<srcDistPath>` (e.g. node_modules/teamagent/dist/bin-*.cjs)
+ * to a stable user-owned location at `<homeDir>/.teamagent/hooks/<basename>`.
+ *
+ * Why: the user-level `~/.claude/settings.json` is shared across every project
+ * on the machine. If we wrote the literal `node_modules/.../dist/bin-*.cjs`
+ * absolute path into it, then nvm version switches, npm reinstalls, worktree
+ * cleanups (e.g. `/private/tmp/<repo>` deleted), or "last init from a
+ * different project replaces my command" all silently brick TeamAgent hooks
+ * for every project on the machine.
+ *
+ * Pattern mirrors `installUserHook` (sibling B-091 implementation):
+ * 1. compute dest = <homeDir>/.teamagent/hooks/<basename(srcDistPath)>
+ * 2. mkdir -p the parent dir
+ * 3. copyFileSync the bundle (overwrite existing — fresh bundle on each install)
+ * 4. return dest
+ */
+function stageBundleToUserTeamagent(srcDistPath: string, homeDir: string): string {
+  const dest = path.join(homeDir, ".teamagent", "hooks", path.basename(srcDistPath));
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.copyFileSync(srcDistPath, dest);
+  return dest;
+}
+
+/**
+ * B-086: judge whether a hook entry belongs to TeamAgent for a given channel.
+ *
+ * Dual signal — mirrors `install-user-hook.ts:isTeamagentSessionStartEntry`:
+ * - Strong: `_teamagentTag` is present (any TeamAgent-tagged entry, covers
+ *   both old and new tagging schemes).
+ * - Heuristic: `entry.hooks[*].command` contains the channel's bundle
+ *   filename (e.g. `bin-pre-tool-use.cjs`). These filenames are TeamAgent-
+ *   specific and unlikely to collide with foreign hooks.
+ *
+ * Used in `mergeUserLevelHooks` so re-installing on top of an upgraded user
+ * who already has untagged-legacy TeamAgent entries doesn't double-fire.
+ */
+function isTeamagentEntry(
+  entry: HookEntry,
+  channel: "PreToolUse" | "PostToolUse" | "UserPromptSubmit" | "Stop",
+): boolean {
+  if (entry._teamagentTag) return true;
+  const filename =
+    channel === "PreToolUse" ? "bin-pre-tool-use.cjs"
+    : channel === "PostToolUse" ? "bin-post-tool-use.cjs"
+    : channel === "UserPromptSubmit" ? "bin-user-prompt-submit.cjs"
+    : "bin-stop.cjs";
+  const cmds = entry.hooks?.map((c) => c.command ?? "") ?? [];
+  return cmds.some((c) => c.includes(filename));
+}
+
 function readSettings(file: string): ClaudeSettings {
   if (!fs.existsSync(file)) return {};
   const raw = fs.readFileSync(file, "utf-8").trim();
   if (!raw) return {};
-  return JSON.parse(raw) as ClaudeSettings;
+  // B-fix #2: malformed settings.json from any external tool should not abort
+  // init. Back up the corrupt file (preserve the user's accident-recoverable
+  // copy) and start fresh from `{}`. Logged once to stderr so the user knows.
+  try {
+    return JSON.parse(raw) as ClaudeSettings;
+  } catch (err) {
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    const bak = `${file}.bak-${ts}`;
+    try {
+      fs.copyFileSync(file, bak);
+    } catch {
+      // best-effort backup; if even copy fails we still proceed with {}
+    }
+    process.stderr.write(
+      `teamagent install-hook: ${file} malformed; backed up to ${bak}; starting fresh\n`,
+    );
+    return {};
+  }
 }
 
 function writeSettings(file: string, settings: ClaudeSettings): void {
   const dir = path.dirname(file);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(settings, null, 2) + "\n", "utf-8");
+
+  // B-fix #2/#7: always take a `.bak-<ts>` backup of an existing file before
+  // overwriting (timestamp avoids clobbering prior backups), then write atomically
+  // via tmp + POSIX rename. This makes SIGINT, disk-full, and concurrent-init
+  // races non-corrupting: either the old file or the new file is on disk, never
+  // a half-written file.
+  if (fs.existsSync(file)) {
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    const bak = `${file}.bak-${ts}`;
+    try {
+      fs.copyFileSync(file, bak);
+    } catch {
+      // best-effort backup
+    }
+  }
+
+  const tmp = `${file}.tmp-${process.pid}-${Math.random().toString(36).slice(2, 10)}`;
+  fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + "\n", "utf-8");
+  fs.renameSync(tmp, file);
+}
+
+/**
+ * Concurrent-init advisory lock for user-level `~/.claude/settings.json`.
+ *
+ * Two `teamagent init` runs from different projects can race on the
+ * read-modify-write window and lose one's write. Default `userLevel:true`
+ * raises the collision rate.
+ *
+ * Strategy:
+ * - exclusive create (`fs.openSync(lockPath, 'wx')`)
+ * - on EEXIST: stale-detect (mtime > 30s → unlink + retry once); otherwise
+ *   busy-wait 200ms × up to 5 retries
+ * - degrade gracefully: if all retries exhausted, log a warning and proceed
+ *   anyway — never block init forever
+ *
+ * Caller must always call `releaseSettingsLock(fd, lockPath)` in finally.
+ */
+function acquireSettingsLock(homeDir: string): { fd: number | null; lockPath: string } {
+  const lockPath = path.join(homeDir, ".claude", ".settings.lock");
+  fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+  const STALE_MS = 30_000;
+  const MAX_RETRIES = 5;
+  const SLEEP_MS = 200;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const fd = fs.openSync(lockPath, "wx");
+      return { fd, lockPath };
+    } catch (err: any) {
+      if (err?.code !== "EEXIST") {
+        // Unexpected — degrade and proceed
+        process.stderr.write(
+          `teamagent install-hook: settings lock open failed (${err?.code ?? err}); proceeding without lock\n`,
+        );
+        return { fd: null, lockPath };
+      }
+      // Stale-detect
+      try {
+        const st = fs.statSync(lockPath);
+        const age = Date.now() - st.mtimeMs;
+        if (age > STALE_MS) {
+          try {
+            fs.unlinkSync(lockPath);
+          } catch {
+            // someone else may have unlinked; loop will retry
+          }
+          continue;
+        }
+      } catch {
+        // statSync failed — lockfile vanished between EEXIST and stat; retry
+        continue;
+      }
+      if (attempt === MAX_RETRIES) {
+        process.stderr.write(
+          `teamagent install-hook: settings lock contention at ${lockPath} after ${MAX_RETRIES} retries; proceeding without lock\n`,
+        );
+        return { fd: null, lockPath };
+      }
+      // Busy-wait (sync code path — can't use real sleep without changing
+      // calling-convention; cap at SLEEP_MS to avoid hot-spin)
+      const until = Date.now() + SLEEP_MS;
+      while (Date.now() < until) {
+        // burn cycles; keeps init synchronous
+      }
+    }
+  }
+  return { fd: null, lockPath };
+}
+
+function releaseSettingsLock(fd: number | null, lockPath: string): void {
+  if (fd !== null) {
+    try {
+      fs.closeSync(fd);
+    } catch {
+      // best-effort
+    }
+  }
+  try {
+    fs.unlinkSync(lockPath);
+  } catch {
+    // best-effort — another process may have already unlinked
+  }
 }
 
 /**
@@ -368,77 +537,96 @@ function mergeUserLevelHooks(
   },
 ): void {
   const userSettingsPath = path.join(homeDir, ".claude", "settings.json");
-  const settings = readSettings(userSettingsPath);
-  if (!settings.hooks) settings.hooks = {};
 
-  const channelOps: Array<{
-    channel: "PreToolUse" | "PostToolUse" | "UserPromptSubmit" | "Stop";
-    tag: string;
-    bundlePath: string;
-    matcher?: string;
-    timeout: number;
-  }> = [
-    {
-      channel: "PreToolUse",
-      tag: HOOK_TAG,
-      bundlePath: entries.hookEntry,
-      matcher: "Bash|Write|Edit|WebFetch",
-      timeout: 30,
-    },
-    {
-      channel: "PostToolUse",
-      tag: POST_HOOK_TAG,
-      bundlePath: entries.postHookEntry,
-      matcher: "Bash|Write|Edit|WebFetch",
-      timeout: 30,
-    },
-    {
-      channel: "UserPromptSubmit",
-      tag: USER_PROMPT_TAG,
-      bundlePath: entries.userPromptEntry,
-      timeout: 10,
-    },
-    {
-      channel: "Stop",
-      tag: STOP_HOOK_TAG,
-      bundlePath: entries.stopEntry,
-      timeout: 60,
-    },
-  ];
+  // B-fix #7: serialize the user-level read-modify-write window so concurrent
+  // `teamagent init` runs (different projects, different cc sessions) don't
+  // race and lose each other's writes. Project-level
+  // `<cwd>/.claude/settings.local.json` is cwd-scoped and doesn't need this.
+  const { fd, lockPath } = acquireSettingsLock(homeDir);
+  try {
+    const settings = readSettings(userSettingsPath);
+    if (!settings.hooks) settings.hooks = {};
 
-  for (const op of channelOps) {
-    if (!fs.existsSync(op.bundlePath)) continue;
+    const channelOps: Array<{
+      channel: "PreToolUse" | "PostToolUse" | "UserPromptSubmit" | "Stop";
+      tag: string;
+      bundlePath: string;
+      matcher?: string;
+      timeout: number;
+    }> = [
+      {
+        channel: "PreToolUse",
+        tag: HOOK_TAG,
+        bundlePath: entries.hookEntry,
+        matcher: "Bash|Write|Edit|WebFetch",
+        timeout: 30,
+      },
+      {
+        channel: "PostToolUse",
+        tag: POST_HOOK_TAG,
+        bundlePath: entries.postHookEntry,
+        matcher: "Bash|Write|Edit|WebFetch",
+        timeout: 30,
+      },
+      {
+        channel: "UserPromptSubmit",
+        tag: USER_PROMPT_TAG,
+        bundlePath: entries.userPromptEntry,
+        timeout: 10,
+      },
+      {
+        channel: "Stop",
+        tag: STOP_HOOK_TAG,
+        bundlePath: entries.stopEntry,
+        timeout: 60,
+      },
+    ];
 
-    if (!settings.hooks[op.channel]) settings.hooks[op.channel] = [];
-    const list = settings.hooks[op.channel] as HookEntry[];
+    for (const op of channelOps) {
+      if (!fs.existsSync(op.bundlePath)) continue;
 
-    const command = `node ${shellQuote(toForwardSlash(op.bundlePath))}`;
-    const newEntry: HookEntry = {
-      _teamagentTag: op.tag,
-      hooks: [{ type: "command", command, timeout: op.timeout }],
-    };
-    if (op.matcher) newEntry.matcher = op.matcher;
+      // B-091: stage the bundle to a stable user-owned location and reference
+      // *that* in settings.json — not the dist path inside whichever
+      // node_modules / worktree / tmp clone produced this install. Otherwise
+      // nvm version switches, npm reinstalls, or `/private/tmp/<repo>`
+      // cleanups silently break TeamAgent hooks across every project on the
+      // machine. Mirrors install-user-hook.ts pattern.
+      const stagedPath = stageBundleToUserTeamagent(op.bundlePath, homeDir);
 
-    const existingIdx = list.findIndex((h) => h._teamagentTag === op.tag);
-    if (existingIdx >= 0) {
-      // Replace in place — keeps array order stable and avoids duplicates.
-      list[existingIdx] = newEntry;
-    } else {
-      list.push(newEntry);
+      if (!settings.hooks[op.channel]) settings.hooks[op.channel] = [];
+      const list = settings.hooks[op.channel] as HookEntry[];
+
+      const command = `node ${shellQuote(toForwardSlash(stagedPath))}`;
+      const newEntry: HookEntry = {
+        _teamagentTag: op.tag,
+        hooks: [{ type: "command", command, timeout: op.timeout }],
+      };
+      if (op.matcher) newEntry.matcher = op.matcher;
+
+      // B-086: filter ALL TeamAgent entries for this channel, not just
+      // tag-matching ones. Untagged-legacy entries from older TeamAgent
+      // installs (pre-_teamagentTag, or different install path) point at
+      // the channel's bundle filename and would otherwise accumulate
+      // alongside the new tagged entry → double-fire per tool use. Mirror
+      // install-user-hook.ts B-086 dedup pattern.
+      settings.hooks[op.channel] = list.filter((h) => !isTeamagentEntry(h, op.channel));
+      (settings.hooks[op.channel] as HookEntry[]).push(newEntry);
     }
-  }
 
-  // Drop any channels that ended up empty (preserves prior structure when we
-  // never had to touch them).
-  for (const ch of ["PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop"] as const) {
-    const list = settings.hooks[ch] as HookEntry[] | undefined;
-    if (Array.isArray(list) && list.length === 0) delete settings.hooks[ch];
-  }
-  if (settings.hooks && Object.keys(settings.hooks).length === 0) {
-    delete settings.hooks;
-  }
+    // Drop any channels that ended up empty (preserves prior structure when we
+    // never had to touch them).
+    for (const ch of ["PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop"] as const) {
+      const list = settings.hooks[ch] as HookEntry[] | undefined;
+      if (Array.isArray(list) && list.length === 0) delete settings.hooks[ch];
+    }
+    if (settings.hooks && Object.keys(settings.hooks).length === 0) {
+      delete settings.hooks;
+    }
 
-  writeSettings(userSettingsPath, settings);
+    writeSettings(userSettingsPath, settings);
+  } finally {
+    releaseSettingsLock(fd, lockPath);
+  }
 }
 
 /**

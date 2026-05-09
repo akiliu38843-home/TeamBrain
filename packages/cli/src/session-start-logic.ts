@@ -3,7 +3,7 @@
  */
 import { spawn } from "node:child_process";
 import fs, { appendFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import os from "node:os";
 import {
   parseUpdateState,
@@ -46,11 +46,46 @@ function isProjectDir(cwd: string): boolean {
 }
 
 function autoInitDisabled(cwd: string): boolean {
-  // User can opt out per-project OR globally
-  return (
-    existsSync(join(cwd, ".teamagent", "auto-init.disabled")) ||
-    existsSync(join(os.homedir(), ".teamagent", "auto-init.disabled"))
-  );
+  // User can opt out per-project, ancestor-project, OR globally.
+  // Issue #161 follow-up (PR #181 finding #8): walk up to honor an ancestor
+  // project's `auto-init.disabled` marker so a SessionStart from a child cwd
+  // of an opted-out parent doesn't auto-init regardless. This walk-up is
+  // INDEPENDENT of `findTeamagentRoot` (which requires `knowledge.db`)
+  // because a user can opt out BEFORE ever initializing — the ancestor may
+  // have `.teamagent/auto-init.disabled` but no `knowledge.db` yet.
+  //
+  // Mirrors `findTeamagentRoot`'s security guards: home-directory cap +
+  // project-marker requirement, both as defense-in-depth against attacker-
+  // planted markers in /tmp or similar.
+  if (existsSync(join(cwd, ".teamagent", "auto-init.disabled"))) return true;
+  if (existsSync(join(os.homedir(), ".teamagent", "auto-init.disabled"))) return true;
+  if (ancestorHasAutoInitDisabled(cwd)) return true;
+  return false;
+}
+
+function ancestorHasAutoInitDisabled(start: string): boolean {
+  // Walks from `start`'s parent up to (but not including) `os.homedir()`
+  // and the filesystem root. Returns true if ANY ancestor that has a
+  // project-marker carries a `.teamagent/auto-init.disabled` file.
+  //
+  // Defense-in-depth, mirroring `findTeamagentRoot`:
+  //   - project-marker requirement rejects bare markers planted in
+  //     non-project directories (e.g. /tmp/.teamagent/auto-init.disabled);
+  //   - the home-directory boundary stops the walk at `~` (we don't honor
+  //     a marker on `~` itself — the global opt-out path is already
+  //     checked separately as `~/.teamagent/auto-init.disabled`).
+  const homeDir = os.homedir();
+  if (start === homeDir) return false;
+  let cur = dirname(start);
+  while (true) {
+    if (cur === homeDir) return false; // do not match `~` itself
+    if (isProjectDir(cur)) {
+      if (existsSync(join(cur, ".teamagent", "auto-init.disabled"))) return true;
+    }
+    const parent = dirname(cur);
+    if (parent === cur) return false; // fs root
+    cur = parent;
+  }
 }
 
 export function decideAction(cwd: string, _now?: Date, _debounceHours?: number): Action {

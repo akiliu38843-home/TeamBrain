@@ -446,7 +446,7 @@ async function main(): Promise<void> {
         process.stdout.write(
           "Usage: teamagent init [--dry-run] [--skip-import] [--skip-hook] [--install-plugins]\n" +
           "                      [--target=claude|codex|both] [--pack <all|name1,name2>]\n" +
-          "                      [--no-user-level-hook]\n" +
+          "                      [--no-user-level-hook] [--force-nested-init]\n" +
           "\n" +
           "Options:\n" +
           "  --dry-run              Preview what init would do without making changes\n" +
@@ -461,6 +461,9 @@ async function main(): Promise<void> {
           "                         ~/.claude/settings.json. Default behaviour registers\n" +
           "                         user-level hooks so cc launched from sub-directories\n" +
           "                         still triggers TeamAgent (project DB resolved via walk-up).\n" +
+          "  --force-nested-init    Issue #161 escape hatch: allow `init` to create a\n" +
+          "                         child .teamagent/ even when an ancestor already has\n" +
+          "                         one. Default refuses to avoid duplicate state.\n" +
           "\n" +
           "Scaffolds TeamAgent config in the current project:\n" +
           "  - Creates .teamagent/ directory and initializes knowledge DB\n" +
