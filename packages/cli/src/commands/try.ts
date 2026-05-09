@@ -112,22 +112,34 @@ export async function executeTry(opts: TryOptions = {}): Promise<TryResult> {
     const header = `[${i + 1}/${total}] ${c.label}`;
     lines.push(header);
 
-    const hookResult = executeDemoHook({
-      toolName: c.toolName,
-      toolInput: c.toolInput,
-      cwd: opts.cwd,
-      homeDir: opts.homeDir,
-      projectDbPath: opts.projectDbPath,
-      userGlobalDbPath: opts.userGlobalDbPath,
-    });
+    // PR #183 fix: isolate each case in its own try/catch so that one
+    // throwing fixture (e.g. a future matcher regression, a missing DB,
+    // a corrupted rule) doesn't abort the whole 5-case demo and leave the
+    // user staring at a half-rendered `[2/5]` block with no closing line.
+    // The promise of "5 cases, 30 seconds" must hold under partial failure.
+    try {
+      const hookResult = executeDemoHook({
+        toolName: c.toolName,
+        toolInput: c.toolInput,
+        cwd: opts.cwd,
+        homeDir: opts.homeDir,
+        projectDbPath: opts.projectDbPath,
+        userGlobalDbPath: opts.userGlobalDbPath,
+      });
 
-    // Indent the hook's multi-line output so it visually nests under the case
-    // header, matching the spec's "   <real hook output>" indentation.
-    const indented = hookResult.output
-      .split("\n")
-      .map((ln) => (ln.length > 0 ? `   ${ln}` : ln))
-      .join("\n");
-    lines.push(indented);
+      // Indent the hook's multi-line output so it visually nests under the case
+      // header, matching the spec's "   <real hook output>" indentation.
+      const indented = hookResult.output
+        .split("\n")
+        .map((ln) => (ln.length > 0 ? `   ${ln}` : ln))
+        .join("\n");
+      lines.push(indented);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Truncate to keep the demo's per-case footprint small.
+      const short = msg.length > 200 ? `${msg.slice(0, 200)}…` : msg;
+      lines.push(`   ❌ ${c.label}: ${short}`);
+    }
 
     if (i < TRY_CASES.length - 1) {
       await delay(delayMs);

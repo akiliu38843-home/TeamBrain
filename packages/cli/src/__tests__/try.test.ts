@@ -6,11 +6,12 @@
  *   │  hook output ─> '拦截' / 'TeamAgent'   │
  *   └────────────────────────────────────────┘
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { executeTry } from "../commands/try.js";
+import * as demoHookModule from "../commands/demo-hook.js";
 
 function rmRetry(p: string) {
   for (let i = 0; i < 8; i++) {
@@ -98,6 +99,46 @@ describe("executeTry full run (delayMs: 0)", () => {
       // hook block which is ~10 lines indented.
       const section = r.output.slice(idx, idx + 600);
       expect(section).toContain("TeamAgent");
+    }
+  });
+
+  // PR #183 fix: per-case error isolation. If executeDemoHook throws on one
+  // case, the demo must not abort — it should render `❌ <label>: <err>` and
+  // continue. The closing `演示完成。` always runs.
+  it("continues past a failed case and still renders 演示完成。 (PR #183 #3)", async () => {
+    const realExecute = demoHookModule.executeDemoHook;
+    let callCount = 0;
+    const spy = vi
+      .spyOn(demoHookModule, "executeDemoHook")
+      .mockImplementation((opts) => {
+        callCount++;
+        if (callCount === 3) {
+          throw new Error("synthetic-case-3-failure");
+        }
+        return realExecute(opts);
+      });
+
+    try {
+      const r = await executeTry({
+        delayMs: 0,
+        cwd: tmp.cwd,
+        homeDir: tmp.home,
+      });
+      // Demo runs to completion despite the throw on case 3.
+      expect(r.exitCode).toBe(0);
+      expect(r.output).toContain("[1/5]");
+      expect(r.output).toContain("[2/5]");
+      expect(r.output).toContain("[3/5]");
+      expect(r.output).toContain("[4/5]");
+      expect(r.output).toContain("[5/5]");
+      expect(r.output).toContain("演示完成。");
+      // The failed case shows the ❌ marker with the error message.
+      expect(r.output).toContain("❌ git push --force");
+      expect(r.output).toContain("synthetic-case-3-failure");
+      // All 5 cases were attempted (5 calls into executeDemoHook).
+      expect(callCount).toBe(5);
+    } finally {
+      spy.mockRestore();
     }
   });
 });
