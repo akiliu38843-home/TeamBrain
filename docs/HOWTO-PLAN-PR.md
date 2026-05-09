@@ -132,14 +132,13 @@ grade without trusting the author. Two layers:
 
 ### 3a. Project-wide gate (always required)
 
-`docs/feature-verification.md` defines the **1+2+3 flow**. Every feature/fix
+`docs/feature-verification.md` defines the verification flow. Every feature/fix
 PR must pass it before merge:
 
-1. `!claudefast -p` runs `{MODULE} --help` and emits canonical JSON.
-2. `!codex exec` runs the same `{MODULE} --help` and emits canonical JSON.
-3. Hard-match the two JSON files (`jq -S` then `diff -u`) — they must be
-   byte-identical, no semantic-only pass.
-4. Plus an interactive `claudefast` run inside tmux ending with
+1. `!claudefast -p` runs `{MODULE} --help` and emits canonical JSON; diff it
+   against the snapshot under `snapshots/{MODULE}-help.canonical.json`
+   (`jq -S` + `diff -u`, byte-identical, no semantic-only pass).
+2. Plus an interactive `claudefast` run inside tmux ending with
    `/export <path>`; the export file is attached to the PR.
 
 The plan's how-to-verify section should name the **module under test**, the
@@ -171,9 +170,9 @@ Each `judge.md` playbook documents three sections:
 - **§V2 DUMP** — the canonical JSON schema written to
   `.judge/<run_id>/judge.json`: at minimum `exit_code`, `metrics`,
   `evidence_dir`, `stdout_path`.
-- **§V3 READ** — a separate `claudefast -p` (or `codex exec`) reads ONLY
-  the raw JSON + evidence and grades the run. The PR author, the executing
-  agent, and the code-under-test must never be the judge.
+- **§V3 READ** — a separate `claudefast -p` reads ONLY the raw JSON +
+  evidence and grades the run. The PR author, the executing agent, and the
+  code-under-test must never be the judge.
 
 This is the user-level testing-judge-harness rule
 (`~/.claude/docs/rules/testing-judge-harness.md`) plus user-memory

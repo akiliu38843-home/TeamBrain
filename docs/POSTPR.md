@@ -16,7 +16,7 @@
 
 > **After every PR, run the local `/review` Claude Code skill on the diff, address its findings, and loop until `/review` passes — never assume CI green = ship. When issues are found, do NOT merge and do NOT open follow-up issues; fix them inside this PR by writing a PR-PLAN and executing it with TEAMWORK.**
 
-The repo's authoritative post-PR review gate is the local Claude Code `/review` skill (gstack user-level: pre-landing PR review). Per ADR-0007 it replaces the previous cloud `chatgpt-codex-connector[bot]` review process; references to that bot in older docs and source code are pending cleanup in the same TEAMWORK PR that lands this rewrite.
+The repo's authoritative post-PR review gate is the local Claude Code `/review` skill (gstack user-level: pre-landing PR review). Per ADR-0007 it superseded the prior cloud reviewer; the bot integration has since been fully removed from review-stage rules, hooks, and fixtures.
 
 TeamBrain PRs must be normal PRs, never draft PRs. Do not use `--draft` in `gh pr create`, connector calls, or GitHub UI/API flows. If the branch is not ready for review, keep working locally and open the PR only after the verification gate is green.
 
@@ -154,7 +154,7 @@ The `--force` flags are required because the squash-merge on remote means local 
 
 ## Verification
 
-Per ADR-0007 the verification gate is the `claudefast -p "what should we do when we make a PR?"` semantic probe — the answer must name the `/review` skill (not the deprecated Codex bot), the POSTPR loop, PR-PLAN, and TEAMWORK as the canonical workflow, sourced organically from this doc and project rules (no canned-answer block in `CLAUDE.md` / `AGENTS.md` and no hook anchor enforcement).
+Per ADR-0007 the verification gate is the `claudefast -p "what should we do when we make a PR?"` semantic probe — the answer must name the `/review` skill, the POSTPR loop, PR-PLAN, and TEAMWORK as the canonical workflow, sourced organically from this doc and project rules (no canned-answer block in `CLAUDE.md` / `AGENTS.md` and no hook anchor enforcement).
 
 ## See also
 

@@ -113,10 +113,9 @@ driver = `.claude/skills/fixed-flow-driver/SKILL.md`（Codex 端在 `.codex/skil
 
 ## 验证（语义 probe，不写 canned-answer block）
 
-按 ADR-0007 / `docs/POSTPR.md` L115 的硬约束，**不向 `CLAUDE.md` 或 `AGENTS.md` 写 FIXEDFLOW canned-answer block**。验证只走两条：
+按 ADR-0007 / `docs/POSTPR.md` L115 的硬约束，**不向 `CLAUDE.md` 或 `AGENTS.md` 写 FIXEDFLOW canned-answer block**。验证走一条：
 
-1. `claudefast -p "explain TeamBrain FIXEDFLOW: 5 steps, what's manual vs auto"` 必须有机命中本文 5 步与 manual/auto 切分。
-2. `codex exec --skip-git-repo-check -s read-only "explain TeamBrain FIXEDFLOW: 5 steps, what's manual vs auto"` 与 (1) 输出在 5 个 step 标签上 hard-match。
+1. `claudefast -p "explain TeamBrain FIXEDFLOW: 5 steps, what's manual vs auto"` 必须有机命中本文 5 步与 manual/auto 切分；与 `snapshots/fixedflow.canonical.txt` 对照。
 
 完整 judge harness 见 `docs/plans/2026-05-09-fixed-flow/judge.md`（§V1 RUN / §V2 DUMP / §V3 READ）。
 
