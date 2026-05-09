@@ -15,6 +15,17 @@ Per `~/.claude/CLAUDE.md` testing-judge-harness rule and
 There is no fixed `scripts/*.sh` here. The MAIN agent dispatches each `§V<n>`
 section to a subagent or to `claudefast -p`; failures rerun a section.
 
+> **Re-mapping note (post-PR #227)**: the 10 acceptance criteria were derived
+> from the locked grill spec, **not** from any specific implementation. They
+> apply to PR #227's merged design (which uses `daemon-first-embedder.ts`
+> wrapper + `/register` endpoint) just as well as to the bailed parallel
+> branch (which used inline-proxy + `/join`). When using this playbook
+> against PR #227's merged code, expect the §V1 evidence-mapping for
+> criteria 4–6 (5 s graceful exit / kill→<100 ms fallback / 5-concurrent
+> RSS<800 MB) to need adaptation — they were never run against the merged
+> code, only against the bailed branch's tests. The grep-based criteria
+> (1, 7, 10) and the static-shape ones (2, 3, 8, 9) carry over unchanged.
+
 ## §V1 RUN — fixed tool set
 
 Each tool runs once. Output goes to `.judge/issue-164/<tool>.{stdout,stderr,exit}`.

@@ -24,6 +24,16 @@
 This file captures the actual context that drives `plan.md`, per AGENTS.md rule 8.
 It is **not** a re-statement of the plan; it is the inputs the plan was derived from.
 
+> **Historical**: § 1 below is the locked grill spec verbatim — that part is
+> shared between PR #227 (merged) and the bailed parallel branch. § 2 onward
+> describes the **bailed branch's** intended file layout (`bin-embedder.ts`
+> with `/join` endpoint, separate `embedder-state.ts` / `embedder-client.ts` /
+> `bin-embedder.test.ts`). PR #227's actual implementation introduces a
+> `daemon-first-embedder.ts` wrapper and uses `/register` instead. The
+> Explore-agent codebase map and integration notes here describe the
+> pre-implementation main HEAD; on post-#227 main some of the named singletons
+> (e.g. `_embedder` in `bin-pre-tool-use.ts`) have already been replaced.
+
 ## 1. The locked grill spec (verbatim)
 
 Posted by issue author `libz-renlab-ai` on 2026-05-09T11:05:23Z, ends with `--- end grill ---`,

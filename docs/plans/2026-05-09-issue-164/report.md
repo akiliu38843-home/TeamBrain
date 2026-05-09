@@ -21,6 +21,15 @@
 
 # Issue #164 — FIXEDFLOW Driver Report (BAIL)
 
+> **Cherry-pick disposition (added when this report landed via PR #242)**:
+> This report is a snapshot of the bail moment, kept verbatim. PR #242 is
+> option 2 from the "Recommendation to maintainer" list below — it cherry-picks
+> the user-message cleanup + this docs trio (research/plan/judge/report) into
+> main. The embedder code + tests from the bailed branch were **not**
+> cherry-picked — PR #227 already covers that surface. The ASCII art's
+> "no PR opened" line refers to the bailed `feat/issue-164` branch, not this
+> follow-up.
+
 ## TL;DR
 
 The FIXEDFLOW driver picked up issue #164 at **2026-05-09T11:31:08Z** and produced 13 atomic commits implementing the locked grill spec. While the driver was still implementing, **the issue author merged PR #227 (commit `168190a`) at 2026-05-09T11:43:38Z** — 12 minutes after pickup — implementing the same spec with a different design.

@@ -20,6 +20,17 @@ ADR + install.sh             new dist .cjs                   §V1 RUN / V2 DUMP 
 
 # Issue #164 — Plan
 
+> **Historical**: this plan describes the **bailed parallel branch's** design —
+> endpoint name `/join`, files `bin-embedder.test.ts` /
+> `spawnOrJoinEmbedderDaemon()` / `notifyEmbedderShutdown()`, the 11-commit phase
+> plan A1–C2. PR #227's actually-merged implementation uses a different layout
+> (`/register` endpoint, `daemon-first-embedder.ts` wrapper, no separate
+> `bin-embedder.test.ts`). This plan is kept verbatim because it captures the
+> shape the locked grill spec was being mapped onto by an independent
+> implementer and is useful as a "what other reasonable shapes were
+> considered" reference. Do not treat the file map below as accurate
+> against main HEAD.
+
 Format: 4-section per `docs/HOWTO-PLAN-PR.md`.
 Spec source: locked v1 grill comment in `research.md` § 1.
 
