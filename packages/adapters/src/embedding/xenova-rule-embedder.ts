@@ -73,7 +73,15 @@ export class XenovaRuleEmbedder implements RuleEmbedder {
   private async ensureLoaded(): Promise<void> {
     if (this.pipeline) return;
     if (this.loadPromise) return this.loadPromise;
-    this.loadPromise = this.loadModel();
+    // Issue #189 follow-up (review finding): a transient network failure
+    // during loadModel must not poison the singleton. If loadPromise is
+    // cached as rejected, every subsequent embed() in the process re-throws
+    // forever (bin-stop._stopEmbedder is module-scoped). Clear the cached
+    // promise on rejection so the next caller can retry.
+    this.loadPromise = this.loadModel().catch((err) => {
+      this.loadPromise = null;
+      throw err;
+    });
     return this.loadPromise;
   }
 
@@ -97,22 +105,39 @@ export class XenovaRuleEmbedder implements RuleEmbedder {
     // interrupt the worker; the event loop never drains; the hook process
     // refuses to exit. Repeated Stop events accumulate orphan node
     // processes (observed: 71 concurrent, 5+ GB RAM, OOM on 8 GB Macs).
-    // Wrap globalThis.fetch with AbortSignal.timeout for the duration of
-    // pipeline init; an aborted fetch releases its socket and the loop
-    // drains. Restore the original fetch on either path so we don't
-    // affect unrelated runtime fetches.
+    // Wrap globalThis.fetch with AbortSignal so each fetch can be aborted
+    // when the timeout fires; an aborted fetch releases its socket and
+    // the loop drains. Restore the original fetch on either path so we
+    // don't affect unrelated runtime fetches.
+    //
+    // Default 90s — multilingual-e5-small ONNX is ~115MB; 15s would abort
+    // legitimate first-time downloads on residential / mobile networks.
+    // Override via env for slow networks (warmup CLI uses 600s). Use
+    // `unref()` so the timer doesn't keep the event loop alive after
+    // fetch resolves.
     const fetchTimeoutMs = ((): number => {
       const v = parseInt(
         process.env["TEAMAGENT_EMBEDDER_FETCH_TIMEOUT_MS"] ?? "",
         10,
       );
-      return Number.isFinite(v) && v > 0 ? v : 15_000;
+      return Number.isFinite(v) && v > 0 ? v : 90_000;
     })();
     const origFetch = globalThis.fetch;
     if (typeof origFetch === "function") {
       const wrappedFetch: typeof globalThis.fetch = (input, init) => {
-        const signal = init?.signal ?? AbortSignal.timeout(fetchTimeoutMs);
-        return origFetch(input, { ...(init ?? {}), signal });
+        if (init?.signal) {
+          // Caller already provided a signal; respect it without layering
+          // ours on top (avoid double-abort weirdness).
+          return origFetch(input, init);
+        }
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), fetchTimeoutMs);
+        // Don't keep the event loop alive after fetch resolves.
+        if (typeof timer === "object" && timer !== null && "unref" in timer) {
+          (timer as { unref: () => void }).unref();
+        }
+        return origFetch(input, { ...(init ?? {}), signal: controller.signal })
+          .finally(() => clearTimeout(timer));
       };
       globalThis.fetch = wrappedFetch;
     }
@@ -123,7 +148,11 @@ export class XenovaRuleEmbedder implements RuleEmbedder {
         pipelineOpts,
       )) as unknown as XenovaPipeline;
     } finally {
-      if (typeof origFetch === "function") {
+      // Only restore if we still own the slot. If a concurrent loadModel
+      // call from a sibling instance also wrapped fetch and finishes after
+      // us, restoring blindly would re-install its wrapper as the "real"
+      // fetch. Best-effort identity check.
+      if (typeof origFetch === "function" && globalThis.fetch !== origFetch) {
         globalThis.fetch = origFetch;
       }
     }

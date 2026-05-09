@@ -208,25 +208,56 @@ function removeStopLock(lockPath: string): void {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Issue #189: user-level singleton lock for detached pipeline child.
+// Issue #189: per-project singleton lock for detached pipeline child.
 //
-// The cwd-local STOP_LOCK_RELATIVE above is per-project (statusline only).
-// The pipeline-singleton lock below is per-machine: prevents new Stop hook
-// invocations from spawning detached children while a previous detached
-// pipeline is still running. Without it, repeated Stop events accumulate
-// orphan node processes when the embedder hangs on huggingface.co.
+// The cwd-local STOP_LOCK_RELATIVE above is for the statusline indicator.
+// This pipeline-singleton lock is keyed BY cwd (hashed): prevents new Stop
+// hook invocations from spawning detached children while a previous
+// detached pipeline FOR THE SAME PROJECT is still running. Without it,
+// repeated Stop events accumulate orphan node processes when the embedder
+// hangs on huggingface.co.
 //
-// Stale-lock policy: a lock whose pid is no longer alive, OR whose
-// started_at is older than `STOP_PIPELINE_LOCK_MAX_AGE_MS`, is treated as
-// stale (the prior child crashed or was SIGKILLed). Stale locks are
-// silently overwritten by the next spawn attempt.
+// Per-cwd (not per-machine) so users running multiple Claude Code instances
+// across different projects (the common case here — 22+ projects) are not
+// blocked from each other. A user's burst inside ONE project still gets
+// throttled to one in-flight pipeline.
+//
+// Stale-lock policy:
+//   - pid no longer alive (ESRCH) → stale
+//   - pid is foreign (EPERM, owned by another user) → stale (not ours,
+//     definitely not our blocker)
+//   - started_at older than STOP_PIPELINE_LOCK_MAX_AGE_MS (30 min) → stale
+//   - started_at in the future (clock skew / corruption) → stale
+// Stale locks are silently overwritten by the next spawn attempt.
 // ──────────────────────────────────────────────────────────────────────────
 
-const STOP_PIPELINE_LOCK_RELATIVE = path.join(".teamagent", ".stop-pipeline.lock");
+const STOP_PIPELINE_LOCKS_DIR = path.join(".teamagent", "locks");
 const STOP_PIPELINE_LOCK_MAX_AGE_MS = 30 * 60 * 1000; // 30 min
+const STOP_PIPELINE_LOCK_FUTURE_SKEW_MS = 60 * 1000; // tolerate 60s clock skew
 
-function pipelineLockPath(): string {
-  return path.join(teamagentHomeDir(), STOP_PIPELINE_LOCK_RELATIVE);
+/**
+ * Hash a cwd to a stable lock filename. Uses node:crypto but lazy-imported
+ * to avoid pulling crypto into bundles that don't need it. Falls back to a
+ * simple normalization on import failure (best-effort lock).
+ */
+function cwdLockKey(cwd: string): string {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const crypto = require("node:crypto") as typeof import("node:crypto");
+    return crypto.createHash("sha1").update(cwd).digest("hex").slice(0, 16);
+  } catch {
+    // Last-resort: alphanumeric squash. Collisions possible but lock is
+    // best-effort anyway.
+    return cwd.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 32) || "default";
+  }
+}
+
+function pipelineLockPath(cwd: string): string {
+  return path.join(
+    teamagentHomeDir(),
+    STOP_PIPELINE_LOCKS_DIR,
+    `${cwdLockKey(cwd)}.stop-pipeline.lock`,
+  );
 }
 
 interface PipelineLockEntry {
@@ -273,18 +304,35 @@ function removePipelineLock(lockPath: string): void {
   }
 }
 
+/**
+ * Remove the lock only if it currently identifies the given pid. Prevents a
+ * late `child.on("error")` callback from deleting a NEWER child's lock if
+ * one was written between the spawn failure and the callback firing.
+ */
+function removePipelineLockIfOwned(lockPath: string, ownerPid: number): void {
+  const entry = readPipelineLock(lockPath);
+  if (entry && entry.pid === ownerPid) {
+    removePipelineLock(lockPath);
+  }
+}
+
 function isPidAlive(pid: number): boolean {
   if (!Number.isFinite(pid) || pid <= 0) return false;
   try {
     // signal 0 is the POSIX "alive check" — does not deliver a signal,
     // only validates the target. Throws ESRCH if dead, EPERM if alive
-    // but owned by another user.
+    // but owned by another user (NOT us, so not blocking us).
     process.kill(pid, 0);
     return true;
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
     if (code === "ESRCH") return false;
-    if (code === "EPERM") return true;
+    if (code === "EPERM") {
+      // PID exists but is foreign-owned — pid recycled into another
+      // user's process. It is not our pipeline child; do not let it gate
+      // our spawns. Treat as not-alive-for-our-purposes.
+      return false;
+    }
     return false;
   }
 }
@@ -296,6 +344,9 @@ function isPipelineLockStale(
   if (!isPidAlive(entry.pid)) return true;
   const started = Date.parse(entry.started_at);
   if (!Number.isFinite(started)) return true;
+  // Clock-skew defense: a started_at in the future (NTP correction, manual
+  // clock change, corrupted write) must NOT pin the lock as fresh forever.
+  if (started - nowMs > STOP_PIPELINE_LOCK_FUTURE_SKEW_MS) return true;
   return nowMs - started > STOP_PIPELINE_LOCK_MAX_AGE_MS;
 }
 
@@ -861,16 +912,21 @@ async function main(): Promise<void> {
       // pipeline directly (sync mode below converges to same call). Pipeline
       // is unbounded — escape.pipelineTimeoutMs caps the handler at 240s.
       if (isDetachedPipelineInvocation(process.env, process.argv)) {
-        // Issue #189: claim the singleton lock with our own pid so the
-        // foreground hook can see we are alive; release on every exit
-        // path (normal, error, signal). Prior child's pid was already
-        // decided stale by the foreground guard below, otherwise we would
-        // not have been spawned.
-        const childLockPath = pipelineLockPath();
+        // Issue #189: claim the per-cwd singleton lock with our own pid so
+        // the foreground hook can see we are alive; release on every exit
+        // path. Prior child's pid was already decided stale by the
+        // foreground guard, otherwise we would not have been spawned.
+        const childLockPath = pipelineLockPath(ctx.cwd);
         writePipelineLock(childLockPath, process.pid);
-        const releaseChildLock = (): void => removePipelineLock(childLockPath);
+        const releaseChildLock = (): void =>
+          removePipelineLockIfOwned(childLockPath, process.pid);
         process.once("exit", releaseChildLock);
-        process.once("SIGTERM", () => { releaseChildLock(); process.exit(0); });
+        // Don't process.exit on SIGTERM: that bypasses runStopPipeline's
+        // own try/finally that clears the per-cwd statusline lock and
+        // closes SQLite handles. Just release our own lock and let the
+        // pipeline's cleanup run; the harness's own pipelineTimeoutMs
+        // already enforces the hard deadline.
+        process.once("SIGTERM", releaseChildLock);
         try {
           await runStopPipeline(ctx.input, { emit });
         } finally {
@@ -888,14 +944,14 @@ async function main(): Promise<void> {
           ctx.logError("self-path", new Error("process.argv[1] missing — cannot self-spawn"));
           return;
         }
-        // Issue #189: skip spawning if a previous detached pipeline is
-        // still running. Without this guard, a slow embedder load (e.g.
-        // huggingface.co blocked) plus a busy Claude Code session
+        // Issue #189: skip spawning if a previous detached pipeline for
+        // THIS cwd is still running. Without this guard, a slow embedder
+        // load (huggingface.co blocked) plus a busy Claude Code session
         // triggers exponential process growth — observed 71 concurrent
         // bin-stop.cjs hooks consuming 5+ GB RAM on an 8 GB Mac. The
         // lock is best-effort: stale-pid / stale-age entries are
         // overwritten silently.
-        const fgLockPath = pipelineLockPath();
+        const fgLockPath = pipelineLockPath(ctx.cwd);
         const liveOwner = shouldSkipForExistingPipeline(fgLockPath);
         if (liveOwner !== null) {
           emitWithFallback(
@@ -934,24 +990,34 @@ async function main(): Promise<void> {
           // close, so users see a flurry of popups. Must hide.
           windowsHide: true,
         });
-        if (typeof child.pid === "number" && child.pid > 0) {
-          writePipelineLock(fgLockPath, child.pid);
+        // Capture child.pid into a const so the callback below can do an
+        // ownership check before unlinking. (child.pid is mutable on the
+        // ChildProcess object; capture immediately.)
+        const claimedPid = typeof child.pid === "number" && child.pid > 0
+          ? child.pid
+          : null;
+        if (claimedPid !== null) {
+          writePipelineLock(fgLockPath, claimedPid);
         }
         child.on("error", (err) => {
           ctx.logError("spawn-detached", err);
           try { if (existsSync(tmpFile)) unlinkSync(tmpFile); } catch { /* ignore */ }
-          // spawn failed — release the lock immediately so the next Stop
-          // event isn't blocked by a phantom owner.
-          removePipelineLock(fgLockPath);
+          // Spawn failed — only release if our pid is still the one in
+          // the lock. A late `error` callback must not delete a NEWER
+          // child's lock that overwrote ours between spawn-fail and now.
+          if (claimedPid !== null) {
+            removePipelineLockIfOwned(fgLockPath, claimedPid);
+          }
         });
         child.unref();
         return;
       }
 
       // sync mode: run pipeline inline. escape.pipelineTimeoutMs caps duration.
-      // Issue #189: also claim/release the singleton lock so a sync-mode
-      // Stop hook stuck on embedder load is visible to subsequent events.
-      const syncLockPath = pipelineLockPath();
+      // Issue #189: also claim/release the per-cwd singleton lock so a
+      // sync-mode Stop hook stuck on embedder load is visible to
+      // subsequent events.
+      const syncLockPath = pipelineLockPath(ctx.cwd);
       const syncLiveOwner = shouldSkipForExistingPipeline(syncLockPath);
       if (syncLiveOwner !== null) {
         emitWithFallback(
@@ -971,7 +1037,7 @@ async function main(): Promise<void> {
       try {
         await runStopPipeline(ctx.input, { emit });
       } finally {
-        removePipelineLock(syncLockPath);
+        removePipelineLockIfOwned(syncLockPath, process.pid);
       }
     },
     escape: {
