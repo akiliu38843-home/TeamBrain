@@ -43,7 +43,7 @@ It pulls together rules that already live in this repo:
   `*report*.md`).
 - `~/.claude/CLAUDE.md` — DUCKPLAN / `plan-content.md` three-part rule for
   `plan.md`.
-- `docs/feature-verification.md` — the 1+2+3 feature-verification gate.
+- `docs/feature-verification.md` — the feature-verification gate.
 - `docs/FASTPROBE.md` — the `claudefast -h` → parallel `-p` → stream-json
   audit recipe.
 - `docs/POSTPR.md` — the post-PR `/review` loop.
@@ -248,7 +248,7 @@ PR opened → CI + /review → issues found?
      (task / expected outputs / judge harness)
    → execute with TEAMWORK (N workers + 2N probes + 1 opus reporter)
    → push fix commits to the SAME PR branch
-   → rerun pnpm test + pnpm typecheck + verification 1+2+3
+   → rerun pnpm test + pnpm typecheck + feature-verification gate
    → re-run /review on the new diff
    → stop only when CI green + no conflict + /review PASS
 ```
@@ -267,7 +267,7 @@ on first green CI" usually skip the `/review` pass and miss P1s.
 - [ ] how-to-verify is a `docs/plans/<issue>/judge.md` md playbook —
       third-party judge harness forbidden fixed scripts; MUST use md playbook
 - [ ] judge.md names the module under test, JSON schema, /export path;
-      project-wide 1+2+3 gate planned
+      project-wide feature-verification gate planned
 - [ ] claudefast probes run before coding:
       (a) -h orient   (b) parallel -p ≤ 8   (c) stream-json audit logs
 - [ ] PR opened as a normal PR (not --draft)
@@ -282,8 +282,8 @@ on first green CI" usually skip the `/review` pass and miss P1s.
 - `~/.claude/CLAUDE.md` — DUCKPLAN, `plan-content.md`, testing-judge-harness
   rules (user-level).
 - `AGENTS.md` — `/Users/m1/projects` plan/research/report flow.
-- `docs/feature-verification.md` — the 1+2+3 gate, full flag list, tmux
-  `/export` recipe.
+- `docs/feature-verification.md` — the feature-verification gate, full flag
+  list, tmux `/export` recipe.
 - `docs/FASTPROBE.md` — full probe recipe and PR+conflict-resolve variant.
 - `docs/POSTPR.md` — `/review` skill + triage + loop.
 - `docs/PR-PLAN.md` — fix-issues-in-this-PR planning doc; no follow-up

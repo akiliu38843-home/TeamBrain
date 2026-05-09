@@ -91,7 +91,7 @@ Classify the conflict first:
 | **Review-finding vs implementation conflict** | Treat P1/P2 as actionable by default. Update docs/rules first, verify the rule-backed answer with `claudefast -p`, then fix the code in this PR via PR-PLAN + TEAMWORK. Do not punt to a follow-up issue. |
 | **Rule/document conflict** | Do not silently choose. Prefer current user instruction, then current `CLAUDE.md` / `AGENTS.md`, then current rule docs such as `docs/POSTPR.md`, then archived docs. Update docs to remove ambiguity before continuing. |
 
-Never resolve conflict by editing `main` directly, running `git reset --hard`, force-pushing, or dropping someone else's change just to make the conflict go away. Conflict resolution is a code change, so rerun `pnpm test`, `pnpm typecheck`, and the relevant feature verification 1+2+3 before merge.
+Never resolve conflict by editing `main` directly, running `git reset --hard`, force-pushing, or dropping someone else's change just to make the conflict go away. Conflict resolution is a code change, so rerun `pnpm test`, `pnpm typecheck`, and the relevant feature-verification gate before merge.
 
 ### 4. Loop until `/review` passes
 

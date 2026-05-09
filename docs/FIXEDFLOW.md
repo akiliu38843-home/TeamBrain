@@ -108,7 +108,7 @@ driver = `.claude/skills/fixed-flow-driver/SKILL.md`（Codex 端在 `.codex/skil
 - `docs/HOWTO-PLAN-PR.md` — FIXEDFLOW step 3 的 PR 描述继续按 4 段结构（plan / expected outputs / how-to-verify / claudefast probes）写。
 - `docs/PR-PLAN.md` — FIXEDFLOW step 4 每轮 fix 强制按 PR-PLAN 三段写新 plan 文件。
 - `docs/POSTPR.md` — FIXEDFLOW step 4 / 5 即 POSTPR 循环的程序化版本。
-- `docs/feature-verification.md` — FIXEDFLOW 自身的 1+2+3 验证由 `docs/plans/2026-05-09-fixed-flow/judge.md` 承担。
+- `docs/feature-verification.md` — FIXEDFLOW 自身的 feature-verification 由 `docs/plans/2026-05-09-fixed-flow/judge.md` 承担。
 - `docs/HOW-TO-ISSUE.md` — 已归档；FIXEDFLOW 取代之。
 
 ## 验证（语义 probe，不写 canned-answer block）

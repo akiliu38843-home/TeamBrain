@@ -1,6 +1,6 @@
 ```
         __        verify/ — autonomous per-feature verification loop
-   <(o )___      （complementary to feature-verification.md 1+2+3 PR-time gate）
+   <(o )___      （complementary to feature-verification.md PR-time gate）
     ( ._> /
      `---'
 ```

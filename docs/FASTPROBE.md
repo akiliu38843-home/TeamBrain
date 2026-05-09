@@ -48,7 +48,7 @@ PR opened
   -> conflict?
   -> classify: merge / review-finding / rule-doc
   -> resolve locally on PR branch
-  -> rerun pnpm test + pnpm typecheck + feature verification 1+2+3
+  -> rerun pnpm test + pnpm typecheck + feature-verification gate
   -> push same PR branch or follow-up PR if already merged
   -> POSTPR loop
   -> merge only when CI green + no conflict + /review PASS

@@ -143,7 +143,7 @@ needs a judge.
 The playbook documents three sections:
 
 - **§V1 RUN** — fixed tools to invoke (`pnpm test`, `pnpm typecheck`,
-  feature-verification 1+2+3 commands, regression repro). Stdout/stderr
+  feature-verification gate commands, regression repro). Stdout/stderr
   captured to `evidence_dir`.
 - **§V2 DUMP** — canonical JSON written to `.judge/<run_id>/judge.json`,
   schema example `{ "exit_code": <int>, "tests_passed": <int>,
