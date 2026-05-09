@@ -1,0 +1,75 @@
+name: FIXEDFLOW Heartbeat
+
+# Heartbeat layer: when a reporter adds the `grill-ready` label, post a
+# comment showing the last heartbeat from the local mainpi watcher (Phase
+# 4a). Mac off / watcher down = visible silence to the reporter.
+# Reads .fixedflow/heartbeat.json (committed/pushed by the watcher).
+# See docs/FIXEDFLOW.md and docs/plans/2026-05-09-fixed-flow/plan.md.
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 'Issue number to test heartbeat against'
+        required: true
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  heartbeat-comment:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'grill-ready'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo (read heartbeat.json)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          sparse-checkout: |
+            .fixedflow
+
+      - name: Compose heartbeat status
+        id: status
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          NOW_EPOCH=$(date -u +%s)
+          DOC_LINK="https://github.com/${REPO}/blob/main/docs/FIXEDFLOW.md"
+          if [ -f .fixedflow/heartbeat.json ]; then
+            HB_TS=$(jq -r '.timestamp // empty' .fixedflow/heartbeat.json 2>/dev/null || true)
+            HB_HOST=$(jq -r '.host // "unknown"' .fixedflow/heartbeat.json 2>/dev/null || echo "unknown")
+            HB_STATUS=$(jq -r '.status // "unknown"' .fixedflow/heartbeat.json 2>/dev/null || echo "unknown")
+            if [ -n "${HB_TS}" ]; then
+              HB_EPOCH=$(date -u -d "${HB_TS}" +%s 2>/dev/null || echo 0)
+              AGE_SEC=$((NOW_EPOCH - HB_EPOCH))
+              if [ "$AGE_SEC" -lt 7200 ]; then
+                BODY="🤖 FIXEDFLOW: queued for local pipeline. Last watcher heartbeat: \`${HB_TS}\` (host: \`${HB_HOST}\`, status: \`${HB_STATUS}\`). Driver should pick up this issue within ~30 s. See [FIXEDFLOW.md](${DOC_LINK})."
+              else
+                BODY="⚠️ FIXEDFLOW: queued for local pipeline, but the last watcher heartbeat is stale (\`${HB_TS}\`, $((AGE_SEC / 3600)) h ago, host: \`${HB_HOST}\`). The Mac running mainpi may be off; please ping the maintainer or expect delay. See [FIXEDFLOW.md](${DOC_LINK})."
+              fi
+            else
+              BODY="🤖 FIXEDFLOW: queued for local pipeline. \`heartbeat.json\` exists but lacks a timestamp; watcher may have crashed mid-write. See [FIXEDFLOW.md](${DOC_LINK})."
+            fi
+          else
+            BODY="🤖 FIXEDFLOW: queued for local pipeline. No heartbeat from the watcher yet (Phase 4a may not be deployed). See [FIXEDFLOW.md](${DOC_LINK})."
+          fi
+          # GitHub Actions multiline output convention
+          DELIM=$(openssl rand -hex 8)
+          {
+            echo "body<<${DELIM}"
+            printf '%s\n' "$BODY"
+            echo "${DELIM}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Post comment to the issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ github.event.issue.number || github.event.inputs.issue }}
+          BODY: ${{ steps.status.outputs.body }}
+        run: |
+          set -eu
+          gh issue comment "$ISSUE" --repo "${{ github.repository }}" --body "$BODY"
