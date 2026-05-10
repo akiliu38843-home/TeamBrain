@@ -133,11 +133,10 @@ but tautological (same source diffed against itself).
 been removed entirely. The new flow uses claudefast for both the
 headless JSON capture and the tmux interactive `/export`, plus a re-run
 regression diff to catch tooling/model drift. The `OPENAI_API_KEY`
-environment variable is no longer required for §V1.E. **As-built skip
-for this PR:** the tmux interactive step (Path 2) is skipped here
-because this PR is a playbook-only docs change with no CLI feature
-under test; future invocations against a real `<MODULE>` should
-include it.
+environment variable is no longer required for §V1.E. PR #269 itself
+does not re-execute any of §V1.E (Path 1, Path 2, or the hardmatch
+regression) — see "Scope of this PR" below for the full deferral and
+the named followup work that flips R5 retroactively.
 
 **Scope of this PR (codex-removal only):** This PR updates the §V1.E
 playbook to drop the codex dependency. It does NOT re-execute §V1.E
