@@ -89,17 +89,26 @@ stderr to `evidence_dir = .judge/<run_id>/evidence/`.
 
 ### §V1.E — Feature-verification 1+2+3 gate (per docs/feature-verification.md)
 
+Per ADR-0007 and the 2026-05-10 user rule "do not use codex anywhere,"
+this slice uses ONLY the canonical 2-path verification from
+`docs/feature-verification.md` plus a regression hardmatch (re-run path 1
+and byte-diff against the first capture). No `codex exec` calls.
+
 ```
-1.  claudefast -p --output-format json "<MODULE> --help" \
+1.  # Path 1 — claudefast headless JSON capture
+    claudefast -p --output-format json "<MODULE> --help" \
       > evidence_dir/claudefast.json
-2.  codex exec --skip-git-repo-check -s read-only \
-      "<MODULE> --help — output canonical JSON" \
-      > evidence_dir/codex.json
-3.  jq -S . evidence_dir/claudefast.json > evidence_dir/claudefast.sorted.json
-    jq -S . evidence_dir/codex.json      > evidence_dir/codex.sorted.json
-    diff -u evidence_dir/claudefast.sorted.json evidence_dir/codex.sorted.json \
+    jq -S . evidence_dir/claudefast.json > evidence_dir/claudefast.sorted.json
+2.  # Path 2 — claudefast tmux interactive + /export (optional in docs-only PRs)
+    (interactive tmux) claudefast → same prompt → /export evidence_dir/claudefast-tmux.export
+    test -s evidence_dir/claudefast-tmux.export
+3.  # Hardmatch regression — re-run path 1, byte-diff vs first capture
+    claudefast -p --output-format json "<MODULE> --help" \
+      > evidence_dir/claudefast-rerun.json
+    jq -S . evidence_dir/claudefast-rerun.json > evidence_dir/claudefast-rerun.sorted.json
+    diff -u evidence_dir/claudefast.sorted.json \
+            evidence_dir/claudefast-rerun.sorted.json \
       > evidence_dir/hardmatch.diff
-4.  (interactive tmux) claudefast → /export evidence_dir/claudefast.export
 ```
 
 `<MODULE>` = `pnpm teamagent skeleton-demo` (if dogfood scaffolds touch
@@ -107,16 +116,37 @@ CLI) **or** `pnpm --filter landing build` (if scope stays in
 `apps/landing`). The implementing agent picks one and writes it back
 into this file before §V2.
 
-**As-built note (PR #177):** Slice E selected `pnpm teamagent --help`
-(resolved to `node_modules/.bin/tsx packages/cli/src/bin.ts --help`)
+**As-built note (PR #177, 2026-05-08):** Slice E originally selected
+`pnpm teamagent --help` (resolved to `node_modules/.bin/tsx packages/cli/src/bin.ts --help`)
 because the planned `pnpm --filter landing build` script is `cp -r src/. dist/`
 with no `--help` to canonicalise. The §V1.E evidence under
 `.judge/2026-05-08-issue-122-E/evidence/` reflects this substitution.
 Codex was further substituted with direct shell exec because
 `OPENAI_API_KEY` was not set in the worker's environment (HTTP 401);
-hardmatch on the substituted artefact is byte-clean (0 bytes diff).
-Future re-runs of §V1.E should mirror this choice unless the landing
-build adds a deterministic JSON-emitting subcommand.
+hardmatch on the substituted artefact was byte-clean (0 bytes diff)
+but tautological (same source diffed against itself).
+
+**Codex-removal note (PR #<TBD>, 2026-05-10):** Per ADR-0007 and the
+2026-05-10 user rule "do not use codex anywhere," the codex step has
+been removed entirely. The new flow uses claudefast for both the
+headless JSON capture and (optionally) the tmux interactive `/export`,
+plus a re-run regression diff to catch tooling/model drift. The
+`OPENAI_API_KEY` environment variable is no longer required for §V1.E.
+
+**Scope of this PR (codex-removal only):** This PR updates the §V1.E
+playbook to drop the codex dependency. It does NOT re-execute §V1.E
+to produce a fresh `hardmatch_clean=true` artefact, because the
+canonical 2-path flow with `<MODULE>` = `pnpm teamagent --help` lacks
+a strict JSON Schema (only `teamagent stats --help` has
+`docs/feature-verification/stats-help.schema.json`), so two
+LLM-transcribed JSON captures cannot be reliably byte-equal across
+runs without schema-constrained output. As a proof-of-life for the
+new playbook, `.judge/2026-05-10-issue-122-E/evidence/teamagent-stats-help.raw.txt`
+captures the deterministic CLI baseline. **Followup work (separate
+issue):** define a JSON Schema for `pnpm teamagent --help` (or pick a
+sub-command that already has one and update `<MODULE>` here), then
+re-execute §V1.E to produce `hardmatch_clean=true` and flip R5 from
+⚠️ PARTIAL to ✅ PASS retroactively on issue #122.
 
 ## §V2 DUMP — canonical JSON
 
