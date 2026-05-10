@@ -13,7 +13,7 @@
 > - 依赖关系: 这张 PR 在 1+3 着陆后 ship (与原计划一致)
 >
 > Treat AMENDMENT as authoritative. See `docs/CONTEXT.md` Install paths section
-> + `docs/adr/0010-install-resumption-via-idempotency.md` for full grill outcome.
+> + `docs/adr/0011-install-resumption-via-idempotency.md` for full grill outcome.
 > Original plan body below preserved for history.
 
 ---

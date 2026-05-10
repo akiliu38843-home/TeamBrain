@@ -25,5 +25,5 @@
 
 [refusal]
   按 No 不会留半残。install.sh / bootstrap.sh 在拒绝时干净退出;
-  重跑 = 自动续 (底层幂等, 不需要 notebook; 详见 ADR-0010)。
+  重跑 = 自动续 (底层幂等, 不需要 notebook; 详见 ADR-0011)。
   --skip-vector-model 让你永久跳过 120 MB 向量模型下载。

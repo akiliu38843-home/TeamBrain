@@ -5,10 +5,10 @@
 > - `--preview` 改为 **shell flag**: `bash release/install.sh --preview` 与 `bash scripts/bootstrap.sh --preview`
 > - Manifest 源 = `docs/install-manifest.txt` (NEW, single source of truth per Q6=B)
 > - `renderInstallManifest()` TS function NOT needed (no caller after Q3)
-> - 6-order chain → 5-order chain (Order 2 CANCELLED per ADR-0010)
+> - 6-order chain → 5-order chain (Order 2 CANCELLED per ADR-0011)
 >
 > Treat AMENDMENT as authoritative. See `docs/CONTEXT.md` Install paths section
-> + `docs/adr/0010-install-resumption-via-idempotency.md` for full grill outcome.
+> + `docs/adr/0011-install-resumption-via-idempotency.md` for full grill outcome.
 > Original plan body below preserved for history.
 
 ---

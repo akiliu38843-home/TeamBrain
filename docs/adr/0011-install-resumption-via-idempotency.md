@@ -8,7 +8,7 @@
                           tar -xzf 覆盖 / ln -sf 替换 / pnpm 缓存 /
                           curl -C - / init 子步骤 skip-if-exists
               ↓
-   ADR-0010 决议: 不写小本本; 靠幂等达成 V3 验收;
+   ADR-0011 决议: 不写小本本; 靠幂等达成 V3 验收;
                    Order 2 取消; 6-order chain → 5-order chain
 ```
 
@@ -25,7 +25,7 @@ Implementation:
   - docs/CONTEXT.md flagged ambiguity "resume notebook" (resolved per this ADR)
 ---
 
-# ADR-0010: Install resumption via idempotency, not via resume notebook
+# ADR-0011: Install resumption via idempotency, not via resume notebook
 
 CEO 鸭 issue #155 decision 3 ("半残能干净重装") 原计划做一个 per-project resume notebook (`packages/core/src/install-state/`，详见 Order 2 plan)，记录哪几个 install step 已完成，让重跑跳过已做的。2026-05-10 的 grill session 烤到 Q5 时发现：**install pipeline 中每个步骤都已通过底层工具天然幂等**——再加一层应用级小本本属过度设计。
 
@@ -55,12 +55,12 @@ V3 验收 ("Ctrl-C 后再跑能干净恢复") 因此**无需** notebook：rerun 
 
 ## Relationship to other ADRs
 
-- **ADR-0001 (two-stage install)**：互补。ADR-0001 决定 install 拓扑 (装什么 + 顺序)；ADR-0010 决定该拓扑下中断怎么处理。
+- **ADR-0001 (two-stage install)**：互补。ADR-0001 决定 install 拓扑 (装什么 + 顺序)；ADR-0011 决定该拓扑下中断怎么处理。
 - **ADR-0008 (HookShell)**：正交。HookShell 的 `bus.emit` / always-exit-0 模式与 install resumption 不交叉。
 
 ## Verification
 
 - `docs/plans/issue-155/INDEX.md` 体现 5-order chain (Order 2 = CANCELLED)
 - `docs/plans/issue-155/order-2-resume-state/plan.md` 顶部 CANCELLED 注脚就位
-- `docs/CONTEXT.md` flagged ambiguity 提及 ADR-0010
+- `docs/CONTEXT.md` flagged ambiguity 提及 ADR-0011
 - 实施 PR 不创建 `packages/core/src/install-state/` 路径

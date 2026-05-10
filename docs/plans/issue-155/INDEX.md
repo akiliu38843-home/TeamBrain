@@ -9,12 +9,12 @@
 > | Q2 | Path C (AI 入口) = 增强 `release/install.sh` 末尾 auto-run `teamagent init` | Order 3 |
 > | Q3 | Path B 也只 1 步; 不创建 `pnpm teamagent install` 这条新 CLI | Order 1, 3 |
 > | Q4 | Path B 1 步 = 新建 `scripts/bootstrap.sh` 串跑 pnpm install + pnpm build + teamagent init; INSTALL.md 4-step 降级 dev fallback | Order 3, 4 |
-> | Q5 | 取消 Order 2; install 全程靠底层幂等 (tar/ln/pnpm/curl/skip-if-exists) 满足 V3 (per ADR-0010) | Order 2 |
+> | Q5 | 取消 Order 2; install 全程靠底层幂等 (tar/ln/pnpm/curl/skip-if-exists) 满足 V3 (per ADR-0011) | Order 2 |
 > | Q6 | 5-section manifest 源 = `docs/install-manifest.txt` (NEW); bootstrap.sh cat 它; install.sh embed; CI 锁三方一致 | Order 1, 4, 5 |
-> | Q7 | 收尾决定: 写 ADR-0010 + 改 6 plans + 建 manifest.txt + 更新 INDEX (本次更新) | INDEX |
+> | Q7 | 收尾决定: 写 ADR-0011 + 改 6 plans + 建 manifest.txt + 更新 INDEX (本次更新) | INDEX |
 >
 > 新增/修改文件:
-> - `docs/adr/0010-install-resumption-via-idempotency.md` (NEW, proposed)
+> - `docs/adr/0011-install-resumption-via-idempotency.md` (NEW, proposed)
 > - `docs/install-manifest.txt` (NEW, canonical 5-section source)
 > - `docs/CONTEXT.md` (新增 Install paths section + 4 条 flagged ambiguity)
 > - 6 张 order plan 顶部 AMENDMENT/CANCELLED block (Order 2 = CANCELLED)

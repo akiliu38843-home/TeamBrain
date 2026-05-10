@@ -9,7 +9,7 @@
 > - Depends on: 现在是 Order 1 (shell `--preview`) + Order 3 (install.sh + bootstrap.sh) 着陆;Order 2 CANCELLED 不再为依赖
 >
 > Treat AMENDMENT as authoritative. See `docs/CONTEXT.md` Install paths section
-> + `docs/adr/0010-install-resumption-via-idempotency.md` for full grill outcome.
+> + `docs/adr/0011-install-resumption-via-idempotency.md` for full grill outcome.
 > Original plan body below preserved for history.
 
 ---

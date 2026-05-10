@@ -1,4 +1,4 @@
-> **CANCELLED 2026-05-10 (issue #155 grill, worktree-146, ADR-0010)**
+> **CANCELLED 2026-05-10 (issue #155 grill, worktree-146, ADR-0011)**
 >
 > 此 sub-order **取消**。grill Q5 = (a) Pure idempotency 决议:install
 > 全程 (`tar -xzf` 覆盖 / `ln -sf` 替换 / `pnpm` 缓存 / `curl -C -` 续传 /
@@ -6,7 +6,7 @@
 >
 > - `packages/core/src/install-state/` **不创建**
 > - 6-order chain → 5-order chain (序号保留, 此为 CANCELLED slot)
-> - 决议详见 [`docs/adr/0010-install-resumption-via-idempotency.md`](../../../adr/0010-install-resumption-via-idempotency.md)
+> - 决议详见 [`docs/adr/0011-install-resumption-via-idempotency.md`](../../../adr/0011-install-resumption-via-idempotency.md)
 >
 > 原 plan body 保留作历史记录。如未来出现非幂等步骤需 retroactive 加 notebook,
 > 走独立新 ADR 决议。

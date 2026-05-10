@@ -191,7 +191,7 @@ _Avoid_: "fix plan", "follow-up issue"
 - **Path B** issue #155 落地后 = `bash scripts/bootstrap.sh` 串跑 `pnpm install && pnpm build && pnpm teamagent init` ⇒ V1=1（contributor 源码入口）
 - **legacy 4-step install** 仍存在于 `INSTALL.md` 作 dev fallback appendix（dev 想分别看输出时手动跑），不在 V1 度量范围内
 - `release/install.sh` 走 binary tarball；`scripts/bootstrap.sh` 走 source 编译；两个入口都需要 issue #155 grill 出来的 5-section manifest + **重入幂等** (idempotency) 行为
-- **不引入 resume notebook**——install 全程靠底层工具天然幂等：`tar -xzf` 覆盖、`ln -sf` 替换、`pnpm` 缓存与续传、`curl -C -` 断点续传、`teamagent init` 子步骤"已注册则跳过"。CEO 鸭 decision 3 "断了能续" 通过幂等达成，不靠应用层小本本。详见 ADR-0010 (待写)。
+- **不引入 resume notebook**——install 全程靠底层工具天然幂等：`tar -xzf` 覆盖、`ln -sf` 替换、`pnpm` 缓存与续传、`curl -C -` 断点续传、`teamagent init` 子步骤"已注册则跳过"。CEO 鸭 decision 3 "断了能续" 通过幂等达成，不靠应用层小本本。详见 ADR-0011 (accepted)。
 - **Self-discipline-via-matcher** 是 enforcement primitive；**Negative-space platform layer** 是它在 GitHub 层的可观察后果，不是独立机制
 - **`/review` skill** 与 **Calibration subagent** 都是 host-agent 进程内 LLM 行为；TeamBrain core 仍然 LLM-free（与 ADR-0004 一致）
 
