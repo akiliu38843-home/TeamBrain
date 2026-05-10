@@ -53,7 +53,7 @@ claim 完 issue 之后的第一动作是：
 
 AI-triage 绑定到 issue 创建后的初次扫描；**禁止**给已有 merged work 的 issue 补贴 `ready-for-human`。理由：retroactive labeling 制造 phantom role — claim 时无标签可见的 contributor 无法预见 maintainer 后补 epic 协调约束，违反"contributor 行动时点的可见 docs/labels 是唯一约束源"原则。
 
-实证：issue #146 是 2026-05-08 06:06Z 由 contributor 自 claim、2026-05-09 04:29Z 完成 5 个 PR 的 ship；AI-triage 在 ship 完成 50 分钟后（05:19Z）补贴 `ready-for-human` + epic 框架。该 retroactive 操作**不产生约束效力**，contributor 的 claim 与 ship 行为合规。issue #146 comment 7 把它框成 "Epic-coordinator 角色被 bypass" 是 mis-framed（见 `docs/POSTMORTEM.md` hard rule #6）。
+实证：issue #146 是 2026-05-08 06:06Z 由 contributor 自 claim、2026-05-09 04:29Z 完成 5 个 child PR (spec PR-1..PR-5) 的 ship（外加一个 stacked-PR 翻车后的 cherry-pick re-land #197，使 comment 7 timeline 列出 6 行）；AI-triage 在 ship 完成 50 分钟后（05:19Z）补贴 `ready-for-human` + epic 框架。该 retroactive 操作**不产生约束效力**，contributor 的 claim 与 ship 行为合规。issue #146 comment 7 把它框成 "Epic-coordinator 角色被 bypass" 是 mis-framed（见 `docs/POSTMORTEM.md` hard rule #6）。
 
 maintainer 在 issue 创建之初判定为 epic / 需要 human coordination 时：必须在 issue body 里直接说，并在创建时点贴 `ready-for-human` label，最好同步指名 coordinator（见 `docs/FIXEDFLOW.md` epic carve-out 段）。
 

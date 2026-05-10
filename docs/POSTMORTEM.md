@@ -66,7 +66,7 @@ post-mortem 的 severity 列必须使用 canonical 表：
 | (c) **根因** root cause | 1-3 句话的 mechanism | 是投诉而非 finding |
 | (d) **预防规则** preventive rule | 引用既有 doc 或提议新 doc 的 1 句 | 下次还会重犯 |
 
-缺 (c) 或 (d) 的项 → 不是 finding，是抱怨；写完 (c)+(d) 再贴。实证：comment 7 的 "stacked-PR squash 翻车，自己救场" 仅含 (a)+(b)，没说 stacked PR + squash --delete-branch 链断的 mechanism，也没指出 POSTPR.md 缺 stacked-PR 警告这条 doc gap。
+缺 (c) 或 (d) 的项 → 不是 finding，是抱怨；写完 (c)+(d) 再贴。实证：comment 7 的 stacked-PR 段落给了 (a) symptom（"内容没真上 main"）+ (b) recovery（"cherry-pick re-land"）+ 浅层 (c)（"各自 squash 后内容没真上 main"），但缺完整 mechanism（squash `--delete-branch` 杀 base → 子 PR base 指空 → 子 PR squash 落在 dead base）+ (d) 预防规则引用（POSTPR.md 缺 stacked-PR 警告这条 doc gap 没被命名）。
 
 ### #6 "Role bypass" 必须引 role-defining doc
 
