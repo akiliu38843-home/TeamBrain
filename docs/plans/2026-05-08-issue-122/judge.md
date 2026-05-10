@@ -99,9 +99,11 @@ and byte-diff against the first capture). No `codex exec` calls.
     claudefast -p --output-format json "<MODULE> --help" \
       > evidence_dir/claudefast.json
     jq -S . evidence_dir/claudefast.json > evidence_dir/claudefast.sorted.json
-2.  # Path 2 — claudefast tmux interactive + /export (optional in docs-only PRs)
+2.  # Path 2 — claudefast tmux interactive + /export (canonical, required)
     (interactive tmux) claudefast → same prompt → /export evidence_dir/claudefast-tmux.export
     test -s evidence_dir/claudefast-tmux.export
+    # If skipping in a specific run (e.g. docs-only PR), justify the skip
+    # in an As-built note below — do not weaken the playbook itself.
 3.  # Hardmatch regression — re-run path 1, byte-diff vs first capture
     claudefast -p --output-format json "<MODULE> --help" \
       > evidence_dir/claudefast-rerun.json
@@ -126,12 +128,16 @@ Codex was further substituted with direct shell exec because
 hardmatch on the substituted artefact was byte-clean (0 bytes diff)
 but tautological (same source diffed against itself).
 
-**Codex-removal note (PR #<TBD>, 2026-05-10):** Per ADR-0007 and the
+**Codex-removal note (PR #269, 2026-05-10):** Per ADR-0007 and the
 2026-05-10 user rule "do not use codex anywhere," the codex step has
 been removed entirely. The new flow uses claudefast for both the
-headless JSON capture and (optionally) the tmux interactive `/export`,
-plus a re-run regression diff to catch tooling/model drift. The
-`OPENAI_API_KEY` environment variable is no longer required for §V1.E.
+headless JSON capture and the tmux interactive `/export`, plus a re-run
+regression diff to catch tooling/model drift. The `OPENAI_API_KEY`
+environment variable is no longer required for §V1.E. **As-built skip
+for this PR:** the tmux interactive step (Path 2) is skipped here
+because this PR is a playbook-only docs change with no CLI feature
+under test; future invocations against a real `<MODULE>` should
+include it.
 
 **Scope of this PR (codex-removal only):** This PR updates the §V1.E
 playbook to drop the codex dependency. It does NOT re-execute §V1.E
