@@ -429,7 +429,7 @@ if [ "$SKIP_VECTOR_MODEL" -eq 1 ]; then
   mkdir -p "$HOME/.teamagent"
   printf 'created by install.sh --skip-vector-model on %s\n' "$(_iso_now_log)" > "$HOME/.teamagent/.skip-vector-model"
   printf '[install] skip-vector-model marker written to %s/.teamagent/.skip-vector-model\n' "$HOME"
-  printf '[install] (embedder daemon will not auto-spawn; SessionStart hook respects this marker)\n'
+  printf '[install] (intent recorded for future use; current daemon does not yet read this marker — see issue #155 follow-up)\n'
 fi
 
 # issue #155 Q2: auto-run `teamagent init` to achieve V1=1 (single-prompt install).

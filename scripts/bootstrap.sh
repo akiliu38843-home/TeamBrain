@@ -112,6 +112,7 @@ if [ "$SKIP_VECTOR_MODEL" -eq 1 ]; then
   mkdir -p "$HOME/.teamagent"
   printf 'created by bootstrap.sh --skip-vector-model on %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$HOME/.teamagent/.skip-vector-model"
   printf '[bootstrap] skip-vector-model marker written to %s/.teamagent/.skip-vector-model\n' "$HOME"
+  printf '[bootstrap] (intent recorded; current daemon does not yet read this marker — see issue #155 follow-up)\n'
 fi
 
 printf '\n[bootstrap] [3/3] pnpm teamagent init...\n'

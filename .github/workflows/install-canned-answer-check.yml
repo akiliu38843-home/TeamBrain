@@ -67,9 +67,13 @@ jobs:
 
       - name: Install teamagent via release/install.sh (post-#155 enhanced path)
         if: steps.has_key.outputs.has_key == 'true'
-        env:
-          TEAMAGENT_VERSION: ${{ github.event.head_commit.id || 'main' }}
         run: |
+          # NOTE: TEAMAGENT_VERSION env var (consumed by install.sh) defaults to a
+          # release tag like v0.9.4, not a commit SHA. Leaving it unset lets
+          # install.sh use its baked-in default (the latest published release).
+          # If we want to test pre-release main HEAD, fall through to the source
+          # build path below.
+          #
           # Use --auto to bypass the safe-mode review prompt; --skip-init
           # because we don't have a project to init in CI; we just want the
           # binary installed for canned-answer probing.
