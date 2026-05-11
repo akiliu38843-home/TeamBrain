@@ -66,6 +66,12 @@ export interface HourlyScanDeps {
   tapSession?: typeof defaultTapSession;
 }
 
+export type QuotaSource =
+  | 'fresh-probe'
+  | 'cache-stale'
+  | 'rate-limited-headers'
+  | 'none';
+
 export type HourlyScanOutcome =
   | {
       kind: 'skipped';
@@ -76,7 +82,7 @@ export type HourlyScanOutcome =
       /** sessionIds tapped this tick. */
       uploaded: string[];
       /** Where the attached quota came from. */
-      quotaSource: 'fresh-probe' | 'cache-stale' | 'rate-limited-headers' | 'none';
+      quotaSource: QuotaSource;
       /** Was a 5h/7d snapshot attached to envelopes this tick. */
       hadQuota: boolean;
     };
@@ -158,7 +164,7 @@ function stripTrailingSlash(s: string): string {
 async function resolveQuotaForTick(
   input: HourlyScanInput,
   deps: HourlyScanDeps,
-): Promise<{ quota: CcSessionQuotaBlock | null; source: HourlyScanOutcome['quotaSource'] | 'none' }> {
+): Promise<{ quota: CcSessionQuotaBlock | null; source: QuotaSource }> {
   const paths = digitalTwinPaths(input.home);
   const fetchFn = deps.fetch ?? fetch;
   const credsFn = deps.loadOAuthCredentials ?? loadOAuthCredentials;

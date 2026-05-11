@@ -175,8 +175,8 @@ describe('runHourlyScanIfDue', () => {
       expect(outcome.hadQuota).toBe(true);
     }
     expect(tappedInputs).toHaveLength(2);
-    expect(tappedInputs[0].quota).toEqual(quotaOk);
-    expect(tappedInputs[0].cwd).toBe('-Users-foo-proj');
+    expect(tappedInputs[0]!.quota).toEqual(quotaOk);
+    expect(tappedInputs[0]!.cwd).toBe('-Users-foo-proj');
     // Cache was persisted with the fresh probe.
     expect(cacheStore.current).toEqual(quotaOk);
   });
@@ -227,7 +227,7 @@ describe('runHourlyScanIfDue', () => {
       expect(outcome.quotaSource).toBe('cache-stale');
       expect(outcome.hadQuota).toBe(true);
     }
-    expect(tappedInputs[0].quota?.stale).toBe(true);
+    expect(tappedInputs[0]!.quota?.stale).toBe(true);
   });
 
   it('persists 429-with-headers quota and surfaces source=rate-limited-headers', async () => {
@@ -251,7 +251,7 @@ describe('runHourlyScanIfDue', () => {
     if (outcome.kind === 'fired') {
       expect(outcome.quotaSource).toBe('rate-limited-headers');
     }
-    expect(tappedInputs[0].quota).toEqual(partial);
+    expect(tappedInputs[0]!.quota).toEqual(partial);
     expect(cacheStore.current).toEqual(partial);
   });
 
@@ -274,7 +274,7 @@ describe('runHourlyScanIfDue', () => {
       expect(outcome.quotaSource).toBe('none');
     }
     // tapSession got called but without a quota field.
-    expect(tappedInputs[0].quota).toBeUndefined();
+    expect(tappedInputs[0]!.quota).toBeUndefined();
   });
 
   it('uses cache when OAuth credentials are missing (no probe attempted)', async () => {
