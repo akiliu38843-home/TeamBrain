@@ -13,7 +13,57 @@ artifacts the user sees) do NOT need an entry.
 
 ## Unreleased
 
-(no pending entries)
+### Added
+
+- **Newsboard SessionStart banner** (#233, #235). Every Claude Code SessionStart
+  now renders a 4-section ASCII duck MOTD via `.claude/hooks/newsboard-session-start.sh`,
+  with all Chinese copy maintained in `docs/newsboard.md` (the hook only does
+  `{{TOKEN}}` substitution). Strict-format CI guard
+  (`scripts/verify-newsboard-format.sh`) blocks malformed templates before merge.
+- **Hourly Max-quota + dashboard progress bar** (#283, #285). The dashboard now
+  surfaces the user's Max-plan quota as a percentage with a progress bar, and
+  the digital-twin sidecar uploads the day's incremental log on the hour instead
+  of waiting for session end — so a long-running session shows up in the team
+  view before it closes.
+- **`/grill-via-web` skill** (#286). Pops clickable ChatGPT and Claude.ai URLs
+  that prefill a `/grill-me` prompt referencing a public GitHub issue, so a
+  human can finish the grill in a browser tab without local Claude / API. The
+  skill is installed at project level (`.claude/skills/grill-via-web/`,
+  `.codex/skills/grill-via-web/`).
+- **`teamagent init` mirrors 4 static user-level skills + doctor propagation
+  report** (#288). `teamagent init` now mirrors `.claude/skills/<name>/`
+  (currently 4 canonical skills) into `~/.claude/skills/<name>/` so user-level
+  Claude Code sessions in any cwd see the project's skill bundle. `teamagent
+  doctor` gains a propagation report section showing which project-level
+  configs have actually landed in `~/.claude/`, `~/.codex/`, and `~/.teamagent/`,
+  matching the contract in `docs/INIT-PROPAGATION.md`.
+
+### Changed
+
+- **FIXEDFLOW driver review loop is now policy-canonical** (#279). The driver's
+  `/review` fix-loop never ends until `/review` returns PASS — no max-iter,
+  no token-budget exit, no auto-`needs-human`. If multiple drivers race on the
+  same `.codex/worktrees/issue-<N>/`, the first wins by `.lock` sentinel and
+  later drivers retreat cleanly. If squash-merge fails after rebase, the driver
+  keeps retrying (fetch / rebase / push --force-with-lease / retry merge) until
+  the PR is closed upstream or `maintainer` kills the process. See
+  `docs/FIXEDFLOW.md` for the full policy.
+- **Inner-loop test execution moved to CI on `wip/**` branches** (#270,
+  ADR-0013). Local `pnpm test` is no longer recommended for full test runs
+  because ≥4 parallel sessions saturate the macOS scheduler queue (measured
+  loadavg 274 on `toohot` with normal thermals — a scheduler overload, not a
+  thermal wall). Push to `wip/<name>` to trigger
+  `.github/workflows/inner-loop.yml`. Local `pnpm vitest run <file>` for
+  targeted single-file runs is still allowed.
+
+### Removed
+
+- **`.codex/worktrees/` placement policy and cascade deprecation** (#281).
+  Drop the long-standing convention that user-facing worktrees had to live
+  under `.codex/worktrees/`. The new canonical layouts: Codex →
+  `.codex/worktrees/issue-<N>/`, Claude Code → `.claude/worktrees/<name>/`
+  (via `claude -w`). See `docs/ISOLATED-WORKTREE.md` for the full provider
+  contract.
 
 ## 0.11.0 — 2026-05-09
 
