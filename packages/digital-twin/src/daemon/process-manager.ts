@@ -304,13 +304,24 @@ function classifyAndAct(
       // failure so the 24h dead-letter window survives daemon restarts. The
       // metadata write uses temp + rename so an interrupted write never
       // leaves a half-parsed JSON file on disk.
+      //
+      // Best-effort: if the metadata write itself fails (disk full, EPERM,
+      // etc.) we MUST NOT crash the daemon — a thrown error here would
+      // bubble all the way through runUploadCycle → mainLoop and kill the
+      // process, which the Stop hook would respawn → crash → respawn loop.
+      // Instead we keep the in-cycle timestamp for the current outcome and
+      // let the next cycle retry the persist.
       let firstFailedAt = loaded.metadata.first_failed_at ?? null;
       if (!firstFailedAt) {
         firstFailedAt = now.toISOString();
-        writeMetadataAtomic(entry.metadataPath, {
-          ...loaded.metadata,
-          first_failed_at: firstFailedAt,
-        });
+        try {
+          writeMetadataAtomic(entry.metadataPath, {
+            ...loaded.metadata,
+            first_failed_at: firstFailedAt,
+          });
+        } catch {
+          // best-effort persist; cycle continues with in-memory timestamp.
+        }
       }
       if (shouldDeadLetter(firstFailedAt, now)) {
         moveToDeadLetter(entry, home);
