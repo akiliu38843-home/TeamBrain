@@ -159,15 +159,28 @@ export function moveToDeadLetter(entry: QueueEntry, home: string = osHomedir()):
   }
 }
 
-interface CapacityFile {
-  abs: string;
-  mtimeMs: number;
-  size: number;
+interface CapacityUnit {
+  /** 1 or 2 absolute file paths forming an `<id>` pair (payload + metadata), or an orphan singleton. */
+  paths: string[];
+  /** Sum of file sizes in this unit. */
+  totalSize: number;
+  /** Smallest mtime among the unit's files — used for FIFO eviction. */
+  oldestMtimeMs: number;
 }
 
 /**
  * Enforce queue capacity: when pending/ + dead-letter/ total bytes exceed
- * `maxBytes`, delete the oldest files (by mtime) until under the limit.
+ * `maxBytes`, delete the oldest `<id>` pairs (by oldest mtime in the pair)
+ * until under the limit.
+ *
+ * Issue #266 F5: deletion is **pair-aware**. The pre-F5 implementation
+ * iterated raw files and could unlink an `<id>.payload` while leaving the
+ * matching `<id>.json` behind (or vice-versa), producing orphans that
+ * later daemon ticks would skip via `listPending` but never reap.
+ * The new logic groups files by `<id>` stem inside each directory and
+ * deletes every file in the pair atomically. Pre-existing orphans from
+ * older daemon versions are treated as their own one-file unit and
+ * remain deletable.
  *
  * Returns the list of paths that were deleted (in deletion order).
  */
@@ -176,33 +189,51 @@ export function enforceCapacity(
   maxBytes: number = DEFAULT_QUEUE_CAPACITY_BYTES,
 ): string[] {
   const paths = getPaths(home);
-  const files: CapacityFile[] = [];
+  const units: CapacityUnit[] = [];
 
   for (const dir of [paths.pendingDir, paths.deadLetterDir]) {
     if (!existsSync(dir)) continue;
-    const names = readdirSync(dir);
-    for (const n of names) {
+    const idToFiles = new Map<string, string[]>();
+    for (const n of readdirSync(dir)) {
+      let id: string;
+      if (n.endsWith('.payload')) id = n.slice(0, -'.payload'.length);
+      else if (n.endsWith('.json')) id = n.slice(0, -'.json'.length);
+      else continue;
       const abs = path.join(dir, n);
-      const s = safeStat(abs);
-      if (!s) continue;
-      files.push({ abs, mtimeMs: s.mtimeMs, size: s.size });
+      const list = idToFiles.get(id);
+      if (list) list.push(abs);
+      else idToFiles.set(id, [abs]);
+    }
+    for (const filesForId of idToFiles.values()) {
+      let totalSize = 0;
+      let oldestMtimeMs = Number.POSITIVE_INFINITY;
+      for (const abs of filesForId) {
+        const s = safeStat(abs);
+        if (!s) continue;
+        totalSize += s.size;
+        if (s.mtimeMs < oldestMtimeMs) oldestMtimeMs = s.mtimeMs;
+      }
+      if (!Number.isFinite(oldestMtimeMs)) continue;
+      units.push({ paths: filesForId, totalSize, oldestMtimeMs });
     }
   }
 
-  let total = files.reduce((acc, f) => acc + f.size, 0);
+  let total = units.reduce((acc, u) => acc + u.totalSize, 0);
   if (total <= maxBytes) return [];
 
-  files.sort((a, b) => a.mtimeMs - b.mtimeMs);
+  units.sort((a, b) => a.oldestMtimeMs - b.oldestMtimeMs);
   const deleted: string[] = [];
-  for (const f of files) {
+  for (const u of units) {
     if (total <= maxBytes) break;
-    try {
-      unlinkSync(f.abs);
-      deleted.push(f.abs);
-      total -= f.size;
-    } catch {
-      // continue with next file
+    for (const p of u.paths) {
+      try {
+        unlinkSync(p);
+        deleted.push(p);
+      } catch {
+        // best-effort: a single locked file must not strand its sibling.
+      }
     }
+    total -= u.totalSize;
   }
   return deleted;
 }
