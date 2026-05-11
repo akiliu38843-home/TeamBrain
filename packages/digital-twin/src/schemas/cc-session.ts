@@ -32,6 +32,13 @@ export interface CcSessionMetadata {
   host: { os: string; arch: string; hostname: string };
   teamagent_version: string;
   schema_version: 1;
+  /**
+   * Issue #283 — optional Max-tier quota snapshot persisted alongside the
+   * queue entry. When present, the uploader forwards it onto the wire
+   * envelope so the collector writes a sibling `quota.json` per user/day.
+   * Absent on entries enqueued by the existing single-session Stop tap.
+   */
+  quota?: CcSessionQuotaBlock;
 }
 
 /** Inner envelope block — what mock-server.ts reads under `obj.envelope`. */
