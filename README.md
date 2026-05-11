@@ -22,7 +22,7 @@ TeamAgent 解决这件事：从你纠正它的每一次对话里，自动**提�
 
 ---
 
-### 快速安装（V1=1 单 prompt，issue #155 落地后）
+### 快速安装（V1=1 单 prompt）
 
 ```bash
 # 推荐：直接 curl|bash — 装完自动跑 teamagent init，1 个授权弹窗就够
