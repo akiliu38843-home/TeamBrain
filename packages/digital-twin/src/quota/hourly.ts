@@ -13,7 +13,6 @@
  */
 
 import { dirname } from 'node:path';
-import { homedir as defaultHomedir } from 'node:os';
 import type { DigitalTwinConfig } from '../config.js';
 import { quotaProbeSettings } from '../config.js';
 import { digitalTwinPaths } from '../paths.js';
@@ -75,7 +74,19 @@ export type QuotaSource =
 export type HourlyScanOutcome =
   | {
       kind: 'skipped';
-      reason: 'disabled' | 'paused' | 'too-soon' | 'lost-race';
+      /**
+       * `disabled` — quota_probe.enabled=false in config.
+       * `paused` — uploader.enabled=false.
+       * `too-soon` — fence says we already fired within the last `windowMinutes`.
+       * `lost-race` — another driver instance won the O_EXCL lock first.
+       * `error` — defensive fallback when something in the orchestrator body
+       *   threw unexpectedly. The Stop hook caller wraps the call in try/catch
+       *   too, so this is redundant — but it keeps the contract crisp: the
+       *   orchestrator itself NEVER throws.
+       */
+      reason: 'disabled' | 'paused' | 'too-soon' | 'lost-race' | 'error';
+      /** Populated only when reason === 'error'. */
+      error?: string;
     }
   | {
       kind: 'fired';
@@ -204,11 +215,29 @@ async function resolveQuotaForTick(
 
 /**
  * Top-level orchestrator. Never throws — failures bubble out as a
- * tagged outcome the caller can log.
+ * tagged outcome the caller can log. The outer try/catch is
+ * defense-in-depth on top of the Stop-hook caller's own try/catch:
+ * we want THIS function to honor the never-throw contract independently
+ * so future callers don't have to know about it.
  */
 export async function runHourlyScanIfDue(
   input: HourlyScanInput,
   deps: HourlyScanDeps = {},
+): Promise<HourlyScanOutcome> {
+  try {
+    return await runHourlyScanIfDueInner(input, deps);
+  } catch (err) {
+    return {
+      kind: 'skipped',
+      reason: 'error',
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+async function runHourlyScanIfDueInner(
+  input: HourlyScanInput,
+  deps: HourlyScanDeps,
 ): Promise<HourlyScanOutcome> {
   const settings = quotaProbeSettings(input.config);
   if (!settings.enabled) return { kind: 'skipped', reason: 'disabled' };
@@ -284,7 +313,3 @@ export async function runHourlyScanIfDue(
 
 // Re-export for downstream callers that want one entrypoint.
 export type { CcSessionQuotaBlock } from '../schemas/cc-session.js';
-
-// Default homedir alias so callers (like bin-digital-twin-tap.ts) can
-// pass it through without re-importing.
-export { defaultHomedir };

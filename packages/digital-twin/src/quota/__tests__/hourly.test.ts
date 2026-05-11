@@ -318,6 +318,23 @@ describe('runHourlyScanIfDue', () => {
     expect(tappedInputs).toHaveLength(1);
   });
 
+  // Issue #283: outer try/catch turns unexpected throws into a tagged outcome,
+  // so the orchestrator's "never throws" contract is independent of caller.
+  it('returns skipped:error when inner code throws unexpectedly', async () => {
+    const config = makeConfig();
+    const { deps } = makeDeps();
+    // Force the fence write to throw.
+    deps.recordHourlyScanFired = () => {
+      throw new Error('disk on fire');
+    };
+    const outcome = await runHourlyScanIfDue({ home: HOME, config, now: NOW }, deps);
+    expect(outcome.kind).toBe('skipped');
+    if (outcome.kind === 'skipped') {
+      expect(outcome.reason).toBe('error');
+      expect(outcome.error).toContain('disk on fire');
+    }
+  });
+
   it('filters out sessions whose mtime is on a different UTC day', async () => {
     const config = makeConfig();
     const yesterday = new Date('2026-05-10T15:00:00Z');
