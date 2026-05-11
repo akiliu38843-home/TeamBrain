@@ -86,8 +86,16 @@ export interface AcquirePidLockDeps {
 
 /**
  * Try to acquire the daemon PID lock. Returns true on success (lock acquired),
- * false if another live daemon already owns it. Stale locks (from a dead PID
- * or with a malformed pid file) are forcibly replaced.
+ * false if another live daemon already owns it or if we lost an EEXIST race
+ * during stale-lock recovery. Stale locks (from a dead PID or with a
+ * malformed pid file) are forcibly replaced.
+ *
+ * Issue #266 F6: the previous read-then-write implementation was a TOCTOU
+ * race — two daemons starting concurrently could both read "no live owner"
+ * and both write their own pid. The atomic path here uses
+ * `writeFileSync(..., { flag: 'wx' })` so the kernel rejects with EEXIST
+ * when the file already exists. EEXIST then triggers a single inspect +
+ * unlink + retry, mirroring the prior stale-takeover semantics.
  */
 export function acquirePidLock(
   home: string = osHomedir(),
@@ -100,17 +108,43 @@ export function acquirePidLock(
 
   mkdirSync(paths.digitalTwinDir, { recursive: true });
 
+  const payload = JSON.stringify({
+    pid: myPid,
+    start_at: now().toISOString(),
+  } satisfies PidFileContent);
+
+  // Fast path: atomic create succeeds iff nobody held the lock.
+  if (tryWritePidLockAtomic(paths.daemonPidFile, payload)) return true;
+
+  // EEXIST — inspect the existing record.
   const existing = readPidFile(home);
-  if (existing && existing.pid !== myPid && aliveCheck(existing.pid)) {
+  if (existing?.pid === myPid) {
+    // Already ours (e.g. crash-recovery resume in the same process). Idempotent.
+    return true;
+  }
+  if (existing && aliveCheck(existing.pid)) {
     return false;
   }
 
-  const content: PidFileContent = {
-    pid: myPid,
-    start_at: now().toISOString(),
-  };
-  writeFileSync(paths.daemonPidFile, JSON.stringify(content), 'utf-8');
-  return true;
+  // Stale (dead pid or unreadable record). Best-effort unlink then retry the
+  // atomic create exactly once. A second EEXIST means we lost a race to
+  // another would-be daemon — back off rather than loop.
+  try {
+    unlinkSync(paths.daemonPidFile);
+  } catch {
+    // best-effort
+  }
+  return tryWritePidLockAtomic(paths.daemonPidFile, payload);
+}
+
+function tryWritePidLockAtomic(path: string, payload: string): boolean {
+  try {
+    writeFileSync(path, payload, { flag: 'wx', encoding: 'utf-8' });
+    return true;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'EEXIST') return false;
+    throw err;
+  }
 }
 
 export function releasePidLock(home: string = osHomedir()): void {

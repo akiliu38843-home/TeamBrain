@@ -104,6 +104,33 @@ describe('acquirePidLock + releasePidLock', () => {
     releasePidLock(home);
     expect(existsSync(paths.daemonPidFile)).toBe(false);
   });
+
+  // Issue #266 F6 — atomic acquire with EEXIST.
+  describe('issue #266 F6: atomic acquire', () => {
+    it('re-acquire by the same pid is idempotent', () => {
+      expect(acquirePidLock(home, { pid: 1234, isPidAlive: () => true })).toBe(true);
+      expect(acquirePidLock(home, { pid: 1234, isPidAlive: () => true })).toBe(true);
+      expect(readPidFile(home)?.pid).toBe(1234);
+    });
+
+    it('does not double-write a fresh start_at when re-acquiring as the same pid', () => {
+      // Confirms the EEXIST branch is taken rather than a non-atomic overwrite.
+      acquirePidLock(home, { pid: 1234, now: () => new Date('2026-01-01T00:00:00Z') });
+      const first = readPidFile(home)?.start_at;
+      acquirePidLock(home, { pid: 1234, now: () => new Date('2030-01-01T00:00:00Z') });
+      expect(readPidFile(home)?.start_at).toBe(first);
+    });
+
+    it('takes over a stale lock whose pid file is unreadable', () => {
+      // Write a garbage pid file directly — readPidFile() will return null.
+      const paths = digitalTwinPaths(home);
+      mkdirSync(paths.digitalTwinDir, { recursive: true });
+      writeFileSync(paths.daemonPidFile, 'not json', 'utf-8');
+      const got = acquirePidLock(home, { pid: 9999, isPidAlive: () => false });
+      expect(got).toBe(true);
+      expect(readPidFile(home)?.pid).toBe(9999);
+    });
+  });
 });
 
 describe('runUploadCycle', () => {
