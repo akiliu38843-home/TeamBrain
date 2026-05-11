@@ -24,6 +24,7 @@ import {
 import path from 'node:path';
 import { homedir as osHomedir } from 'node:os';
 import { digitalTwinPaths, type DigitalTwinPaths } from '../paths.js';
+import { MAX_PAYLOAD_BYTES } from '../limits.js';
 import { isCcSessionMetadata, type CcSessionMetadata } from '../schemas/cc-session.js';
 import { isRecordingMetadata, type RecordingMetadata } from '../schemas/recording.js';
 
@@ -99,6 +100,21 @@ export function listPending(home: string = osHomedir()): QueueEntry[] {
   }
   out.sort((a, b) => a.mtimeMs - b.mtimeMs);
   return out;
+}
+
+/**
+ * Issue #266 F8 — payload-size guard.
+ *
+ * True if the entry's on-disk payload exceeds the daemon's hard size
+ * cap. The daemon calls this before `loadEntry` so an oversize file
+ * never gets `readFileSync`-ed into RAM. The caller is expected to move
+ * the entry to dead-letter so it does not get retried indefinitely.
+ */
+export function isEntryTooLarge(
+  entry: QueueEntry,
+  maxBytes: number = MAX_PAYLOAD_BYTES,
+): boolean {
+  return entry.payloadSize > maxBytes;
 }
 
 /** Load a queue entry's payload bytes + parsed metadata. Returns null if metadata is invalid. */

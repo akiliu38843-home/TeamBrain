@@ -276,6 +276,39 @@ describe('runUploadCycle', () => {
     expect(summary.outcomes[0]).toEqual({ id: 'bad', outcome: 'invalid-metadata' });
     expect(existsSync(join(paths.deadLetterDir, 'bad.payload'))).toBe(true);
   });
+
+  // Issue #266 F8 — oversize payload short-circuits to dead-letter without
+  // ever being read into memory.
+  it('routes oversize payload to dead-letter as a distinct too-large outcome', async () => {
+    writeQueueEntry(home, 'huge-1');
+    const paths = digitalTwinPaths(home);
+    // Overwrite payload with > 1KB so the test-injected 1KB cap triggers.
+    writeFileSync(
+      join(paths.pendingDir, 'huge-1.payload'),
+      'x'.repeat(2048),
+      'utf-8',
+    );
+
+    let uploaderCalls = 0;
+    const summary = await runUploadCycle(cfg, home, {
+      maxPayloadBytes: 1024, // 1KB cap, payload is 2KB → too-large
+      uploader: async () => {
+        uploaderCalls += 1;
+        return { kind: 'success', status: 200 };
+      },
+    });
+
+    expect(summary.outcomes[0]).toMatchObject({
+      id: 'huge-1',
+      outcome: 'too-large',
+      payload_size: 2048,
+    });
+    // Critically: the uploader was never called — we short-circuited.
+    expect(uploaderCalls).toBe(0);
+    // Entry moved to dead-letter, not stuck in pending/.
+    expect(existsSync(join(paths.pendingDir, 'huge-1.payload'))).toBe(false);
+    expect(existsSync(join(paths.deadLetterDir, 'huge-1.payload'))).toBe(true);
+  });
 });
 
 describe('mainLoop', () => {

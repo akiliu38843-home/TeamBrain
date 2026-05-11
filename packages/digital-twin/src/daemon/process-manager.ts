@@ -18,6 +18,7 @@ import {
   removeEntry,
   moveToDeadLetter,
   enforceCapacity,
+  isEntryTooLarge,
   writeMetadataAtomic,
   type LoadedEntry,
   type QueueEntry,
@@ -60,7 +61,12 @@ export type CyclePerEntryOutcome =
       status?: number;
     }
   | { id: string; outcome: 'auth-failed' }
-  | { id: string; outcome: 'invalid-metadata' };
+  | { id: string; outcome: 'invalid-metadata' }
+  /**
+   * Issue #266 F8 — entry's `.payload` is over the size cap. Moved to
+   * dead-letter without ever being read into memory.
+   */
+  | { id: string; outcome: 'too-large'; payload_size: number };
 
 export interface CycleSummary {
   scanned: number;
@@ -182,6 +188,12 @@ export interface RunCycleDeps {
    * Tests pin the clock to deterministically exercise the 24h window.
    */
   now?: () => Date;
+  /**
+   * Issue #266 F8 — payload-size cap injector. Defaults to
+   * `MAX_PAYLOAD_BYTES` (100MB). Tests pass a smaller value so they can
+   * exercise the 'too-large' path without writing 100MB files.
+   */
+  maxPayloadBytes?: number;
 }
 
 /**
@@ -198,13 +210,14 @@ export async function runUploadCycle(
 ): Promise<CycleSummary> {
   const uploader = deps.uploader ?? uploadEntry;
   const now = deps.now ?? (() => new Date());
+  const maxBytes = deps.maxPayloadBytes;
   const entries = listPending(home);
   const outcomes: CyclePerEntryOutcome[] = [];
   let authFailed = false;
 
   for (const entry of entries) {
     if (authFailed) break;
-    const out = await processEntry(entry, config, uploader, deps.fetchFn, home, now);
+    const out = await processEntry(entry, config, uploader, deps.fetchFn, home, now, maxBytes);
     outcomes.push(out);
     if (out.outcome === 'auth-failed') {
       authFailed = true;
@@ -221,7 +234,17 @@ async function processEntry(
   fetchFn: FetchLike | undefined,
   home: string,
   now: () => Date,
+  maxPayloadBytes: number | undefined,
 ): Promise<CyclePerEntryOutcome> {
+  // Issue #266 F8: size-check the file before any readFileSync, so an
+  // oversize payload never lands in RAM. Oversize entries go straight to
+  // dead-letter as a distinct outcome (kept separate from
+  // 'invalid-metadata' so dashboards can see the real reason).
+  if (isEntryTooLarge(entry, maxPayloadBytes)) {
+    moveToDeadLetter(entry, home);
+    return { id: entry.id, outcome: 'too-large', payload_size: entry.payloadSize };
+  }
+
   const loaded = loadEntry(entry);
   if (!loaded) {
     // unparseable metadata — move out of pending to avoid infinite churn

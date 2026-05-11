@@ -4,6 +4,8 @@ export {
   type DigitalTwinPaths,
 } from './paths.js';
 
+export { MAX_PAYLOAD_BYTES } from './limits.js';
+
 export { getUserId, getMachineId } from './identity.js';
 
 export {

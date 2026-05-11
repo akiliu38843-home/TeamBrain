@@ -16,8 +16,10 @@ import {
   removeEntry,
   moveToDeadLetter,
   enforceCapacity,
+  isEntryTooLarge,
   DEFAULT_QUEUE_CAPACITY_BYTES,
 } from '../queue.js';
+import { MAX_PAYLOAD_BYTES } from '../../limits.js';
 import { digitalTwinPaths } from '../../paths.js';
 import type { CcSessionMetadata } from '../../schemas/cc-session.js';
 
@@ -266,5 +268,33 @@ describe('enforceCapacity', () => {
       );
       expect(deletedA.length).toBe(2);
     });
+  });
+});
+
+// Issue #266 F8 — payload-size predicate.
+describe('isEntryTooLarge (issue #266 F8)', () => {
+  it('returns false when payloadSize is at or below the cap', () => {
+    const home = freshHome();
+    writeEntry(home, 'small', 'x'.repeat(10));
+    const [e] = listPending(home);
+    if (!e) throw new Error('expected entry');
+    expect(isEntryTooLarge(e, 1024)).toBe(false);
+  });
+
+  it('returns true when payloadSize exceeds the cap', () => {
+    const home = freshHome();
+    writeEntry(home, 'big', 'x'.repeat(2048));
+    const [e] = listPending(home);
+    if (!e) throw new Error('expected entry');
+    expect(isEntryTooLarge(e, 1024)).toBe(true);
+  });
+
+  it('defaults to MAX_PAYLOAD_BYTES (100MB) when no override is passed', () => {
+    expect(MAX_PAYLOAD_BYTES).toBe(100 * 1024 * 1024);
+    const home = freshHome();
+    writeEntry(home, 'small', 'x'.repeat(10));
+    const [e] = listPending(home);
+    if (!e) throw new Error('expected entry');
+    expect(isEntryTooLarge(e)).toBe(false);
   });
 });
