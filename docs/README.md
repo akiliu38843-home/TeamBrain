@@ -6,22 +6,79 @@ the indexes below to choose what to read first.
 
 ## Start Here
 
+### Product & positioning
+
 | Goal | Read |
 | --- | --- |
 | Understand the product quickly | [系统展示.md](系统展示.md) |
+| See the three business features pitched to non-builders | [BUSINESS-FEATURES.md](BUSINESS-FEATURES.md) |
+| See the full 64-row engineering feature inventory (verified + not-yet) | [PRODUCT-FEATURES.md](PRODUCT-FEATURES.md) |
+| Look up per-feature canned answers (auto-capture, real-time intercept, calibrator, team-share, multi-tool) | [features/INDEX.md](features/INDEX.md) |
+| Author / extend a feature canned answer (6-section template, status enum, line budget) | [features/CONVENTIONS.md](features/CONVENTIONS.md) |
+| Understand the agentic-coding contract (boundaries, expectations) | [AGENTIC-CODING-POLICY.md](AGENTIC-CODING-POLICY.md) |
+
+### Architecture & mechanics
+
+| Goal | Read |
+| --- | --- |
 | Understand the architecture shape | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Look up implementation details | [SYSTEM.md](SYSTEM.md) |
-| Launch the real-time dashboard | Run `pnpm teamagent dashboard --watch --open` |
+| Map the project's runtime tools | [PROJECT-TOOLS.md](PROJECT-TOOLS.md) |
+| Understand domain terminology and glossary | [CONTEXT.md](CONTEXT.md) |
+| Understand project knowledge propagation | [knowledge/INDEX.md](knowledge/INDEX.md) |
+
+### Workflow — issue → PR → merge
+
+| Goal | Read |
+| --- | --- |
+| Read the canonical issue → PR → merge workflow (FIXEDFLOW) | [FIXEDFLOW.md](FIXEDFLOW.md) |
+| Know what to do after claiming an issue | [HOW-TO-CLAIM-ISSUE.md](HOW-TO-CLAIM-ISSUE.md) |
+| Triage a grilled large issue and split into smaller ones | [TRIAGE-AND-SPLIT.md](TRIAGE-AND-SPLIT.md) |
 | Plan a PR — what to write, what to ship, how to verify, which probes to run | [HOWTO-PLAN-PR.md](HOWTO-PLAN-PR.md) |
+| Pace commits, PRs, and merges (atomic-commits → squash-merge) | [COMMIT-FLOW.md](COMMIT-FLOW.md) |
+| Fix issues discovered after the PR is open (PR-PLAN, never follow-up issue) | [PR-PLAN.md](PR-PLAN.md) |
+| Run the after-`/review`-PASS post-PR cleanup (squash + worktree exit + main pull) | [POSTPR.md](POSTPR.md) |
+| Run multiple agents in parallel using the N+1+(2N) teamwork pattern | [TEAMWORK.md](TEAMWORK.md) |
+| Locate the `plan.md` / `research.md` / `report.md` project-level rules | [PLAN-RESEARCH-REPORT.md](PLAN-RESEARCH-REPORT.md) |
+| Write post-mortems (schema + sister-doc rules) | [POSTMORTEM.md](POSTMORTEM.md) |
+| Look up the isolated worktree provider (`.codex/worktrees/issue-<N>/` + `claude -w`) | [ISOLATED-WORKTREE.md](ISOLATED-WORKTREE.md) |
+
+### Verification & testing
+
+| Goal | Read |
+| --- | --- |
 | Verify or test a feature/fix, including PR review gates | [feature-verification.md](feature-verification.md) |
 | Run the autonomous verification loop on a product feature (#1–64) | [verify/RUN-VERIFY-LOOP.md](verify/RUN-VERIFY-LOOP.md) |
 | Prepare a verified-only CEO/VC ship-status CSV | [PRESHIP.md](PRESHIP.md) |
+| Run inner-loop tests on `wip/**` CI (ADR-0013) | [INNER-LOOP-TESTING.md](INNER-LOOP-TESTING.md) |
+| Drive `claudefast` JSON / stream-json probes (FASTPROBE) | [FASTPROBE.md](FASTPROBE.md) |
+| Understand the `claudefast` wrapper (MiniMax Anthropic-compatible profile) | [CLAUDEFAST.md](CLAUDEFAST.md) |
+| Understand the 12-field self-report Stop hook contract | [STOP-HOOKS.md](STOP-HOOKS.md) |
+| Check PR #14 status | [pr-14-status.md](pr-14-status.md) |
+
+### Install, propagation, and runtime UX
+
+| Goal | Read |
+| --- | --- |
+| Understand how `teamagent init` propagates project configs to users | [INIT-PROPAGATION.md](INIT-PROPAGATION.md) |
+| Read the self-update / auto-update flow (release-branch + soft-force prompt) | [SELF-UPDATE.md](SELF-UPDATE.md) |
+| Maintain the SessionStart Newsboard banner template | [newsboard.md](newsboard.md) |
+| Understand the statusline | [STATUSLINE.md](STATUSLINE.md) |
+| Look up the `issues` alias / zsh function | [issues-alias.md](issues-alias.md) |
+| Understand the local install / dogfood sandbox layout | [sandbox.md](sandbox.md) |
+
+### Dogfood & bug reporting
+
+| Goal | Read |
+| --- | --- |
 | Live-preview / dogfood agent edits in two tmux panes | [DOGFOOD.md](DOGFOOD.md) |
 | Report a bug — system info + repro + raw logs to GitHub | [BUGREPORT.md](BUGREPORT.md) |
-| Look up per-feature canned answers (auto-capture, real-time intercept, calibrator, team-share, multi-tool) | [features/INDEX.md](features/INDEX.md) |
-| Author / extend a feature canned answer (6-section template, status enum, line budget) | [features/CONVENTIONS.md](features/CONVENTIONS.md) |
-| Check PR #14 status | [pr-14-status.md](pr-14-status.md) |
-| Understand project knowledge propagation | [knowledge/INDEX.md](knowledge/INDEX.md) |
+| Launch the real-time dashboard | Run `pnpm teamagent dashboard --watch --open` |
+
+### Milestone & historical
+
+| Goal | Read |
+| --- | --- |
 | Find foundational specs | [specs/README.md](specs/README.md) |
 | Find later milestone specs and plans | [superpowers/README.md](superpowers/README.md) |
 | Review historical Phase 1 and superseded docs | [backup/README.md](backup/README.md) |
