@@ -169,11 +169,16 @@ describe('probeQuota', () => {
   });
 
   it('passes the OAuth bearer + anthropic-beta headers on the request', async () => {
-    const seen: { headers?: HeadersInit; body?: string; method?: string; url?: string } = {};
-    const fetchFn = (async (url: RequestInfo | URL, init?: RequestInit) => {
+    const seen: {
+      headers?: Record<string, string>;
+      body?: string;
+      method?: string;
+      url?: string;
+    } = {};
+    const fetchFn = (async (url: string | URL, init?: RequestInit) => {
       seen.url = String(url);
       seen.method = init?.method;
-      seen.headers = init?.headers;
+      seen.headers = init?.headers as Record<string, string>;
       seen.body = typeof init?.body === 'string' ? init.body : '';
       return new Response('{}', {
         status: 200,
@@ -188,7 +193,7 @@ describe('probeQuota', () => {
     await probeQuota(baseInput, { fetch: fetchFn });
     expect(seen.url).toBe('https://api.anthropic.com/v1/messages');
     expect(seen.method).toBe('POST');
-    const hdrs = seen.headers as Record<string, string>;
+    const hdrs = seen.headers ?? {};
     expect(hdrs.Authorization).toBe('Bearer sk-ant-fake');
     expect(hdrs['anthropic-version']).toBe('2023-06-01');
     expect(hdrs['anthropic-beta']).toBe('oauth-2025-04-20');
