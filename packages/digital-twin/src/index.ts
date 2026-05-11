@@ -115,9 +115,11 @@ export {
   removeEntry,
   moveToDeadLetter,
   enforceCapacity,
+  writeMetadataAtomic,
   DEFAULT_QUEUE_CAPACITY_BYTES,
   type QueueEntry,
   type LoadedEntry,
+  type LoadedEntryMetadata,
 } from './daemon/queue.js';
 
 export {
@@ -125,7 +127,7 @@ export {
   shouldDeadLetter,
   BASE_BACKOFF_MS,
   MAX_BACKOFF_MS,
-  MAX_FAILURES_BEFORE_DEAD_LETTER,
+  DEAD_LETTER_AFTER_MS,
 } from './daemon/backoff.js';
 
 export {

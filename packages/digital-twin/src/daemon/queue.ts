@@ -8,13 +8,14 @@
  *
  * tap-session writes payload+metadata pairs into pending/. The daemon scans
  * pending/ on each tick, uploads, and either unlinks (success), retries
- * (transient failure), or moves to dead-letter (>= MAX_FAILURES_BEFORE_DEAD_LETTER
- * cumulative failures).
+ * (transient failure), or moves to dead-letter once 24h has elapsed since
+ * the entry's persisted `first_failed_at` (issue #266 F7).
  */
 import {
   readdirSync,
   statSync,
   readFileSync,
+  writeFileSync,
   unlinkSync,
   renameSync,
   mkdirSync,
@@ -130,6 +131,23 @@ export function loadEntry(entry: QueueEntry): LoadedEntry | null {
     return { entry, payloadBytes, metadata: parsed };
   }
   return null;
+}
+
+/**
+ * Issue #266 F7 — atomically replace a queue entry's `.json` metadata file.
+ *
+ * The daemon scans `pending/` every 60s, so an interrupted write would
+ * leave a half-written JSON document and `loadEntry` would falsely
+ * dead-letter the entry for "invalid metadata" on the next tick. The
+ * temp + rename pattern is atomic on every filesystem we ship to.
+ */
+export function writeMetadataAtomic(
+  metadataPath: string,
+  metadata: LoadedEntryMetadata,
+): void {
+  const tmp = `${metadataPath}.tmp`;
+  writeFileSync(tmp, JSON.stringify(metadata, null, 2), 'utf-8');
+  renameSync(tmp, metadataPath);
 }
 
 /** Delete payload + metadata after successful upload. */

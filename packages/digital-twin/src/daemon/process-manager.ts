@@ -18,6 +18,8 @@ import {
   removeEntry,
   moveToDeadLetter,
   enforceCapacity,
+  writeMetadataAtomic,
+  type LoadedEntry,
   type QueueEntry,
 } from './queue.js';
 import { uploadEntry, type UploadOutcome, type FetchLike } from './uploader.js';
@@ -37,10 +39,26 @@ export interface PidFileContent {
   start_at: string;
 }
 
+/**
+ * Outcome for one queue entry in one cycle.
+ *
+ * Issue #266 F7: failure bookkeeping switched from an in-RAM count
+ * (`failures: number`) to a persisted ISO timestamp (`first_failed_at`)
+ * because the daemon idle-self-exits every 15 min and the in-RAM
+ * counter was being reset before pathological entries could ever reach
+ * the dead-letter threshold. The dead-letter reason for stale entries
+ * is therefore renamed `'too-old'` (was `'too-many-failures'`).
+ */
 export type CyclePerEntryOutcome =
   | { id: string; outcome: 'uploaded' }
-  | { id: string; outcome: 'transient'; failures: number; status?: number; error?: string }
-  | { id: string; outcome: 'dead-letter'; reason: 'permanent-failure' | 'too-many-failures'; failures: number; status?: number }
+  | { id: string; outcome: 'transient'; first_failed_at: string; status?: number; error?: string }
+  | {
+      id: string;
+      outcome: 'dead-letter';
+      reason: 'permanent-failure' | 'too-old';
+      first_failed_at?: string;
+      status?: number;
+    }
   | { id: string; outcome: 'auth-failed' }
   | { id: string; outcome: 'invalid-metadata' };
 
@@ -158,32 +176,35 @@ export function releasePidLock(home: string = osHomedir()): void {
 
 export interface RunCycleDeps {
   fetchFn?: FetchLike;
-  failures?: Map<string, number>;
   uploader?: typeof uploadEntry;
+  /**
+   * Issue #266 F7 — current clock injector. Defaults to `new Date()`.
+   * Tests pin the clock to deterministically exercise the 24h window.
+   */
+  now?: () => Date;
 }
 
 /**
  * Run one upload cycle: scan pending/, upload each, classify outcomes.
  *
- * `deps.failures` is a per-id failure counter that the caller maintains
- * across cycles. The daemon's main loop owns it (in-memory). On daemon
- * restart the counter resets — note this in PR description as accepted
- * tradeoff for v1.
+ * Issue #266 F7: the previous in-RAM failure counter (`Map<id, count>`)
+ * was removed. Failure bookkeeping is now persisted on the metadata
+ * file so the 24h dead-letter window survives daemon restarts.
  */
 export async function runUploadCycle(
   config: DaemonConfig,
   home: string = osHomedir(),
   deps: RunCycleDeps = {},
 ): Promise<CycleSummary> {
-  const failures = deps.failures ?? new Map<string, number>();
   const uploader = deps.uploader ?? uploadEntry;
+  const now = deps.now ?? (() => new Date());
   const entries = listPending(home);
   const outcomes: CyclePerEntryOutcome[] = [];
   let authFailed = false;
 
   for (const entry of entries) {
     if (authFailed) break;
-    const out = await processEntry(entry, config, failures, uploader, deps.fetchFn, home);
+    const out = await processEntry(entry, config, uploader, deps.fetchFn, home, now);
     outcomes.push(out);
     if (out.outcome === 'auth-failed') {
       authFailed = true;
@@ -196,10 +217,10 @@ export async function runUploadCycle(
 async function processEntry(
   entry: QueueEntry,
   config: DaemonConfig,
-  failures: Map<string, number>,
   uploader: typeof uploadEntry,
   fetchFn: FetchLike | undefined,
   home: string,
+  now: () => Date,
 ): Promise<CyclePerEntryOutcome> {
   const loaded = loadEntry(entry);
   if (!loaded) {
@@ -223,19 +244,19 @@ async function processEntry(
     { fetchFn },
   );
 
-  return classifyAndAct(entry, result, failures, home);
+  return classifyAndAct(entry, loaded, result, home, now());
 }
 
 function classifyAndAct(
   entry: QueueEntry,
+  loaded: LoadedEntry,
   result: UploadOutcome,
-  failures: Map<string, number>,
   home: string,
+  now: Date,
 ): CyclePerEntryOutcome {
   switch (result.kind) {
     case 'success': {
       removeEntry(entry);
-      failures.delete(entry.id);
       return { id: entry.id, outcome: 'uploaded' };
     }
     case 'auth-failed': {
@@ -243,35 +264,45 @@ function classifyAndAct(
     }
     case 'permanent-failure': {
       moveToDeadLetter(entry, home);
-      const f = (failures.get(entry.id) ?? 0) + 1;
-      failures.delete(entry.id);
-      return {
+      const out: CyclePerEntryOutcome = {
         id: entry.id,
         outcome: 'dead-letter',
         reason: 'permanent-failure',
-        failures: f,
         status: result.status,
       };
+      if (loaded.metadata.first_failed_at) {
+        out.first_failed_at = loaded.metadata.first_failed_at;
+      }
+      return out;
     }
     case 'transient':
     case 'network-error': {
-      const f = (failures.get(entry.id) ?? 0) + 1;
-      failures.set(entry.id, f);
-      if (shouldDeadLetter(f)) {
+      // Issue #266 F7: persist first_failed_at on the first transient/network
+      // failure so the 24h dead-letter window survives daemon restarts. The
+      // metadata write uses temp + rename so an interrupted write never
+      // leaves a half-parsed JSON file on disk.
+      let firstFailedAt = loaded.metadata.first_failed_at ?? null;
+      if (!firstFailedAt) {
+        firstFailedAt = now.toISOString();
+        writeMetadataAtomic(entry.metadataPath, {
+          ...loaded.metadata,
+          first_failed_at: firstFailedAt,
+        });
+      }
+      if (shouldDeadLetter(firstFailedAt, now)) {
         moveToDeadLetter(entry, home);
-        failures.delete(entry.id);
         return {
           id: entry.id,
           outcome: 'dead-letter',
-          reason: 'too-many-failures',
-          failures: f,
+          reason: 'too-old',
+          first_failed_at: firstFailedAt,
           status: 'status' in result ? result.status : undefined,
         };
       }
       return {
         id: entry.id,
         outcome: 'transient',
-        failures: f,
+        first_failed_at: firstFailedAt,
         status: 'status' in result ? result.status : undefined,
         error: 'error' in result ? result.error : undefined,
       };
@@ -316,14 +347,13 @@ export async function mainLoop(
   const shouldStop = deps.shouldStop ?? (() => false);
   const pollMs = deps.pollIntervalMs ?? POLL_INTERVAL_MS;
   const idleMs = deps.idleExitMs ?? IDLE_EXIT_MS;
-  const failures = new Map<string, number>();
 
   let idleAccumulatedMs = 0;
 
   while (!shouldStop()) {
     enforceCapacity(home);
 
-    const summary = await runCycle(config, home, { fetchFn: deps.fetchFn, failures });
+    const summary = await runCycle(config, home, { fetchFn: deps.fetchFn });
     deps.onCycle?.(summary);
 
     if (summary.authFailed) {
