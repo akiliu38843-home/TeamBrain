@@ -11,7 +11,7 @@ the indexes below to choose what to read first.
 | Goal | Read |
 | --- | --- |
 | Understand the product quickly | [系统展示.md](系统展示.md) |
-| See the three business features pitched to non-builders | [BUSINESS-FEATURES.md](BUSINESS-FEATURES.md) |
+| See the three business features + 4-layer evidence matrix (CEO / Coder / Machine-readable JSON / LLM-readable raw) | [BUSINESS-FEATURES.md](BUSINESS-FEATURES.md) |
 | See the full 64-row engineering feature inventory (verified + not-yet) | [PRODUCT-FEATURES.md](PRODUCT-FEATURES.md) |
 | Look up per-feature canned answers (auto-capture, real-time intercept, calibrator, team-share, multi-tool) | [features/INDEX.md](features/INDEX.md) |
 | Author / extend a feature canned answer (6-section template, status enum, line budget) | [features/CONVENTIONS.md](features/CONVENTIONS.md) |

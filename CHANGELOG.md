@@ -40,6 +40,14 @@ artifacts the user sees) do NOT need an entry.
 
 ### Changed
 
+- **Business features now ship with a 4-layer evidence matrix**
+  (`docs/BUSINESS-FEATURES.md`). Each of the three business features
+  carries proof for four independent audiences: CEO narrative, Coder
+  file paths, Machine-readable JSON+SQL, and LLM-readable raw
+  artifacts. Same RUN→DUMP→READ shape as the project testing rule —
+  four-layer pass means the feature is real, one-layer pass means it's
+  a pitch slide. README gains a top-level "三大业务特性" section linking
+  to the matrix.
 - **FIXEDFLOW driver review loop is now policy-canonical** (#279). The driver's
   `/review` fix-loop never ends until `/review` returns PASS — no max-iter,
   no token-budget exit, no auto-`needs-human`. If multiple drivers race on the
