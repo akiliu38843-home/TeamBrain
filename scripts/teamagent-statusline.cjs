@@ -38,16 +38,24 @@ const fs = require("node:fs");
 // worktree session. resolveProjectDbPath probes cwd first (preserves
 // non-worktree behaviour and lets explicit per-worktree init still win),
 // then follows the .git pointer to the main checkout if cwd has no DB.
+const PROJECT_DB_RELPATH = path.join(".teamagent", "knowledge.db");
+
 function findMainCheckoutFromWorktree(cwd) {
   try {
     const gitEntry = path.join(cwd, ".git");
     const st = fs.statSync(gitEntry);
     if (!st.isFile()) return null;
-    const content = fs.readFileSync(gitEntry, "utf-8").trim();
-    const m = content.match(/^gitdir:\s*(.+)$/);
+    const content = fs.readFileSync(gitEntry, "utf-8");
+    // /m flag so we still match when git (or third-party tools) emit a
+    // multi-line `.git` file like `gitdir: <path>\ncommondir: <path>`.
+    const m = content.match(/^gitdir:\s*(.+?)\s*$/m);
     if (!m) return null;
-    let gitdir = m[1].trim();
-    if (!path.isAbsolute(gitdir)) gitdir = path.resolve(cwd, gitdir);
+    const gitdir = m[1];
+    // Real `git worktree add` always writes absolute paths. Rejecting
+    // relative entries closes a path-traversal vector where a hostile
+    // `.git` file in an attacker-writable cwd could redirect us to read
+    // an arbitrary `.teamagent/knowledge.db`.
+    if (!path.isAbsolute(gitdir)) return null;
     // Only follow `<main>/.git/worktrees/<name>` shape — submodules use
     // `<super>/.git/modules/<name>` and must be ignored.
     const segs = gitdir.split(/[\\/]/);
@@ -60,13 +68,13 @@ function findMainCheckoutFromWorktree(cwd) {
 }
 
 function resolveProjectDbPath(cwd) {
-  const direct = path.resolve(cwd, ".teamagent/knowledge.db");
+  const direct = path.resolve(cwd, PROJECT_DB_RELPATH);
   try {
     if (fs.existsSync(direct)) return direct;
   } catch { /* ignore */ }
   const mainRoot = findMainCheckoutFromWorktree(cwd);
   if (mainRoot) {
-    const fromMain = path.join(mainRoot, ".teamagent", "knowledge.db");
+    const fromMain = path.join(mainRoot, PROJECT_DB_RELPATH);
     try {
       if (fs.existsSync(fromMain)) return fromMain;
     } catch { /* ignore */ }
