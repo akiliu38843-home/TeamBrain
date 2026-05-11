@@ -22,6 +22,23 @@ TeamAgent 解决这件事：从你纠正它的每一次对话里，自动**提�
 
 ---
 
+## 三大业务特性 / Business features
+
+```
+   ┌─ Feature 1 ─► 新 Claude Code instance 不再重复旧错      [已落地]
+   │
+TeamBrain ───┼─ Feature 2 ─► Team lead 秒级看见每个 teammate 在干什么   [愿景，hour/day 已落地]
+   │
+   └─ Feature 3 ─► 视频录制 + 集中存储易用                  [愿景，sidecar 已落地]
+```
+
+每条 business feature 都用 **4 层证据矩阵**（CEO 叙事 / Coder 实现 / Machine-readable JSON+SQL /
+LLM-readable raw artifact）独立证伪：四层全过 = feature 真实存在；只过 CEO 一层 = pitch slide。
+完整矩阵见 [docs/BUSINESS-FEATURES.md](docs/BUSINESS-FEATURES.md)；engineering-level 的 64-row
+功能清单见 [docs/PRODUCT-FEATURES.md](docs/PRODUCT-FEATURES.md)。
+
+---
+
 ### 快速安装（V1=1 单 prompt）
 
 ```bash
