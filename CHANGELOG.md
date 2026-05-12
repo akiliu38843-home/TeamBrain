@@ -13,6 +13,23 @@ artifacts the user sees) do NOT need an entry.
 
 ## Unreleased
 
+### Added
+
+- **`TEAMAGENT_DISABLED=1` env disables every TeamAgent hook** (issue #343, PR-1 of 3).
+  When this env is set to `"1"`, all 8 hook handlers — `SessionStart`,
+  `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`, `SessionEnd`,
+  `PreCompact`, and the user-level `digital-twin-tap` Stop hook — early-return
+  at handler entry. No `~/.teamagent` filesystem mutation, no AttributionBus
+  event, no matcher / M5 / analyze / embedder / digital-twin runtime work. The
+  hooks still produce minimal Claude Code envelopes (so the conversation
+  proceeds normally), they just don't do any TB-specific work.
+  Purpose: lets PR-2 / PR-3 (Counterfactual Ablation harness) measure the
+  paired TB-ON vs TB-OFF token cost without uninstalling TeamAgent. Without
+  this switch the only way to disable TB was `pnpm teamagent uninstall`,
+  which mutates `~/.claude/settings.json` and defeats paired t-test
+  stability. Any value other than `"1"` (including unset, `"0"`, `"true"`)
+  leaves all hooks fully enabled — opt-in by exact string match.
+
 ### Fixed
 
 - **Multi-session no longer multiplies the 650MB embedder model**. Issue #315.
