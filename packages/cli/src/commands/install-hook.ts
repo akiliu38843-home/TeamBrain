@@ -528,7 +528,21 @@ function applyChannelOps(opts: {
     }
 
     const bundlePath = resolveBundle(def.bundleFilename);
-    if (!bundlePath || !fs.existsSync(bundlePath)) continue;
+    if (!bundlePath || !fs.existsSync(bundlePath)) {
+      // Issue #299: previously a silent `continue` — the user-level
+      // digital-twin Stop tap was dropped without trace when 0.11.0 shipped
+      // without its bundle. Now we emit one stderr line so the user (and
+      // CI logs) can see exactly which channel was skipped and why. Install
+      // still continues — partial install is better than a hard failure for
+      // the cross-version-compat case the silent skip originally guarded
+      // against (older dist missing a newer bundle).
+      // The strict gate moved to `teamagent doctor` (checkInstallTableBundles),
+      // which fails-loud with exit non-zero on any missing install-table bundle.
+      process.stderr.write(
+        `teamagent: skipping channel ${def.channel} — bundle ${def.bundleFilename} not found\n`,
+      );
+      continue;
+    }
 
     let command: string;
     if (scope === "user") {
