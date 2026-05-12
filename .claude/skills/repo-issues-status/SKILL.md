@@ -1,6 +1,6 @@
 ---
 name: repo-issues-status
-description: TeamBrain 仓库 issue 全景报告。当用户问 "status of all issues" / "show me all issues" / "what issues are open" / "issue 状态" / "所有 issue 状态" / "issue 全景" / "仓库 issue 概览" 时触发。跑 `gh issue list` 拉全量 issue，按 TeamBrain label 公约（grill-ready / ready-for-human / needs-triage / codex / epic）分类，输出 总览 + 按主题分组表格 + 下一步建议，全文用 呷呷~ 鸭鸭口吻包裹。**只要用户问 issue 状态/全景/概览/还有哪些 open，无论用中文还是英文，无论是否明确说"all"，都用本 skill；不要回退到裸跑 `gh issue list` 然后口头描述。**
+description: TeamBrain 仓库**全量 issue 全景**报告（all-scope only）。仅当用户问"status of all issues" / "show me all issues" / "what issues are open" / "all open issues" / "issue 状态（全景）" / "所有 issue 状态" / "issue 全景" / "仓库 issue 概览" / "还有哪些 open issue" 这类**仓库级、多 issue、概览类**问题时触发。**不要在以下情况触发**：(a) 用户问单个 issue 的状态（"what's the status of issue #330" / "#330 怎么样"）→ 用 `gh issue view <N>`；(b) 用户问 PR 状态（"what's the status of this PR" / "PR 怎么样"）→ 用 `gh pr view`；(c) 用户问 issue 工作流而非数据（"how do I claim an issue"）→ 路由到 claim-to-merge skill。匹配命中后跑 `gh issue list` 拉全量 issue，按 TeamBrain label 公约（grill-ready / ready-for-human / needs-triage / codex / epic）分类，输出 总览 + 按主题分组表格 + 下一步建议，全文用 呷呷~ 鸭鸭口吻包裹。不要回退到裸跑 `gh issue list` 然后口头描述。
 ---
 
 ```
@@ -36,14 +36,20 @@ description: TeamBrain 仓库 issue 全景报告。当用户问 "status of all i
 
 ### 1. 拉数据（两次 gh 调用，必须实测，禁口胡）
 
+两次的 `--limit` 必须**对齐到 200**，否则总览的 `OPEN/CLOSED` 与分组统计会基于不同总数互相不一致。如果实际返回数等于 limit（说明被截断），必须在总览旁加 ⚠️ 标注 "数据被截断，实际 ≥ N 条"。
+
 ```bash
-gh issue list --state all --limit 50 \
+# Call 1：标题 + 状态 + 时间戳（all-state 200 条，按 # 倒序）
+gh issue list --state all --limit 200 \
   --json number,title,state,labels,assignees,updatedAt \
   --jq 'sort_by(.number) | reverse | .[] | "\(.number)\t\(.state)\t\(.title)\t[\(.labels|map(.name)|join(","))]\t\(.assignees|map(.login)|join(","))\t\(.updatedAt)"'
 
-gh issue list --state open --limit 100 \
+# Call 2：open issue 精确分组统计
+# 关键：先对 .labels 做 sort，再 group_by — 否则 ["bug","grill-ready"] 与
+# ["grill-ready","bug"] 会被算成两组，GitHub 不保证 label 数组顺序。
+gh issue list --state open --limit 200 \
   --json number,title,labels,assignees \
-  --jq '[.[] | {n: .number, labels: (.labels|map(.name)), assignee: (.assignees|map(.login)|join(","))}]
+  --jq '[.[] | {n: .number, labels: (.labels|map(.name)|sort), assignee: (.assignees|map(.login)|join(","))}]
         | group_by(.labels)
         | map({labels: (.[0].labels|join("|")), count: length, issues: (map(.n)|sort)})'
 ```
@@ -85,7 +91,7 @@ gh issue list --state open --limit 100 \
 5. **👀 Leader 视野 / status**（标题含 `leader` / `CEO` / `小b leader` / `状态栏` / `SessionStart` / `dashboard` / `8080` 这类 leader/CEO/status 视角）
 6. **📚 docs**（`documentation` label，或标题前缀 `docs(`）
 
-每个 issue 只放进**最匹配的一组**，不重复出现。如果两组都沾边，按上面顺序优先（P0 > epic > codex > recording > leader > docs）。
+每个 issue 只放进**最匹配的一组**，不重复出现。**P0 不是绝对优先级**：一个同时带 `bug` 和 `codex` label 的 issue 应该进 🪝 codex 组（更具体的领域），不应该被 P0 强行吸走。P0 只吸收"无明显归属"的新 bug —— 即满足 P0 定义且**不**同时落在 epic / codex / recording / leader / docs 任一组的 issue。当 2 个以上后置组都沾边时，按 epic > codex > recording > leader > docs 选最具体那个；docs 永远是最后兜底。
 
 ### 5. **下一步建议** section（3-5 条，必须带 # 引用）
 
@@ -106,7 +112,26 @@ gh issue list --state open --limit 100 \
 
 ### 7. 12-field self-report block（项目 Stop hook 硬约束）
 
-整条消息末尾必须 append 完整 12-field `<self-report>` block，全部填 `true|false` 布尔。模板见 user memory `practice_self_report_block.md` 与项目 `CLAUDE.md` 的 "TeamAgent 经验" 第 11 条。缺失或字段不全 = Stop hook block。
+整条消息末尾必须 append 完整 12-field `<self-report>` block，全部填 `true|false` 布尔，**字段顺序与名称必须完全一致**（少一个字段或写成旧版 6-field `<laziness-self-report>` 都会被项目 Stop hook 拦截）：
+
+```
+<self-report>
+premature_stopping: <true|false>
+permission_seeking: <true|false>
+ownership_dodging: <true|false>
+simplest_fix: <true|false>
+reasoning_loop: <true|false>
+known_limitation: <true|false>
+skipped_repo_search: <true|false>
+fabricated_value: <true|false>
+placeholder_used: <true|false>
+ambiguity_unresolved: <true|false>
+contradiction_unresolved: <true|false>
+silent_fallback: <true|false>
+</self-report>
+```
+
+uniform: `true` = bad signal。如果有 `true`，**不要单纯翻成 false**，而是在同一轮 fix 掉对应行为再 re-attest。背景见 user memory `practice_self_report_block.md` 与项目 `CLAUDE.md` 的 "TeamAgent 经验" 第 11 条。
 
 ## 失败模式（禁止做的）
 
