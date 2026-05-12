@@ -1,31 +1,33 @@
 /**
- * DaemonFirstEmbedder (issue #164).
+ * DaemonFirstEmbedder (issue #164 + issue #315).
  *
- * Wraps two RuleEmbedder strategies:
- *   1. Try the long-running daemon over HTTP (per-call ~5ms).
- *   2. Fall back to an in-process XenovaRuleEmbedder (per-call ~3-4s on
- *      first load — same cost as today, but only when daemon unavailable).
+ * Tries the long-running embedder daemon over HTTP (per-call ~5ms). When
+ * the daemon is unreachable, returns one empty vector per input text and
+ * fires a best-effort detached daemon spawn so the *next* hook can use
+ * the fast path; the current hook does not wait.
  *
- * The fallback embedder is lazy: nothing is loaded into the hook process
- * unless the daemon path actually fails. So under the happy path (daemon
- * running), hooks stay tiny (no 650MB load).
- *
- * When the daemon is down, this also fires off a best-effort detached
- * spawn so the *next* hook gets the daemon path. Spawn is fire-and-forget;
- * the current hook does not wait for it.
+ * Issue #315: previously the unreachable branch loaded an in-process
+ * `XenovaRuleEmbedder` (650MB RSS) as a fallback. That fallback was the
+ * secondary RAM-bomb amplifier for multi-session usage — during the 3-4s
+ * daemon cold-load window EVERY hook process loaded its own copy of the
+ * model. Removing it means daemon-unreachable now degrades the retriever
+ * to BM25-only (vec0 `WHERE vec MATCH ?` errors on a 0-byte buffer →
+ * SqliteSemanticRetriever's per-stage try/catch swallows it and the
+ * final result contains BM25 RRF only). BM25-only is an existing
+ * code path, not a new one.
  */
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import type { RuleEmbedder } from "@teamagent/ports";
-import { XenovaRuleEmbedder } from "@teamagent/adapters";
 import { embedViaDaemon } from "./embedder-client.js";
 import {
   defaultEmbedderStatePath,
   describeDaemonReadiness,
   readEmbedderState,
 } from "./embedder-state.js";
+import { tryAcquireSpawnLock } from "./embedder-spawn-lock.js";
 
 const DEFAULT_MODEL = "Xenova/multilingual-e5-small";
 const DEFAULT_DIM = 384;
@@ -49,7 +51,6 @@ export class DaemonFirstEmbedder implements RuleEmbedder {
   private readonly statePath: string;
   private readonly timeoutMs: number;
   private readonly autoSpawn: boolean;
-  private fallback: XenovaRuleEmbedder | null = null;
   private spawnAttempted = false;
 
   constructor(opts: DaemonFirstEmbedderOpts = {}) {
@@ -76,10 +77,11 @@ export class DaemonFirstEmbedder implements RuleEmbedder {
       tryDetachedSpawn(this.statePath);
     }
 
-    if (!this.fallback) {
-      this.fallback = new XenovaRuleEmbedder({ modelId: this.modelId });
-    }
-    return this.fallback.embed(texts);
+    // Issue #315: return one empty vector per input text. The semantic
+    // retriever's vec0 stages will error on the 0-byte buffer and the
+    // per-stage try/catch will swallow it, so the final RRF result
+    // contains BM25 scores only. No 650MB in-process load.
+    return texts.map(() => []);
   }
 }
 
@@ -87,8 +89,18 @@ export class DaemonFirstEmbedder implements RuleEmbedder {
  * Best-effort detached spawn of bin-embedder.cjs. Locates the bin via the
  * known dist path or via TEAMAGENT_EMBEDDER_BIN env override.
  *
- * Idempotent under concurrent callers via file-state lock check (the daemon
- * itself refuses to start when another live pid owns the state file).
+ * Issue #315 (Race α): when N SessionStart hooks fire concurrently with no
+ * daemon yet running, all N call `tryDetachedSpawn`, see the missing state
+ * file, and each spawn a detached child process. The losers' children
+ * exit gracefully once a winner writes `state.status=starting` — but until
+ * that write happens, every spawned child is a 650MB-resident node
+ * process. On a 5-Claude-window opening, that's a 3.25GB transient spike.
+ *
+ * Fix: atomically claim `<statePath>.spawn.lock` via `fs.openSync(wx)`.
+ * Only the winner proceeds to spawn; concurrent losers skip silently. Lock
+ * is released after the spawn() syscall returns — the daemon child writes
+ * its own state file independently. Stale locks (mtime > 30s) are
+ * auto-cleared by the next acquirer.
  */
 export function tryDetachedSpawn(statePath: string): void {
   try {
@@ -100,12 +112,27 @@ export function tryDetachedSpawn(statePath: string): void {
 
     const binPath = resolveEmbedderBin();
     if (!binPath) return;
-    const child = spawn(process.execPath, [binPath, "--state-path", statePath], {
-      detached: true,
-      stdio: "ignore",
-      windowsHide: true,
-    });
-    child.unref();
+
+    // Race α defense: only one spawner at a time.
+    const lock = tryAcquireSpawnLock(`${statePath}.spawn.lock`);
+    if (!lock) return;
+    try {
+      // Re-check readiness after acquiring the lock — a previous spawner
+      // may have completed between our first check and our wx-create.
+      const r2 = describeDaemonReadiness(statePath);
+      if (r2.ready) return;
+      const s2 = readEmbedderState(statePath);
+      if (s2 && s2.status === "starting") return;
+
+      const child = spawn(process.execPath, [binPath, "--state-path", statePath], {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+      });
+      child.unref();
+    } finally {
+      lock.release();
+    }
   } catch {
     // best-effort
   }
