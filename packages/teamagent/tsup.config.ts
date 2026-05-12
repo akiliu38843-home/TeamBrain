@@ -2,7 +2,11 @@ import { defineConfig } from "tsup";
 import fs from "node:fs";
 import path from "node:path";
 
-const ENTRIES = {
+// Issue #299: exported so packages/cli tests can assert parity with
+// install-hook.ts's ALL_CHANNELS install table. Every user-installable
+// bundleFilename declared in that table MUST appear as a key here,
+// otherwise the released dist silently drops the corresponding hook.
+export const ENTRIES = {
   bin:                      "../cli/src/bin.ts",
   "bin-pre-tool-use":       "../cli/src/bin-pre-tool-use.ts",
   "bin-post-tool-use":      "../cli/src/bin-post-tool-use.ts",
