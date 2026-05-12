@@ -34,7 +34,10 @@ const entries = SKILLS.map((name) => {
     console.error(`MISSING source: ${src}`);
     process.exit(1);
   }
-  const content = fs.readFileSync(src, "utf8");
+  const raw = fs.readFileSync(src, "utf8");
+  // Normalize CRLF -> LF so a Windows checkout's autocrlf doesn't poison the
+  // inline string (Ubuntu CI reads SKILL.md as LF and would otherwise mismatch).
+  const content = raw.replace(/\r\n/g, "\n");
   return `  ${JSON.stringify(name)}: ${JSON.stringify(content)},`;
 }).join("\n");
 
